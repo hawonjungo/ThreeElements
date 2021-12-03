@@ -1,2 +1,19 @@
-﻿  main.cpp
-  Three Elements.vcxproj -> E:\Study\AIT\Game engine\Three Elements\x64\Debug\Three Elements.exe
+﻿Image.obj : error LNK2005: "struct SDL_Window * gWindow" (?gWindow@@3PEAUSDL_Window@@EA) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Renderer * gRenderer" (?gRenderer@@3PEAUSDL_Renderer@@EA) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Texture * bgTexture" (?bgTexture@@3PEAUSDL_Texture@@EA) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Texture * gTexture" (?gTexture@@3PEAUSDL_Texture@@EA) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Rect srcRect" (?srcRect@@3USDL_Rect@@A) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Rect destRect" (?destRect@@3USDL_Rect@@A) already defined in Common_Function.obj
+Image.obj : error LNK2005: "struct SDL_Surface * loadedSurface" (?loadedSurface@@3PEAUSDL_Surface@@EA) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Window * gWindow" (?gWindow@@3PEAUSDL_Window@@EA) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Renderer * gRenderer" (?gRenderer@@3PEAUSDL_Renderer@@EA) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Texture * bgTexture" (?bgTexture@@3PEAUSDL_Texture@@EA) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Texture * gTexture" (?gTexture@@3PEAUSDL_Texture@@EA) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Rect srcRect" (?srcRect@@3USDL_Rect@@A) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Rect destRect" (?destRect@@3USDL_Rect@@A) already defined in Common_Function.obj
+main.obj : error LNK2005: "struct SDL_Surface * loadedSurface" (?loadedSurface@@3PEAUSDL_Surface@@EA) already defined in Common_Function.obj
+Common_Function.obj : error LNK2019: unresolved external symbol "public: __cdecl Image::Image(void)" (??0Image@@QEAA@XZ) referenced in function "void __cdecl `dynamic initializer for 'img''(void)" (??__Eimg@@YAXXZ)
+main.obj : error LNK2019: unresolved external symbol "public: __cdecl LTexture::LTexture(void)" (??0LTexture@@QEAA@XZ) referenced in function "void __cdecl `dynamic initializer for 'gSpriteSheetTexture''(void)" (??__EgSpriteSheetTexture@@YAXXZ)
+main.obj : error LNK2019: unresolved external symbol "public: bool __cdecl LTexture::loadFromFile(class std::basic_string<char,struct std::char_traits<char>,class std::allocator<char> >)" (?loadFromFile@LTexture@@QEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z) referenced in function "bool __cdecl loadMedia(void)" (?loadMedia@@YA_NXZ)
+main.obj : error LNK2019: unresolved external symbol "public: void __cdecl LTexture::free(void)" (?free@LTexture@@QEAAXXZ) referenced in function "public: __cdecl LTexture::~LTexture(void)" (??1LTexture@@QEAA@XZ)
+E:\Study\AIT\Game engine\Three Elements\x64\Debug\Three Elements.exe : fatal error LNK1120: 4 unresolved externals
