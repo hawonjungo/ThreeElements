@@ -1,9 +1,122 @@
 
 #include "GameObject.h"
 
-//GameObject gSpriteSheetTexture;
+BaseObject g_background;
+bool  GameObject::loadBackground() {
+
+    bool success = true;
+    ////Load PNG texture
+    bgTexture = loadTexture("assets/bg.png");
+    if (bgTexture == NULL)
+    {
+        printf("Failed to load texture image!\n");
+        success = false;
+
+              
+
+        return success;
+    }
+}
 
 
+
+bool GameObject::init() {
+    //Initialization flag
+    bool success = true;
+
+    //Initialize SDL
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
+        success = false;
+    }
+    else {
+        //Set texture filtering to linear
+        if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
+        {
+            printf("Warning: Linear texture filtering not enabled!");
+        }
+
+        //Create window
+        gWindow = SDL_CreateWindow("Three Elements", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+        if (gWindow == NULL) {
+            printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
+            success = false;
+        }
+        else
+        {
+            //Create renderer for window
+            gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
+            if (gRenderer == NULL)
+            {
+                printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
+                success = false;
+            }
+            else
+            {
+                //Initialize renderer color
+                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+
+                //Initialize PNG loading
+                int imgFlags = IMG_INIT_PNG;
+                if (!(IMG_Init(imgFlags) & imgFlags))
+                {
+                    printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
+                    success = false;
+                }
+            }
+        }
+    }
+    return success;
+}
+
+bool GameObject::loadMedia() {
+    //Loading success flag
+    bool success = true;
+
+
+    ////Load PNG texture
+    //bgTexture = loadTexture("assets/bg.png");
+    //if (bgTexture == NULL)
+    //{
+    //    printf("Failed to load texture image!\n");
+    //    success = false;
+    //}
+
+    //Load sprite sheet texture
+    bool bLoadFile = loadFromFile("assets/mushroom_run.png");
+    if (!bLoadFile)
+    {
+        printf("Failed to load walking animation texture!\n");
+        success = false;
+    }
+    else
+    {
+        loadedSurface = IMG_Load("assets/run.bmp");
+        gTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface);
+        SDL_FreeSurface(loadedSurface);
+    }
+
+
+
+    return success;
+}
+
+void GameObject::close()
+{
+    //Free loaded image
+    SDL_DestroyTexture(gTexture);
+    gTexture = NULL;
+
+    //Destroy window	
+    SDL_DestroyRenderer(gRenderer);
+    SDL_DestroyWindow(gWindow);
+    gWindow = NULL;
+    gRenderer = NULL;
+
+    //Quit SDL subsystems
+    IMG_Quit();
+    SDL_Quit();
+}
 
 
 void GameObject::draw(int x, int y, SDL_Renderer* renderer) {
@@ -111,102 +224,7 @@ int GameObject::getHeight()
     return mHeight;
 }
 
-bool GameObject::init() {
-    //Initialization flag
-    bool success = true;
 
-    //Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
-        success = false;
-    }
-    else {
-        //Set texture filtering to linear
-        if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
-        {
-            printf("Warning: Linear texture filtering not enabled!");
-        }
-
-        //Create window
-        gWindow = SDL_CreateWindow("Three Elements", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-        if (gWindow == NULL) {
-            printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
-            success = false;
-        }
-        else
-        {
-            //Create renderer for window
-            gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
-            if (gRenderer == NULL)
-            {
-                printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
-                success = false;
-            }
-            else
-            {
-                //Initialize renderer color
-                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-                //Initialize PNG loading
-                int imgFlags = IMG_INIT_PNG;
-                if (!(IMG_Init(imgFlags) & imgFlags))
-                {
-                    printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
-                    success = false;
-                }
-            }
-        }
-    }
-    return success;
-}
-
-bool GameObject::loadMedia() {
-    //Loading success flag
-    bool success = true;
-
-    //Load PNG texture
-    bgTexture = loadTexture("assets/bg.png");
-    if (bgTexture == NULL)
-    {
-        printf("Failed to load texture image!\n");
-        success = false;
-    }
-
-    //Load sprite sheet texture
-    bool bLoadFile = loadFromFile("assets/mushroom_run.png"); // cach viet nay no tot hon
-    if (!bLoadFile)
-    {
-        printf("Failed to load walking animation texture!\n");
-        success = false;
-    }
-    else
-    {
-        loadedSurface = IMG_Load("assets/run.bmp");
-        gTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface);
-        SDL_FreeSurface(loadedSurface);
-    }
-
-
-
-    return success;
-}
-
-void GameObject::close()
-{
-    //Free loaded image
-    SDL_DestroyTexture(gTexture);
-    gTexture = NULL;
-
-    //Destroy window	
-    SDL_DestroyRenderer(gRenderer);
-    SDL_DestroyWindow(gWindow);
-    gWindow = NULL;
-    gRenderer = NULL;
-
-    //Quit SDL subsystems
-    IMG_Quit();
-    SDL_Quit();
-}
 
 SDL_Texture* GameObject::loadTexture(std::string path) {
     //The final texture
@@ -255,3 +273,5 @@ void GameObject::animateSprite() {
 void GameObject::updateScreen() {
     SDL_RenderPresent(gRenderer);
 }
+
+

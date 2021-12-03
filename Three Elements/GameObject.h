@@ -6,9 +6,22 @@
 #include <stdio.h>
 #include <string>
 
+#include "BaseObject.h"
+
 //Screen dimension constants
 const int SCREEN_WIDTH = 928;
 const int SCREEN_HEIGHT = 544;
+
+
+//The window we'll be rendering to
+static  SDL_Window* gWindow = NULL;
+
+//The window renderer
+static SDL_Renderer* gRenderer = NULL;
+
+//Current displayed texture
+static SDL_Texture* bgTexture = NULL;
+
 
 
 
@@ -40,6 +53,7 @@ public:
 	//Loads media
 	bool loadMedia();
 
+	bool loadBackground();
 
 	//Frees media and shuts down SDL
 	void close();
@@ -51,8 +65,8 @@ public:
 	//Gets image dimensions
 	int getWidth();
 	int getHeight();
-
-
+	
+	
 	void clearScreen();
 
 	void renderScreen();
@@ -63,14 +77,8 @@ public:
 
 
 protected:
-	//The window we'll be rendering to
-	SDL_Window* gWindow = NULL;
 
-	//The window renderer
-	SDL_Renderer* gRenderer = NULL;
-
-	//Current displayed texture
-	SDL_Texture* bgTexture = NULL;
+	
 	SDL_Texture* gTexture = NULL;
 	//The actual hardware texture
 	SDL_Texture* mTexture;

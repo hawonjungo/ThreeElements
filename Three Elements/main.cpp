@@ -1,8 +1,12 @@
 #include "GameObject.h"
+#include "BaseObject.h"
+
 
 
 
  GameObject* gameobject = new GameObject();
+
+
 
 
 
@@ -23,6 +27,8 @@
          }
          else
          {
+             gameobject->loadBackground();
+
              //Main loop flag
              bool quit = false;
 
