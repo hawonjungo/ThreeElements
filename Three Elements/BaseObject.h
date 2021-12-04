@@ -21,8 +21,11 @@ public:
 		return p_object_;
 	}
 
-	void  render(SDL_Renderer* des, const SDL_Rect* clip);
 	bool loadImg(std::string path, SDL_Renderer* screen);
+	void render(SDL_Renderer* des, const SDL_Rect* clip);	
+
+	void show(SDL_Renderer* des);
+
 	void free();
 
 

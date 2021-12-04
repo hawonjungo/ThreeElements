@@ -1,14 +1,12 @@
 #include "GameObject.h"
 #include "BaseObject.h"
 
+#include "MainObject.h"
 
 
 
  GameObject* gameobject = new GameObject();
-
-
-
-
+ MainObject player;
 
 
  int main(int argc, char* args[])
@@ -28,6 +26,23 @@
          else
          {
              gameobject->loadBackground();
+             
+
+             player.setRect(10, 375);  
+             bool ret = player.loadImg("assets/run.bmp", gRenderer);
+
+             if (!ret) {
+                 return 0;
+             }
+             player.show(gRenderer);
+             
+
+
+
+
+
+
+
 
              //Main loop flag
              bool quit = false;

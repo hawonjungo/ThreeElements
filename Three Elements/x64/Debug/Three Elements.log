@@ -1,3 +1,8 @@
-﻿  GameObject.cpp
-E:\Study\AIT\Game engine\Three Elements\Three Elements\GameObject.cpp(20): warning C4715: 'GameObject::loadBackground': not all control paths return a value
+﻿  BaseObject.cpp
+  GameObject.cpp
+  MainObject.cpp
+  ThreatObject.cpp
+  main.cpp
+  Generating Code...
+E:\Study\AIT\Game engine\Three Elements\Three Elements\GameObject.cpp(19): warning C4715: 'GameObject::loadBackground': not all control paths return a value
   Three Elements.vcxproj -> E:\Study\AIT\Game engine\Three Elements\x64\Debug\Three Elements.exe

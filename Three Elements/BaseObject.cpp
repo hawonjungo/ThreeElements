@@ -43,6 +43,13 @@ bool BaseObject::loadImg(std::string path,SDL_Renderer* screen){
 	return p_object_ != NULL;
 }
 
+void BaseObject::show(SDL_Renderer* des)
+{
+	if (p_object_ != NULL) {
+		loadImg("assets/run.bmp", des);
+	}
+}
+
 void  BaseObject::render(SDL_Renderer* render, const SDL_Rect* clip) {
 	//Set rendering space and render to screen
 	SDL_Rect renderQuad = { rect_.x, rect_.y, rect_.w,rect_.h };

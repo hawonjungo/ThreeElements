@@ -83,7 +83,7 @@ bool GameObject::loadMedia() {
     //}
 
     //Load sprite sheet texture
-    bool bLoadFile = loadFromFile("assets/mushroom_run.png");
+    bool bLoadFile = loadFromFile("assets/run.bmp");
     if (!bLoadFile)
     {
         printf("Failed to load walking animation texture!\n");
