@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameObject.h"
+#include "GameManager.h"
 
 #ifndef BASE_OBJECT_H_
 #define BASE_OBHECT_H_

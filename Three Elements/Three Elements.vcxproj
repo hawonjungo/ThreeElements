@@ -146,14 +146,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BaseObject.cpp" />
-    <ClCompile Include="GameObject.cpp" />
+    <ClCompile Include="GameManager.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainObject.cpp" />
     <ClCompile Include="ThreatObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseObject.h" />
-    <ClInclude Include="GameObject.h" />
+    <ClInclude Include="GameManager.h" />
     <ClInclude Include="MainObject.h" />
     <ClInclude Include="ThreatObject.h" />
   </ItemGroup>

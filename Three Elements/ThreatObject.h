@@ -3,7 +3,7 @@
 #ifndef THREAT_OBJECT_H_
 #define THREAT_OBJECT_H_
 
-#include "GameObject.h"
+#include "GameManager.h"
 #include "BaseObject.h"
 
 #define THREAT_fRAME_NUM 8

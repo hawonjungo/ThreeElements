@@ -2,7 +2,7 @@
 #ifndef MAIN_OBJECT_H_
 #define MAIN_OBJECT_H_
 
-#include "GameObject.h"
+#include "GameManager.h"
 #include "BaseObject.h"
 
 #define WIDTH_MAIN_OBJECT 224

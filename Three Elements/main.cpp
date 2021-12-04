@@ -1,16 +1,16 @@
-#include "GameObject.h"
+#include "GameManager.h"
 #include "BaseObject.h"
 
 #include "MainObject.h"
 
 
 
- GameObject* gameobject = new GameObject();
+GameManager* gameobject = new GameManager();
  MainObject player;
 
 
 
- bool GameObject::init() {
+ bool GameManager::init() {
      //Initialization flag
      bool success = true;
 
@@ -59,7 +59,7 @@
      return success;
  }
 
- bool GameObject::loadMedia() {
+ bool GameManager::loadMedia() {
      //Loading success flag
      bool success = true;
 
