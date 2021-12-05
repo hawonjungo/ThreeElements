@@ -1,103 +1,50 @@
-#pragma once
+
+#ifndef GAME_MANAGER_H_
+#define GAME_MANAGER_H_
 
 //Using SDL, SDL_image, standard IO, and strings
-#include <SDL.h>
-#include <SDL_image.h>
-#include <stdio.h>
-#include <string>
+#include"Define.h"
 
+#include "MainObject.h"
 #include "BaseObject.h"
+#include "Enemy.h"
+#include <vector>
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 928;
 const int SCREEN_HEIGHT = 544;
 
+const int FRAME_PER_SECOND = 25;  // fps
 
-//The window we'll be rendering to
-static  SDL_Window* gWindow = NULL;
+const int RENDER_DRAW_COLOR = 0Xff;
 
-//The window renderer
-static SDL_Renderer* gRenderer = NULL;
-
-//Current displayed texture
-static SDL_Texture* bgTexture = NULL;
-
-
-
-
-class GameManager {
-public:
-	//Initializes variables
-	GameManager();
-	//Deallocates memory
-	~GameManager();
-
-
-
-	//Deallocates texture
-	void free();
-
-	//Renders texture at given point
-	void render(int x, int y, SDL_Rect* clip = NULL);
-
-
-	void draw(int x, int y, SDL_Renderer* renderer);
-
-
-	//Starts up SDL and creates window
-	bool init();
-
-	//Loads image at specified path
-	bool loadFromFile(std::string path);
-
-	//Loads media
-	bool loadMedia();
-
-	bool loadBackground();
-
-	//Frees media and shuts down SDL
-	void close();
-
-	//Loads individual image as texture
-	SDL_Texture* loadTexture(std::string path);
-
-
-	//Gets image dimensions
-	int getWidth();
-	int getHeight();
-	
-	
-	void clearScreen();
-
-	void renderScreen();
-
-	void animateSprite();
-
-	void updateScreen();
-
+class GameManager
+{
+private:
+    static GameManager* instance_;
+    GameManager();
 
 protected:
+    SDL_Window* m_window;
+    SDL_Renderer* m_screen;
+    SDL_Event m_event;
 
-	
-	SDL_Texture* gTexture = NULL;
-	//The actual hardware texture
-	SDL_Texture* mTexture;
+    BaseObject m_background;
+    MainObject m_player;
+    EnemyObject m_Enemy;  // temp, could be use to set x and random value later
 
-	//Walking animation
-
-
-	//------------RECT-----------------
-	SDL_Rect srcRect;
-	SDL_Rect destRect;
-
-
-
-	//Load image at specified path
-	SDL_Surface* loadedSurface;
-
-	//Image dimensions
-	int mWidth;
-	int mHeight;
-	int posX;
-	int posY;
+    std::vector<EnemyObject*> m_Enemylist;
+public:
+    static GameManager* getInstace()
+    {
+        if (instance_ == NULL)
+            instance_ = new GameManager();
+        return instance_;
+    }
+    
+    bool InitSDL();
+    void LoopGame();
+    void Close();
 };
+
+#endif

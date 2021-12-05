@@ -1,129 +1,42 @@
 #include "GameManager.h"
 #include "BaseObject.h"
 
-#include "MainObject.h"
 
 
-
-GameManager* gameobject = new GameManager();
- MainObject player;
-
-
-
- bool GameManager::init() {
-     //Initialization flag
-     bool success = true;
-
-     //Initialize SDL
-     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-         printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
-         success = false;
-     }
-     else {
-         //Set texture filtering to linear
-         if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
-         {
-             printf("Warning: Linear texture filtering not enabled!");
-         }
-
-         //Create window
-         gWindow = SDL_CreateWindow("Three Elements", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-         if (gWindow == NULL) {
-             printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
-             success = false;
-         }
-         else
-         {
-             //Create renderer for window
-             gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
-             if (gRenderer == NULL)
-             {
-                 printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
-                 success = false;
-             }
-             else
-             {
-                 //Initialize renderer color
-                 SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-                 //Initialize PNG loading
-                 int imgFlags = IMG_INIT_PNG;
-                 if (!(IMG_Init(imgFlags) & imgFlags))
-                 {
-                     printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
-                     success = false;
-                 }
-             }
-         }
-     }
-     return success;
- }
-
- bool GameManager::loadMedia() {
-     //Loading success flag
-     bool success = true;
-
-
-     ////Load PNG texture
-     //bgTexture = loadTexture("assets/bg.png");
-     //if (bgTexture == NULL)
-     //{
-     //    printf("Failed to load texture image!\n");
-     //    success = false;
-     //}
-
-     //Load sprite sheet texture
-     bool bLoadFile = loadFromFile("assets/run.bmp");
-     if (!bLoadFile)
-     {
-         printf("Failed to load walking animation texture!\n");
-         success = false;
-     }
-     else
-     {
-         loadedSurface = IMG_Load("assets/run.bmp");
-         gTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface);
-         SDL_FreeSurface(loadedSurface);
-     }
-
-
-
-     return success;
- }
+GameManager* g_GameMan = GameManager::getInstace();
 
 
  int main(int argc, char* args[])
  {
+
+     bool ret = g_GameMan->InitSDL();
+     if (ret)
+     {
+         g_GameMan->LoopGame();
+     }
+     
+
+#if 0
      //Start up SDL and create window
-     if (!gameobject->init())
+     if (!baseObject->init())
      {
          printf("Failed to initialize!\n");
      }
      else
      {
          //Load media
-         if (!gameobject->loadMedia())
+         if (!baseObject->loadMedia())
          {
              printf("Failed to load media!\n");
          }
          else
          {
-             gameobject->loadBackground();
+
+             baseObject->loadBackground();
+             //gameManage->loadMainCharacter();
+
+
              
-
-             player.setRect(10, 375);  
-             bool ret = player.loadImg("assets/mushroom_run.png", gRenderer);
-
-             if (!ret) {
-                 return 0;
-             }
-             player.show(gRenderer);
-             
-
-
-
-
-
 
 
 
@@ -149,20 +62,20 @@ GameManager* gameobject = new GameManager();
                      }
                  }
                  //Clear screen
-                 gameobject->clearScreen();
+                 baseObject->clearScreen();
 
 
                  // animate sprite
-                 gameobject->animateSprite();
+                 baseObject->animateSprite();
 
 
                  //Render texture to screen
-                 gameobject->renderScreen();
+                 baseObject->renderScreen();
 
 
 
                  //Update screen
-                 gameobject->updateScreen();
+                 baseObject->updateScreen();
 
 
              }
@@ -170,9 +83,10 @@ GameManager* gameobject = new GameManager();
      }
 
      //Free resources and close SDL
-     gameobject->close();
+     baseObject->close();
 
 
      system("pause");
+#endif
      return 0;
  }
