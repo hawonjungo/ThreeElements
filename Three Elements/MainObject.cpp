@@ -31,6 +31,39 @@ MainObject::~MainObject()
 
 void MainObject::keyHandle(SDL_Event event)
 {
+	SDL_Event event;
+	while (SDL_PollEvent(&event))
+	{
+		switch (event.type) {
+		caseSDL_KEYDOWN:
+			switch (event.key.keysym.sym) {
+			caseDLK_q:
+				//todo
+				break;
+			caseDLK_w:
+				//todo
+				break;
+			caseDLK_e:
+				//todo
+				break;
+			caseDLK_r:
+				//todo
+				break;
+			caseDLK_d:
+				//todo
+				break;
+			caseDLK_f:
+				//todo
+				break;
+			default:
+				break;
+			}
+		default:
+			break;
+
+		}
+	}
+
 }
 
 bool MainObject::LoadImg(std::string path, SDL_Renderer* screen)

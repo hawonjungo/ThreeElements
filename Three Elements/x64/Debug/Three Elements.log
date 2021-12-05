@@ -1,2 +1,4 @@
-﻿  Enemy.cpp
-  Three Elements.vcxproj -> E:\Study\AIT\Game engine\Three Elements\x64\Debug\Three Elements.exe
+﻿  MainObject.cpp
+E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(34,17): error C2082: redefinition of formal parameter 'event'
+E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(60,4): warning C4065: switch statement contains 'default' but no 'case' labels
+E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(64,3): warning C4065: switch statement contains 'default' but no 'case' labels

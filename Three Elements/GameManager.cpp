@@ -85,38 +85,110 @@ bool GameManager::InitSDL()
 
 void GameManager::LoopGame()
 {
+    // frame fps
     ImpTimer fps_timer;
 
+    //background
     bool bBkgn = m_background.LoadImg("assets/bg.png", m_screen);
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
+    // enemy
     EnemyObject* enemy1 = new EnemyObject();
     EnemyObject* enemy2 = new EnemyObject();
     bool bEnemy1 = enemy1->LoadImg("assets/mushroom_run.png", m_screen);
-                   enemy2->LoadImg("assets/ene1.png", m_screen);
-
+                   enemy2->LoadImg("assets/goblin_run.png", m_screen);
                    m_Enemylist.push_back(enemy1);
                    m_Enemylist.push_back(enemy2);
-                   
-    if (bEnemy1)
-    {
-        for (int i = 0; i < m_Enemylist.size(); i++)
-        {
-            m_Enemylist[i]->set_clips();
-            m_Enemylist[i]->SetPos(800, 375);
-            m_Enemylist[i]->SetVal(5, 0);
-        }              
-    }
 
-    
+    // keyboard
+    Keyboard* keyQ = new Keyboard();
+    Keyboard* keyW = new Keyboard();
+    Keyboard* keyE = new Keyboard();
+    Keyboard* keyR = new Keyboard();
+    Keyboard* keyD = new Keyboard();
+    Keyboard* keyF = new Keyboard();
+    bool bkeyQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
+                 keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
+                 keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
+                 keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
+                 keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
+                 keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
+                 m_Keylist.push_back(keyQ);
+                 m_Keylist.push_back(keyW);
+                 m_Keylist.push_back(keyE);
+                 m_Keylist.push_back(keyR);
+                 m_Keylist.push_back(keyD);
+                 m_Keylist.push_back(keyF);
 
- 
+    // Skill
+    Skill* sTonado = new Skill();
+    Skill* sGreenVolt = new Skill();
+    Skill* sFreezing = new Skill();
+    bool bskill = sTonado->LoadImg("assets/skill/Tonado.png", m_screen);
+                  sGreenVolt->LoadImg("assets/skill/GreenVolt.png", m_screen);
+                  sFreezing->LoadImg("assets/skill/Freezing.png", m_screen);
+                  m_Skilllist.push_back(sTonado);
+                  m_Skilllist.push_back(sGreenVolt);
+                  m_Skilllist.push_back(sFreezing);
+
+
+
 
     if (bPlayer)
     {
         m_player.set_clips();
         m_player.SetPos(10, 375);
     }
+
+                   
+    if (bEnemy1)
+    {
+        int sp = 0;
+        int spSkill = 0;
+        for (int i = 0; i < m_Enemylist.size(); i++)
+        {
+            m_Enemylist[i]->set_clips();
+            m_Enemylist[i]->SetPos(800+sp, 385);
+            m_Enemylist[i]->SetVal(5, 0);
+            sp += 50;
+            
+
+            m_Skilllist[i]->set_clips();
+            m_Skilllist[i]->SetPos(700+spSkill, 150);
+            spSkill += 100;
+            
+        }              
+    }
+    
+    // setup when player click and it show up later
+    if (bkeyQ)
+    {
+        int sp = 0;
+        int spSkill = 0;
+        for (int i = 0; i < m_Keylist.size(); i++)
+        {           
+            if (i < 3) {
+                m_Keylist[i]->set_clips();
+                m_Keylist[i]->SetPos((50 + sp), 150);
+            }
+            else if (i == 3) {
+                m_Keylist[i]->set_clips();
+                m_Keylist[i]->SetPos(250, 150);
+            }
+            else {
+                m_Keylist[i]->set_clips();
+                m_Keylist[i]->SetPos(150+spSkill , 200);
+                spSkill += 50;
+            }
+           
+            
+            sp += 50;
+            
+        }
+    }
+
+
+
 
     bool bStop = false;
     while (!bStop)
@@ -151,9 +223,18 @@ void GameManager::LoopGame()
         {
             m_Enemylist[i]->Render(m_screen);
             m_Enemylist[i]->UpdatePos();
+
+            m_Skilllist[i]->Render(m_screen);
+            
         }
 
-
+        if (bkeyQ)
+        {
+            for (int i = 0; i < m_Keylist.size(); i++)
+            {
+                m_Keylist[i]->Render(m_screen);                
+            }
+        }
 
 
         //Update screen

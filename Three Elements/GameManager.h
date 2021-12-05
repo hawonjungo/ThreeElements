@@ -8,6 +8,8 @@
 #include "MainObject.h"
 #include "BaseObject.h"
 #include "Enemy.h"
+#include "Keyboard.h"
+#include "Skill.h"
 #include <vector>
 
 //Screen dimension constants
@@ -29,11 +31,15 @@ protected:
     SDL_Renderer* m_screen;
     SDL_Event m_event;
 
+    // declare object
     BaseObject m_background;
     MainObject m_player;
-    EnemyObject m_Enemy;  // temp, could be use to set x and random value later
-
+    //EnemyObject m_Enemy;  // temp, could be use to set x and random value later
+   
+    
+    std::vector<Keyboard*> m_Keylist;
     std::vector<EnemyObject*> m_Enemylist;
+    std::vector<Skill*> m_Skilllist;
 public:
     static GameManager* getInstace()
     {
