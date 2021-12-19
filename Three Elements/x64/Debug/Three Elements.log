@@ -1,4 +1,8 @@
-﻿  MainObject.cpp
-E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(34,17): error C2082: redefinition of formal parameter 'event'
-E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(60,4): warning C4065: switch statement contains 'default' but no 'case' labels
-E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.cpp(64,3): warning C4065: switch statement contains 'default' but no 'case' labels
+﻿  GameManager.cpp
+E:\Study\AIT\Game engine\Three Elements\Three Elements\Keyboard.h(9,1): warning C4005: 'FRAME_NUM': macro redefinition
+E:\Study\AIT\Game engine\Three Elements\Three Elements\MainObject.h(8): message : see previous definition of 'FRAME_NUM'
+E:\Study\AIT\Game engine\Three Elements\Three Elements\Skill.h(8,1): warning C4005: 'FRAME_NUM': macro redefinition
+E:\Study\AIT\Game engine\Three Elements\Three Elements\Keyboard.h(9): message : see previous definition of 'FRAME_NUM'
+E:\Study\AIT\Game engine\Three Elements\Three Elements\GameManager.cpp(286,46): warning C4805: '==': unsafe mix of type 'int' and type 'bool' in operation
+E:\Study\AIT\Game engine\Three Elements\Three Elements\GameManager.cpp(313,51): warning C4805: '==': unsafe mix of type 'int' and type 'bool' in operation
+  Three Elements.vcxproj -> E:\Study\AIT\Game engine\Three Elements\x64\Debug\Three Elements.exe

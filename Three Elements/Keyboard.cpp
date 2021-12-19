@@ -14,6 +14,8 @@ Keyboard::Keyboard() {
 	height_frame_ = 0;
 	frame_ = -1;
 
+	m_type = KeyType::KEY_NONE;
+
 	for (int i = 0; i < FRAME_NUM; ++i)
 	{
 		frame_clip_[i].x = 0;
@@ -21,6 +23,10 @@ Keyboard::Keyboard() {
 		frame_clip_[0].w = 0;
 		frame_clip_[0].h = 0;
 	}
+
+	passed_time_ = 0;
+	iDelay[0] = 100;
+	iDelay[1] = 100;
 }
 
 Keyboard::~Keyboard()
@@ -62,10 +68,15 @@ void Keyboard::set_clips()
 
 void Keyboard::Render(SDL_Renderer* screen)
 {
-	frame_++;
-	if (frame_ == FRAME_NUM)
+	// ky thuat sieu hay nhe, giam do chuyen anh frmae
+	if (SDL_GetTicks() - iDelay[frame_] > passed_time_)
 	{
-		frame_ = 0;
+		passed_time_ = SDL_GetTicks();
+		++frame_;
+		if (frame_ > FRAME_NUM - 1)
+		{
+			frame_ = 0;
+		}
 	}
 
 	SDL_Rect* current_clip = &frame_clip_[frame_];

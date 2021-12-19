@@ -14,6 +14,8 @@ MainObject::MainObject() {
 	width_frame_ = 0;
 	height_frame_ = 0;
 	frame_ = -1;
+	m_QKeyNum = 0;
+	m_KeyRactive = false;
 
 	for (int i = 0; i < FRAME_NUM; ++i)
 	{
@@ -22,6 +24,8 @@ MainObject::MainObject() {
 		frame_clip_[0].w = 0;
 		frame_clip_[0].h = 0;
 	}
+
+	m_KeyDown = -1;
 }
 
 MainObject::~MainObject() 
@@ -29,41 +33,55 @@ MainObject::~MainObject()
 
 }
 
-void MainObject::keyHandle(SDL_Event event)
+void MainObject::keyHandle(SDL_Event eventKey)
 {
-	SDL_Event event;
-	while (SDL_PollEvent(&event))
-	{
-		switch (event.type) {
-		caseSDL_KEYDOWN:
-			switch (event.key.keysym.sym) {
-			caseDLK_q:
-				//todo
-				break;
-			caseDLK_w:
-				//todo
-				break;
-			caseDLK_e:
-				//todo
-				break;
-			caseDLK_r:
-				//todo
-				break;
-			caseDLK_d:
-				//todo
-				break;
-			caseDLK_f:
-				//todo
-				break;
-			default:
-				break;
-			}
-		default:
-			break;
+	printf("init KEy /n");
+	unsigned int pointQ = 0;
+	unsigned int pointW = 0;
+	unsigned int pointE = 0;
+	printf("while loop KEyboard------/n");
 
+	switch (eventKey.type)
+	{
+	case SDL_KEYDOWN:
+	{
+		if (eventKey.key.keysym.sym == 'q')
+		{
+			m_KeyDown = KEY_Q;
+			if (m_QKeyNum < 3)
+			{
+				m_QKeyNum++;
+			}
+		}
+		else if (eventKey.key.keysym.sym == 'w')
+		{
+			m_KeyDown = KEY_W;
+			if (m_WKeyNum < 3)
+			{
+				m_WKeyNum++;
+			}
+		}
+		else if (eventKey.key.keysym.sym == 'r')
+		{
+			m_KeyRactive = true;
+		}
+		else if (eventKey.key.keysym.sym == 'd')
+		{
+			// cho nay bam phim d se thuc hien giet quai vat
+			//1. tu vi tri nay, lam sao tim ra dc con quai can giet
+			//2. sau do dua m_active cua skill ve = false.
+			// em se phai nghien cu logic cho nay nhe
 		}
 	}
-
+	break;
+	case SDL_KEYUP:
+	{
+		m_KeyDown = KEY_NONE;		
+	}
+	break;
+	default:
+		break;
+	}
 }
 
 bool MainObject::LoadImg(std::string path, SDL_Renderer* screen)

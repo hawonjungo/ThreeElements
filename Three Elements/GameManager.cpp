@@ -107,37 +107,56 @@ void GameManager::LoopGame()
     Keyboard* keyR = new Keyboard();
     Keyboard* keyD = new Keyboard();
     Keyboard* keyF = new Keyboard();
-    bool bkeyQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
-                 keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
-                 keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
-                 keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
-                 keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
-                 keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
-                 m_Keylist.push_back(keyQ);
-                 m_Keylist.push_back(keyW);
-                 m_Keylist.push_back(keyE);
-                 m_Keylist.push_back(keyR);
-                 m_Keylist.push_back(keyD);
-                 m_Keylist.push_back(keyF);
+
+    bool bQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
+    keyQ->SetType(Keyboard::KEY_Q);
+
+    bool bW = keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
+    keyW->SetType(Keyboard::KEY_W);
+
+    bool bE = keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
+    keyE->SetType(Keyboard::KEY_E);
+
+    bool bR = keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
+    keyR->SetType(Keyboard::KEY_R);
+
+    bool bD = keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
+    keyD->SetType(Keyboard::KEY_D);
+
+    bool bF = keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
+    keyF->SetType(Keyboard::KEY_F);
+
+    bool bKey = bQ & bW & bE & bR & bD & bF;
+
+    m_Keylist.push_back(keyQ);
+    m_Keylist.push_back(keyW);
+    m_Keylist.push_back(keyE);
+    m_Keylist.push_back(keyR);
+    m_Keylist.push_back(keyD);
+    m_Keylist.push_back(keyF);
 
     // Skill
     Skill* sTonado = new Skill();
     Skill* sGreenVolt = new Skill();
     Skill* sFreezing = new Skill();
-    bool bskill = sTonado->LoadImg("assets/skill/Tonado.png", m_screen);
-                  sGreenVolt->LoadImg("assets/skill/GreenVolt.png", m_screen);
-                  sFreezing->LoadImg("assets/skill/Freezing.png", m_screen);
-                  m_Skilllist.push_back(sTonado);
-                  m_Skilllist.push_back(sGreenVolt);
-                  m_Skilllist.push_back(sFreezing);
 
+    bool bSTonado = sTonado->LoadImg("assets/skill/Tonado.png", m_screen);
+    bool bGreenVolt = sGreenVolt->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    bool bFreeza = sFreezing->LoadImg("assets/skill/Freezing.png", m_screen);
 
+    bool bSkill = bSTonado & bGreenVolt & bFreeza;
 
-
+    if (bSkill)
+    {
+        m_Skilllist.push_back(sTonado);
+        m_Skilllist.push_back(sGreenVolt);
+        m_Skilllist.push_back(sFreezing);
+    }
+          
     if (bPlayer)
     {
         m_player.set_clips();
-        m_player.SetPos(10, 375);
+        m_player.SetPos(10, 375);         
     }
 
                    
@@ -161,7 +180,7 @@ void GameManager::LoopGame()
     }
     
     // setup when player click and it show up later
-    if (bkeyQ)
+    if (bKey)
     {
         int sp = 0;
         int spSkill = 0;
@@ -179,16 +198,26 @@ void GameManager::LoopGame()
                 m_Keylist[i]->set_clips();
                 m_Keylist[i]->SetPos(150+spSkill , 200);
                 spSkill += 50;
-            }
-           
-            
-            sp += 50;
-            
+            }           
+            sp += 50;        
         }
     }
 
-
-
+    SDL_Rect rect_D;
+    SDL_Rect rect_F;
+    // Need D and F rect
+    for (int i = 0; i < m_Keylist.size(); i++)
+    {
+        int type = m_Keylist[i]->GetType();
+        if (type == Keyboard::KEY_D)
+        {
+            rect_D = m_Keylist[i]->getRect();
+        }
+        else if (type == Keyboard::KEY_F)
+        {
+            rect_F = m_Keylist[i]->getRect();
+        }
+    }
 
     bool bStop = false;
     while (!bStop)
@@ -200,8 +229,10 @@ void GameManager::LoopGame()
             //User requests quit
             if (m_event.type == SDL_QUIT)
             {
+               
                 bStop = true;
             }
+            m_player.keyHandle(m_event);
         }
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -228,18 +259,89 @@ void GameManager::LoopGame()
             
         }
 
-        if (bkeyQ)
+        if (bKey)
         {
+            int keyDown = m_player.GetKeyPress();
             for (int i = 0; i < m_Keylist.size(); i++)
             {
-                m_Keylist[i]->Render(m_screen);                
+                int keyType = m_Keylist.at(i)->GetType();
+                if (keyDown  == keyType)
+                {
+                    m_Keylist[i]->Render(m_screen);
+                }   
+                else if (keyType == Keyboard::KEY_D || keyType == Keyboard::KEY_F)
+                {
+                    m_Keylist[i]->Render(m_screen);
+                }
             }
         }
 
+        if (bSkill == true)
+        {
+            int keyQNum = m_player.GetQKey();
+            int keyWNum = m_player.GetWKey();
+            int keyENum = m_player.GetEKey();
+            int keyRState = m_player.GetRState();
+
+            if (keyQNum == 3 && keyRState == true)
+            {
+                for (int i = 0; i < m_Skilllist.size(); i++)
+                {
+                    int keyType = m_Skilllist.at(i)->GetType();
+                    if (keyType == Skill::SKILL_TONADO)
+                    {
+                        if (m_Skilllist[i]->GetActive() == true)
+                        {
+                            // Second time, D change to false
+                            m_Skilllist[i]->Render(m_screen);
+                        }
+                        else
+                        {
+                            // First time
+                            int xp = rect_D.x;
+                            int yp = rect_D.y + rect_D.h + 20;
+                            m_Skilllist[i]->SetPos(xp, yp);
+                            m_Skilllist[i]->Render(m_screen);
+
+                            // reset reset
+                            m_player.ResetQR();
+                        }
+                    }
+
+                }
+            }
+            else if (keyWNum == 3 && keyRState == true)
+            {
+                for (int i = 0; i < m_Skilllist.size(); i++)
+                {
+                    int keyType = m_Skilllist.at(i)->GetType();
+                    if (keyType == Skill::SKILL_GREEN_VOLT)
+                    {
+                        if (m_Skilllist[i]->GetActive() == true)
+                        {
+                            // Second time, D change to false
+                            m_Skilllist[i]->Render(m_screen);
+                        }
+                        else
+                        {
+                            // First time
+                            int xp = rect_D.x;
+                            int yp = rect_D.y + rect_D.h + 20;
+                            m_Skilllist[i]->SetPos(xp, yp);
+                            m_Skilllist[i]->Render(m_screen);
+
+                            // reset reset
+                            m_player.ResetWR();
+                        }
+                    }
+                }
+                
+            }
+        }
 
         //Update screen
         SDL_RenderPresent(m_screen);
-
+     
         int real_imp_time = fps_timer.get_ticks();
         int time_one_frame = 1000 / FRAME_PER_SECOND;// ms
 
@@ -249,7 +351,23 @@ void GameManager::LoopGame()
             if (delay_time >= 0)
                 SDL_Delay(delay_time);
         }
+              
     }
+
+    // Clean memories
+    for (int i = 0; i < m_Keylist.size(); i++)
+    {
+        Keyboard* p = m_Keylist[i];
+        if (p != NULL)
+        {
+            delete p;
+            p = NULL;
+        }      
+    }
+    m_Keylist.clear();
+
+    // Cleam for skill----------------------
+
     Close();
 }
 
@@ -267,5 +385,5 @@ void GameManager::Close()
     IMG_Quit();
     SDL_Quit();
 
-    // nho giai phong vung nho cho list enemy (tim hieu cach giai phong vung nho cho 1 vector )
+    // cHECK TO CLEAR MEMORY FOR A VECTOR !!!
 }

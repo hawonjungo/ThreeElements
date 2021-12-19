@@ -2,7 +2,8 @@
 
 
 
-Skill::Skill() {
+Skill::Skill() 
+{
 	rect_.x = 0;
 	rect_.y = 0;
 	rect_.w = 0;
@@ -22,6 +23,8 @@ Skill::Skill() {
 		frame_clip_[0].w = 0;
 		frame_clip_[0].h = 0;
 	}
+	m_type = 0;
+	m_active = false;
 }
 
 Skill::~Skill()
