@@ -1,33 +1,44 @@
-#include "GameObject.h"
+#include "GameManager.h"
 #include "BaseObject.h"
 
 
 
-
- GameObject* gameobject = new GameObject();
-
-
-
-
+GameManager* g_GameMan = GameManager::getInstace();
 
 
  int main(int argc, char* args[])
  {
+
+     bool ret = g_GameMan->InitSDL();
+     if (ret)
+     {
+         g_GameMan->LoopGame();
+     }
+     
+
+#if 0
      //Start up SDL and create window
-     if (!gameobject->init())
+     if (!baseObject->init())
      {
          printf("Failed to initialize!\n");
      }
      else
      {
          //Load media
-         if (!gameobject->loadMedia())
+         if (!baseObject->loadMedia())
          {
              printf("Failed to load media!\n");
          }
          else
          {
-             gameobject->loadBackground();
+
+             baseObject->loadBackground();
+             //gameManage->loadMainCharacter();
+
+
+             
+
+
 
              //Main loop flag
              bool quit = false;
@@ -51,20 +62,20 @@
                      }
                  }
                  //Clear screen
-                 gameobject->clearScreen();
+                 baseObject->clearScreen();
 
 
                  // animate sprite
-                 gameobject->animateSprite();
+                 baseObject->animateSprite();
 
 
                  //Render texture to screen
-                 gameobject->renderScreen();
+                 baseObject->renderScreen();
 
 
 
                  //Update screen
-                 gameobject->updateScreen();
+                 baseObject->updateScreen();
 
 
              }
@@ -72,9 +83,10 @@
      }
 
      //Free resources and close SDL
-     gameobject->close();
+     baseObject->close();
 
 
      system("pause");
+#endif
      return 0;
  }
