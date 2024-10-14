@@ -1,9 +1,15 @@
 #include "Skill.h"
+#include <algorithm>
 
-
-
-Skill::Skill() 
+// MON 10/14/2024 First Setup
+Skill::Skill() : activeSpell(NO_SPELL), slotD(NO_SPELL), slotF(NO_SPELL)
 {
+	// MON 10/14/2024 First Setup
+	elements[0] = QUAS;
+	elements[1] = WEX;
+	elements[2] = EXORT;
+	initializeSpellMap();
+
 	rect_.x = 0;
 	rect_.y = 0;
 	rect_.w = 0;
@@ -35,9 +41,61 @@ Skill::~Skill()
 void Skill::keyHandle(SDL_Event event)
 {
 }
+// <Start First Setup>========================
 
+void Skill::initializeSpellMap() {
+	spellMap["QQQ"] = COLD_SNAP;
+	spellMap["QQW"] = GHOST_WALK;
+	spellMap["QQE"] = ICE_WALL;
+	spellMap["WWW"] = EMP;
+	spellMap["WWQ"] = TORNADO;
+	spellMap["WWE"] = ALACRITY;
+	spellMap["EEE"] = SUN_STRIKE;
+	spellMap["EEQ"] = FORGE_SPIRIT;
+	spellMap["WEQ"] = CHAOS_METEOR;
+	spellMap["QWE"] = DEAFENING_BLAST;
+}
+std::string Skill::getElementCombination() {
+	std::string combo;
+	for (Element elem : elements) {
+		switch (elem) {
+		case QUAS: combo += 'Q'; break;
+		case WEX: combo += 'W'; break;
+		case EXORT: combo += 'E'; break;
+		}
+	}
+	std::sort(combo.begin(), combo.end());
+	return combo;
+}
 
+void Skill::combine() {
+	std::string combo = getElementCombination();
+	if (spellMap.find(combo) != spellMap.end()) {
+		activeSpell = spellMap[combo];
+		saveSpellToSlot();
+	}
+	else {
+		activeSpell = NO_SPELL;
+	}
+}
 
+void Skill::saveSpellToSlot() {
+	slotF = slotD;
+	slotD = activeSpell;
+}
+
+void Skill::handleKeyPress(SDL_Event key) {
+	if (key.type == SDL_KEYDOWN) {
+		switch (key.key.keysym.sym) {
+		case SDLK_q: elements[0] = QUAS; break;
+		case SDLK_w: elements[1] = WEX; break;
+		case SDLK_e: elements[2] = EXORT; break;
+		case SDLK_r: combine(); break;
+			// Additional keys (D, F) might be handled separately if needed
+		}
+	}
+}
+//=========================== <End First Setup>==================================
 bool Skill::LoadImg(std::string path, SDL_Renderer* screen)
 {
 	bool ret = BaseObject::LoadImg(path, screen);

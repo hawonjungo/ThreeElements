@@ -1,13 +1,13 @@
-
+#pragma once
 #ifndef MAIN_OBJECT_H_
 #define MAIN_OBJECT_H_
-
 #include "BaseObject.h"
-
+#include "IKeyHandler.h"
+#include "Skill.h"
 
 #define FRAME_NUM 8
 
-class MainObject : public BaseObject 
+class MainObject : public BaseObject, public IKeyHandler
 {
 public:
 
@@ -37,6 +37,10 @@ public:
 	int GetKeyPress() const { return m_KeyDown; }
 	void ResetQR() { m_QKeyNum = 0;  m_KeyRactive = false; }
 	void ResetWR() { m_WKeyNum = 0;  m_KeyRactive = false; }
+	// First Setup	
+	void handleKeyPress(SDL_Event key) override {
+		// Implement how MainObject handles key presses
+	}
 private:
 	int m_KeyDown;;
 	int m_QKeyNum;
