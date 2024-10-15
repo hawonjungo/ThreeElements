@@ -241,8 +241,8 @@ void GameManager::LoopGame()
                
                 bStop = true;
             }
-            m_player.keyHandle(m_event);
-            m_player.handleKeyPress(m_event);
+            //m_player.keyHandle(m_event);
+            m_skill.handleKeyPress(m_event);
         }
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);

@@ -34,6 +34,7 @@ protected:
     // declare object
     BaseObject m_background;
     MainObject m_player;
+    Skill m_skill;
     //EnemyObject m_Enemy;  // temp, could be use to set x and random value later
    
     

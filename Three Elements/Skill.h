@@ -1,7 +1,6 @@
 #pragma once
 #ifndef SKILL_OBJECT_H_
 #define SKILL_OBJECT_H_
-#include "IKeyHandler.h"
 #include <map>
 #include "BaseObject.h"
 
@@ -26,7 +25,7 @@ enum Element {
 	WEX,
 	EXORT
 };
-class Skill : public BaseObject, public IKeyHandler
+class Skill : public BaseObject
 {
 public:
 	//enum SkillType
@@ -45,7 +44,7 @@ public:
 	Skill();
 	~Skill();
 	void combine();
-	void handleKeyPress(SDL_Event key) override;
+	void handleKeyPress(SDL_Event key);
 	
 
 	void keyHandle(SDL_Event event);
@@ -71,6 +70,7 @@ private:
 	std::string getElementCombination();
 	void initializeSpellMap();
 	void saveSpellToSlot();
+	int nextElementIndex;
 };
 
 

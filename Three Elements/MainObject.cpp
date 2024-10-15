@@ -1,6 +1,6 @@
 
 #include "MainObject.h"
-
+#include "Skill.h"
 
 MainObject::MainObject() {
 	rect_.x = 0;
@@ -131,3 +131,5 @@ void MainObject::Render(SDL_Renderer* screen)
 	SDL_Rect renderQuad = { rect_.x, rect_.y, width_frame_, height_frame_ };
 	SDL_RenderCopy(screen, p_object_, current_clip, &renderQuad);
 }
+
+
