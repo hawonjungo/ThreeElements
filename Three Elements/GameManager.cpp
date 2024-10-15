@@ -1,6 +1,7 @@
 
 #include "GameManager.h"
 #include "MainObject.h"
+#include "Skill.h"
 #include "ImpTimer.h"
 
 
@@ -22,7 +23,7 @@ bool GameManager::InitSDL()
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-    m_window = SDL_CreateWindow("Title Game",
+    m_window = SDL_CreateWindow("Three Elements",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -136,21 +137,29 @@ void GameManager::LoopGame()
     m_Keylist.push_back(keyF);
 
     // Skill
-    Skill* sTonado = new Skill();
-    Skill* sGreenVolt = new Skill();
-    Skill* sFreezing = new Skill();
+    Skill* sCOLD_SNAP       = new Skill();
+    Skill* sGHOST_WALK      = new Skill();
+    Skill* sICE_WALL        = new Skill();
+    Skill* sEMP             = new Skill();
+    Skill* sTORNADO         = new Skill();
+    Skill* sALACRITY        = new Skill();
+    Skill* sSUN_STRIKE      = new Skill();
+    Skill* sFORGE_SPIRIT    = new Skill();
+    Skill* sCHAOS_METEOR    = new Skill();
+    Skill* sDEAFENING_BLAST  = new Skill();
 
-    bool bSTonado = sTonado->LoadImg("assets/skill/Tonado.png", m_screen);
-    bool bGreenVolt = sGreenVolt->LoadImg("assets/skill/GreenVolt.png", m_screen);
-    bool bFreeza = sFreezing->LoadImg("assets/skill/Freezing.png", m_screen);
 
-    bool bSkill = bSTonado & bGreenVolt & bFreeza;
+    bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
+    bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
+
+    bool bSkill = bTORNADO && bCOLD_SNAP && bICE_WALL;
 
     if (bSkill)
     {
-        m_Skilllist.push_back(sTonado);
-        m_Skilllist.push_back(sGreenVolt);
-        m_Skilllist.push_back(sFreezing);
+        m_Skilllist.push_back(sTORNADO);
+        m_Skilllist.push_back(sCOLD_SNAP);
+        m_Skilllist.push_back(sICE_WALL);
     }
           
     if (bPlayer)
@@ -232,7 +241,8 @@ void GameManager::LoopGame()
                
                 bStop = true;
             }
-            m_player.keyHandle(m_event);
+            //m_player.keyHandle(m_event);
+            m_skill.handleKeyPress(m_event);
         }
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -288,7 +298,7 @@ void GameManager::LoopGame()
                 for (int i = 0; i < m_Skilllist.size(); i++)
                 {
                     int keyType = m_Skilllist.at(i)->GetType();
-                    if (keyType == Skill::SKILL_TONADO)
+                    if (keyType == TORNADO)
                     {
                         if (m_Skilllist[i]->GetActive() == true)
                         {
@@ -310,12 +320,12 @@ void GameManager::LoopGame()
 
                 }
             }
-            else if (keyWNum == 3 && keyRState == true)
+            else if (keyWNum == 3 )
             {
                 for (int i = 0; i < m_Skilllist.size(); i++)
                 {
                     int keyType = m_Skilllist.at(i)->GetType();
-                    if (keyType == Skill::SKILL_GREEN_VOLT)
+                    if (keyType == COLD_SNAP)
                     {
                         if (m_Skilllist[i]->GetActive() == true)
                         {

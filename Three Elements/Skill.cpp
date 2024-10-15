@@ -1,9 +1,15 @@
 #include "Skill.h"
+#include <algorithm>
 
-
-
-Skill::Skill() 
+// MON 10/14/2024 First Setup
+Skill::Skill() : activeSpell(NO_SPELL), slotD(NO_SPELL), slotF(NO_SPELL), nextElementIndex(0)
 {
+	// MON 10/14/2024 First Setup
+	elements[0] = QUAS;
+	elements[1] = WEX;
+	elements[2] = EXORT;
+	initializeSpellMap();
+
 	rect_.x = 0;
 	rect_.y = 0;
 	rect_.w = 0;
@@ -35,9 +41,75 @@ Skill::~Skill()
 void Skill::keyHandle(SDL_Event event)
 {
 }
+// <Start First Setup>========================
 
+void Skill::initializeSpellMap() {
+	spellMap["QQQ"] = COLD_SNAP;
+	spellMap["QQW"] = GHOST_WALK;
+	spellMap["EQQ"] = ICE_WALL;
+	spellMap["WWW"] = EMP;
+	spellMap["QWW"] = TORNADO;
+	spellMap["EWW"] = ALACRITY;
+	spellMap["EEE"] = SUN_STRIKE;
+	spellMap["EEQ"] = FORGE_SPIRIT;
+	spellMap["EEW"] = CHAOS_METEOR;
+	spellMap["EQW"] = DEAFENING_BLAST;
+}
+std::string Skill::getElementCombination() {
+	std::string combo;
+	for (Element elem : elements) {
+		switch (elem) {
+		case QUAS: combo += 'Q'; break;
+		case WEX: combo += 'W'; break;
+		case EXORT: combo += 'E'; break;
+		}
+	}
+	std::sort(combo.begin(), combo.end());
+	return combo;
+}
 
+void Skill::combine() {
+	std::string combo = getElementCombination();
+	if (spellMap.find(combo) != spellMap.end()) {
+		activeSpell = spellMap[combo];
+		saveSpellToSlot();		
+		printf("Current combination: %s\n", combo.c_str());
+	}
+	else {
+		activeSpell = NO_SPELL;
+	}
+}
 
+void Skill::saveSpellToSlot() {
+	slotF = slotD;
+	slotD = activeSpell;
+}
+void Skill::handleKeyPress(SDL_Event key) {
+	if (key.type == SDL_KEYDOWN) {
+		switch (key.key.keysym.sym) {
+		case SDLK_q: elements[nextElementIndex] = QUAS; printf("=====Q===== "); break;
+		case SDLK_w: elements[nextElementIndex] = WEX; printf("====W===== "); break;
+		case SDLK_e: elements[nextElementIndex] = EXORT; printf("====E====== "); break;
+		case SDLK_r: combine(); nextElementIndex = 0; return; // Reset index after combining
+			// Additional keys (D, F) might be handled separately if needed
+		}
+		nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
+	}
+}
+
+//void Skill::handleKeyPress(SDL_Event key) {
+//	if (key.type == SDL_KEYDOWN) {
+//		switch (key.key.keysym.sym) {
+//		case SDLK_q: elements[0] = QUAS; printf("=====Q===== "); break;
+//		case SDLK_w: elements[1] = WEX; printf("=====W===== "); break;
+//		case SDLK_e: elements[2] = EXORT; printf("=====E===== "); break;
+//		case SDLK_r: combine(); break;
+//			// Additional keys (D, F) might be handled separately if needed
+//		}
+//		nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
+//	}
+//}
+//=========================== <End First Setup>==================================
 bool Skill::LoadImg(std::string path, SDL_Renderer* screen)
 {
 	bool ret = BaseObject::LoadImg(path, screen);

@@ -1,6 +1,6 @@
 
 #include "MainObject.h"
-
+#include "Skill.h"
 
 MainObject::MainObject() {
 	rect_.x = 0;
@@ -61,6 +61,14 @@ void MainObject::keyHandle(SDL_Event eventKey)
 				m_WKeyNum++;
 			}
 		}
+		else if (eventKey.key.keysym.sym == 'e')
+		{
+			m_KeyDown = KEY_E;
+			if (m_WKeyNum < 3)
+			{
+				m_WKeyNum++;
+			}
+		}
 		else if (eventKey.key.keysym.sym == 'r')
 		{
 			m_KeyRactive = true;
@@ -70,7 +78,7 @@ void MainObject::keyHandle(SDL_Event eventKey)
 			// cho nay bam phim d se thuc hien giet quai vat
 			//1. tu vi tri nay, lam sao tim ra dc con quai can giet
 			//2. sau do dua m_active cua skill ve = false.
-			// em se phai nghien cu logic cho nay nhe
+			
 		}
 	}
 	break;
@@ -83,6 +91,7 @@ void MainObject::keyHandle(SDL_Event eventKey)
 		break;
 	}
 }
+
 
 bool MainObject::LoadImg(std::string path, SDL_Renderer* screen)
 {
@@ -122,3 +131,5 @@ void MainObject::Render(SDL_Renderer* screen)
 	SDL_Rect renderQuad = { rect_.x, rect_.y, width_frame_, height_frame_ };
 	SDL_RenderCopy(screen, p_object_, current_clip, &renderQuad);
 }
+
+

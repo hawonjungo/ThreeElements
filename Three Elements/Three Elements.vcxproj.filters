@@ -71,5 +71,8 @@
     <ClInclude Include="Skill.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="IKeyHandler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
