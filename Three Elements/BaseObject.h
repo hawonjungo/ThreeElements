@@ -3,6 +3,7 @@
 #define BASE_OBJECT_H_
 
 #include"Define.h"
+#define FRAME_NUM 2
 
 class BaseObject
 {
@@ -18,12 +19,19 @@ public:
 	}
 
 	virtual bool LoadImg(std::string path, SDL_Renderer* screen);
-	void render(SDL_Renderer* des, const SDL_Rect* clip);
+	void render(SDL_Renderer* render, const SDL_Rect* clip);
+	void set_clips();
 	void free();
 
-protected:
+public:
 	SDL_Texture* p_object_;
 	SDL_Rect rect_;
+	SDL_Rect frame_clip_[FRAME_NUM];
+	int width_frame_;  // for 1 frame
+	int height_frame_; // for 1 frame
+	int frame_;
+	int x_val_;
+	int y_val_;
 };
 
 #endif

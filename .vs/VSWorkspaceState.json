@@ -1,7 +1,10 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Dependencies",
+    "\\Three Elements",
+    "\\x64"
   ],
-  "SelectedNode": "\\Three Elements.sln",
+  "SelectedNode": "\\Three Elements\\Skill.cpp",
   "PreviewInSolutionExplorer": false
 }

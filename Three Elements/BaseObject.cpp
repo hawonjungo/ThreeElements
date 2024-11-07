@@ -11,6 +11,8 @@ BaseObject::BaseObject()
 	rect_.y = 0;
 	rect_.w = 0;
 	rect_.h = 0;
+	width_frame_ = 0;
+	height_frame_ = 0;
 }
 
 BaseObject::~BaseObject() 
@@ -39,6 +41,8 @@ bool BaseObject::LoadImg(std::string path,SDL_Renderer* screen)
 			//Get image dimensions
 			rect_.w = load_surface->w;
 			rect_.h = load_surface->h;
+			width_frame_ = rect_.w / FRAME_NUM;
+			height_frame_ = rect_.h;
 		}
 		//Get rid of old loaded surface
 		SDL_FreeSurface(load_surface);

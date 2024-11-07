@@ -34,24 +34,6 @@ Keyboard::~Keyboard()
 
 }
 
-void Keyboard::keyHandle(SDL_Event event)
-{
-}
-
-
-
-bool Keyboard::LoadImg(std::string path, SDL_Renderer* screen)
-{
-	bool ret = BaseObject::LoadImg(path, screen);
-	if (ret == true)
-	{
-		width_frame_ = rect_.w / FRAME_NUM;
-		height_frame_ = rect_.h;
-	}
-
-	return ret;
-}
-
 void Keyboard::set_clips()
 {
 	if (width_frame_ > 0 && height_frame_ > 0)
@@ -68,7 +50,7 @@ void Keyboard::set_clips()
 
 void Keyboard::Render(SDL_Renderer* screen)
 {
-	// ky thuat sieu hay nhe, giam do chuyen anh frmae
+	// ky thuat sieu hay nhe, giam do chuyen anh frame
 	if (SDL_GetTicks() - iDelay[frame_] > passed_time_)
 	{
 		passed_time_ = SDL_GetTicks();

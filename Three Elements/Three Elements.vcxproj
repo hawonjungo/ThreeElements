@@ -79,8 +79,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>C:\Users\hawon\source\repos\ThreeElements\Dependencies\lib\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Users\hawon\source\repos\ThreeElements\Dependencies\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Dev\Code\3Elements\ThreeElements\Dependencies\lib\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\Dev\Code\3Elements\ThreeElements\Dependencies\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -119,7 +119,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\Study\AIT\Game engine\Three Elements\Dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Dev\Code\3Elements\ThreeElements\Dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

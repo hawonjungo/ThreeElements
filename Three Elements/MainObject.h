@@ -24,7 +24,6 @@ public:
 	MainObject();
 	~MainObject();
 
-	void keyHandle(SDL_Event eventKey);
 	bool LoadImg(std::string path, SDL_Renderer* screen);
 	void set_clips();
 	void Render(SDL_Renderer* screen);

@@ -109,6 +109,20 @@ void GameManager::LoopGame()
     Keyboard* keyD = new Keyboard();
     Keyboard* keyF = new Keyboard();
 
+    // Skill
+    Skill* sNO_SPELL = new Skill();
+    Skill* sCOLD_SNAP = new Skill();
+    Skill* sGHOST_WALK = new Skill();
+    Skill* sICE_WALL = new Skill();
+    Skill* sEMP = new Skill();
+    Skill* sTORNADO = new Skill();
+    Skill* sALACRITY = new Skill();
+    Skill* sSUN_STRIKE = new Skill();
+    Skill* sFORGE_SPIRIT = new Skill();
+    Skill* sCHAOS_METEOR = new Skill();
+    Skill* sDEAFENING_BLAST = new Skill();
+
+
     bool bQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
     keyQ->SetType(Keyboard::KEY_Q);
 
@@ -136,17 +150,7 @@ void GameManager::LoopGame()
     m_Keylist.push_back(keyD);
     m_Keylist.push_back(keyF);
 
-    // Skill
-    Skill* sCOLD_SNAP       = new Skill();
-    Skill* sGHOST_WALK      = new Skill();
-    Skill* sICE_WALL        = new Skill();
-    Skill* sEMP             = new Skill();
-    Skill* sTORNADO         = new Skill();
-    Skill* sALACRITY        = new Skill();
-    Skill* sSUN_STRIKE      = new Skill();
-    Skill* sFORGE_SPIRIT    = new Skill();
-    Skill* sCHAOS_METEOR    = new Skill();
-    Skill* sDEAFENING_BLAST  = new Skill();
+
 
 
     bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
@@ -251,7 +255,7 @@ void GameManager::LoopGame()
         // render background
         if (bBkgn)
         {
-            m_background.render(m_screen, NULL);
+            m_background.render(m_screen,NULL);
         }
 
         if (bPlayer)
@@ -396,4 +400,40 @@ void GameManager::Close()
     SDL_Quit();
 
     // cHECK TO CLEAR MEMORY FOR A VECTOR !!!
+    /*
+    
+     m_background.free();
+    m_player.free();
+
+    for (int i = 0; i < m_Enemylist.size(); i++) {
+        m_Enemylist[i]->free();
+        delete m_Enemylist[i];
+        m_Enemylist[i] = NULL;
+    }
+    m_Enemylist.clear();
+
+    for (int i = 0; i < m_Keylist.size(); i++) {
+        m_Keylist[i]->free();
+        delete m_Keylist[i];
+        m_Keylist[i] = NULL;
+    }
+    m_Keylist.clear();
+
+    for (int i = 0; i < m_Skilllist.size(); i++) {
+        m_Skilllist[i]->free();
+        delete m_Skilllist[i];
+        m_Skilllist[i] = NULL;
+    }
+    m_Skilllist.clear();
+
+    SDL_DestroyRenderer(m_screen);
+    m_screen = NULL;
+
+    SDL_DestroyWindow(m_window);
+    m_window = NULL;
+
+    IMG_Quit();
+    SDL_Quit();
+    
+    */
 }
