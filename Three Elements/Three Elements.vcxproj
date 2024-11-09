@@ -151,7 +151,7 @@
     <ClCompile Include="ImpTimer.cpp" />
     <ClCompile Include="Keyboard.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="MainObject.cpp" />
+    <ClCompile Include="MainPlayer.cpp" />
     <ClCompile Include="Skill.cpp" />
     <ClCompile Include="ThreatObject.cpp" />
   </ItemGroup>
@@ -163,7 +163,7 @@
     <ClInclude Include="IKeyHandler.h" />
     <ClInclude Include="ImpTimer.h" />
     <ClInclude Include="Keyboard.h" />
-    <ClInclude Include="MainObject.h" />
+    <ClInclude Include="MainPlayer.h" />
     <ClInclude Include="Skill.h" />
     <ClInclude Include="ThreatObject.h" />
   </ItemGroup>

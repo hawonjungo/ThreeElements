@@ -59,7 +59,7 @@ public:
 private:
 	bool m_active;
 	int m_type;
-	int frame_;
+	int currentFrame_;
 	SDL_Rect frame_clip_[FRAME_NUM];
 	int width_frame_;  // for 1 frame
 	int height_frame_; // for 1 frame

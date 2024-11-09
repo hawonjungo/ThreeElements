@@ -1,6 +1,6 @@
 
 #include "GameManager.h"
-#include "MainObject.h"
+#include "MainPlayer.h"
 #include "Skill.h"
 #include "ImpTimer.h"
 
@@ -141,7 +141,7 @@ void GameManager::LoopGame()
     bool bF = keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
     keyF->SetType(Keyboard::KEY_F);
 
-    bool bKey = bQ & bW & bE & bR & bD & bF;
+    bool bKey = bQ && bW && bE && bR && bD && bF;
 
     m_Keylist.push_back(keyQ);
     m_Keylist.push_back(keyW);

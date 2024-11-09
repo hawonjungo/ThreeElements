@@ -5,7 +5,7 @@
 //Using SDL, SDL_image, standard IO, and strings
 #include"Define.h"
 
-#include "MainObject.h"
+#include "MainPlayer.h"
 #include "BaseObject.h"
 #include "Enemy.h"
 #include "Keyboard.h"
@@ -33,7 +33,7 @@ protected:
 
     // declare object
     BaseObject m_background;
-    MainObject m_player;
+    MainPlayer m_player;
     Skill m_skill;
     //EnemyObject m_Enemy;  // temp, could be use to set x and random value later
    

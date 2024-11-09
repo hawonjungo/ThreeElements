@@ -13,7 +13,7 @@ EnemyObject::EnemyObject() {
 
 	width_frame_ = 0;
 	height_frame_ = 0;
-	frame_ = -1;
+	currentFrame_ = -1;
 
 	for (int i = 0; i < FRAME_NUM; ++i)
 	{
@@ -72,13 +72,13 @@ void EnemyObject::set_clips()
 
 void EnemyObject::Render(SDL_Renderer* screen)
 {
-	frame_++;
-	if (frame_ == FRAME_NUM)
+	currentFrame_++;
+	if (currentFrame_ == FRAME_NUM)
 	{
-		frame_ = 0;
+		currentFrame_ = 0;
 	}
 
-	SDL_Rect* current_clip = &frame_clip_[frame_];
+	SDL_Rect* current_clip = &frame_clip_[currentFrame_];
 	SDL_Rect renderQuad = { rect_.x, rect_.y, width_frame_, height_frame_ };
 
 	SDL_RenderCopyEx(screen, p_object_, current_clip, &renderQuad, 0, 0, SDL_FLIP_HORIZONTAL);

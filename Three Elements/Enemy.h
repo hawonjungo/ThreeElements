@@ -22,7 +22,7 @@ public:
 	void SetVal(int xv, int yv) { x_val_ = xv; y_val_ = yv; }
 	void UpdatePos();
 private:
-	int frame_;
+	int currentFrame_;
 	SDL_Rect frame_clip_[FRAME_NUM];
 	int width_frame_;  // for 1 frame
 	int height_frame_; // for 1 frame

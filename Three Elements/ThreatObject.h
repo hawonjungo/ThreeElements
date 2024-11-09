@@ -29,7 +29,7 @@ private:
 	SDL_Rect frame_clip_[THREAT_fRAME_NUM];
 	int width_frame_;
 	int height_frame_;
-	int frame_;
+	int currentFrame_;
 };
 
 #endif
