@@ -3,16 +3,28 @@
   "WorkspaceRootPath": "D:\\Dev\\Code\\3Elements\\ThreeElements\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\BaseObject.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\GameManager.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Enemy.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Enemy.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Skill.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Skill.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\MainPlayer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\MainPlayer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\BaseObject.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
@@ -23,24 +35,12 @@
       "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Keyboard.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\MainPlayer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Keyboard.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Keyboard.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\MainPlayer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Skill.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Skill.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Enemy.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|solutionrelative:Three Elements\\Enemy.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{791C9424-36A3-40D7-A071-E970809426BF}|Three Elements\\Three Elements.vcxproj|D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
@@ -58,31 +58,45 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 6,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "Skill.h",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h",
-              "RelativeDocumentMoniker": "Three Elements\\Skill.h",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h",
-              "RelativeToolTip": "Three Elements\\Skill.h",
-              "ViewState": "AgIAADYAAAAAAAAAAAAAABQAAAACAAAAAAAAAA==",
+              "DocumentIndex": 6,
+              "Title": "BaseObject.h",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.h",
+              "RelativeDocumentMoniker": "Three Elements\\BaseObject.h",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.h",
+              "RelativeToolTip": "Three Elements\\BaseObject.h",
+              "ViewState": "AgIAAAUAAAAAAAAAAAAgwCsAAAAGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-10-09T11:13:19.759Z",
+              "WhenOpened": "2024-10-15T10:17:48.626Z",
               "IsPinned": true,
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 5,
+              "Title": "BaseObject.cpp",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp",
+              "RelativeDocumentMoniker": "Three Elements\\BaseObject.cpp",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp",
+              "RelativeToolTip": "Three Elements\\BaseObject.cpp",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAAH4AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-11-04T11:16:16.807Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "Skill.cpp",
               "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.cpp",
               "RelativeDocumentMoniker": "Three Elements\\Skill.cpp",
               "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.cpp",
               "RelativeToolTip": "Three Elements\\Skill.cpp",
-              "ViewState": "AgIAAHUAAAAAAAAAAAAqwIYAAAADAAAAAAAAAA==",
+              "ViewState": "AgIAAFAAAAAAAAAAAAAQwF8AAAACAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2024-10-09T11:08:15.498Z",
               "IsPinned": true,
@@ -90,7 +104,59 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
+              "Title": "Skill.h",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h",
+              "RelativeDocumentMoniker": "Three Elements\\Skill.h",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Skill.h",
+              "RelativeToolTip": "Three Elements\\Skill.h",
+              "ViewState": "AgIAACoAAAAAAAAAAAAQwC4AAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2024-10-09T11:13:19.759Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "MainPlayer.h",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h",
+              "RelativeDocumentMoniker": "Three Elements\\MainPlayer.h",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h",
+              "RelativeToolTip": "Three Elements\\MainPlayer.h",
+              "ViewState": "AgIAABMAAAAAAAAAAAAQwCIAAAAkAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2024-10-14T11:17:08.702Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "MainPlayer.cpp",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp",
+              "RelativeDocumentMoniker": "Three Elements\\MainPlayer.cpp",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp",
+              "RelativeToolTip": "Three Elements\\MainPlayer.cpp",
+              "ViewState": "AgIAACQAAAAAAAAAAAAgwDwAAAAEAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-11-09T09:57:03.033Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "GameManager.cpp",
+              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.cpp",
+              "RelativeDocumentMoniker": "Three Elements\\GameManager.cpp",
+              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.cpp",
+              "RelativeToolTip": "Three Elements\\GameManager.cpp",
+              "ViewState": "AgIAAOQAAAAAAAAAAAApwPIAAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-10-09T11:16:48.582Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
               "Title": "Enemy.h",
               "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Enemy.h",
               "RelativeDocumentMoniker": "Three Elements\\Enemy.h",
@@ -98,77 +164,24 @@
               "RelativeToolTip": "Three Elements\\Enemy.h",
               "ViewState": "AgIAAAkAAAAAAAAAAAAAAAcAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-11-09T17:22:39.424Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-11-09T17:22:39.424Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "BaseObject.cpp",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp",
-              "RelativeDocumentMoniker": "Three Elements\\BaseObject.cpp",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.cpp",
-              "RelativeToolTip": "Three Elements\\BaseObject.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAATAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-11-04T11:16:16.807Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "BaseObject.h",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.h",
-              "RelativeDocumentMoniker": "Three Elements\\BaseObject.h",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\BaseObject.h",
-              "RelativeToolTip": "Three Elements\\BaseObject.h",
-              "ViewState": "AgIAAAkAAAAAAAAAAAAAACEAAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-10-15T10:17:48.626Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "MainPlayer.cpp",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp",
-              "RelativeDocumentMoniker": "Three Elements\\MainPlayer.cpp",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.cpp",
-              "RelativeToolTip": "Three Elements\\MainPlayer.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-11-09T09:57:03.033Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "GameManager.cpp",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.cpp",
-              "RelativeDocumentMoniker": "Three Elements\\GameManager.cpp",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\GameManager.cpp",
-              "RelativeToolTip": "Three Elements\\GameManager.cpp",
-              "ViewState": "AgIAABcBAAAAAAAAAAAkwCsBAAAtAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-10-09T11:16:48.582Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 7,
               "Title": "Keyboard.cpp",
               "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Keyboard.cpp",
               "RelativeDocumentMoniker": "Three Elements\\Keyboard.cpp",
               "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Keyboard.cpp",
               "RelativeToolTip": "Three Elements\\Keyboard.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAATAAAAAAAAAA==",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAAA4AAAATAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2024-11-06T10:45:45.185Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 8,
               "Title": "Keyboard.h",
               "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Keyboard.h",
               "RelativeDocumentMoniker": "Three Elements\\Keyboard.h",
@@ -181,19 +194,6 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "MainPlayer.h",
-              "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h",
-              "RelativeDocumentMoniker": "Three Elements\\MainPlayer.h",
-              "ToolTip": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\MainPlayer.h",
-              "RelativeToolTip": "Three Elements\\MainPlayer.h",
-              "ViewState": "AgIAAAwAAAAAAAAAAAAAABkAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-10-14T11:17:08.702Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 11,
               "Title": "Enemy.cpp",
               "DocumentMoniker": "D:\\Dev\\Code\\3Elements\\ThreeElements\\Three Elements\\Enemy.cpp",
@@ -202,8 +202,7 @@
               "RelativeToolTip": "Three Elements\\Enemy.cpp",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAE0AAAAPAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-11-09T15:14:16.985Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-11-09T15:14:16.985Z"
             },
             {
               "$type": "Document",
@@ -215,8 +214,7 @@
               "RelativeToolTip": "Three Elements\\GameManager.h",
               "ViewState": "AgIAACEAAAAAAAAAAAAqwCMAAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-10-14T12:03:38.382Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-10-14T12:03:38.382Z"
             }
           ]
         }

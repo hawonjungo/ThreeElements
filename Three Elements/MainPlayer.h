@@ -32,16 +32,18 @@ public:
 	int GetKeyPress() const { return m_KeyDown; }
 	void ResetQR() { m_QKeyNum = 0;  m_KeyRactive = false; }
 	void ResetWR() { m_WKeyNum = 0;  m_KeyRactive = false; }
-	// First Setup	
-	//void handleKeyPress(SDL_Event key);
+	void handleKeyPress(SDL_Event key);
+	
 private:
+
+	Skill skill_;
+
 	int m_KeyDown;;
 	int m_QKeyNum;
 	int m_WKeyNum;
 	int m_EKeyNum;
 
 	bool m_KeyRactive;
-
 
 };
 

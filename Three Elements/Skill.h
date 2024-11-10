@@ -44,7 +44,7 @@ public:
 	Skill();
 	~Skill();
 	void combine();
-	void handleKeyPress(SDL_Event key);
+	//void handleKeyPress(SDL_Event key);
 	
 
 	void keyHandle(SDL_Event event);
@@ -56,6 +56,10 @@ public:
 	void SetType(int type) { m_type = type; }
 	void SetActive(bool at) { m_active = at; }
 	bool GetActive() const { return m_active; }
+
+	void setElement(Element element);
+	void resetElementIndex();
+	void incrementElementIndex();
 private:
 	bool m_active;
 	int m_type;

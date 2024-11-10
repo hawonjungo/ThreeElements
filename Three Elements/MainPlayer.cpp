@@ -35,7 +35,32 @@ MainPlayer::~MainPlayer()
 {
 
 }
-
+void MainPlayer::handleKeyPress(SDL_Event key) {
+	if (key.type == SDL_KEYDOWN) {
+		switch (key.key.keysym.sym) {
+		case SDLK_q:
+			skill_.setElement(QUAS);
+			//elements[nextElementIndex] = QUAS;
+			printf("=====Q===== "); break;
+		case SDLK_w:
+			skill_.setElement(WEX);
+			//elements[nextElementIndex] = WEX;
+			printf("====W===== "); break;
+		case SDLK_e: 
+			skill_.setElement(EXORT);
+			//elements[nextElementIndex] = EXORT;
+			printf("====E====== "); break;
+		case SDLK_r:
+			skill_.combine();
+			skill_.resetElementIndex();
+			//nextElementIndex = 0; 
+			return; // Reset index after combining
+			// Additional keys (D, F) might be handled separately if needed
+		}
+		skill_.incrementElementIndex();
+		//nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
+	}
+}
 
 
 

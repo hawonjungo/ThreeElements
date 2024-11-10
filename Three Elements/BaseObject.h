@@ -36,7 +36,7 @@ public:
 	int currentFrame_;
 	int x_val_;
 	int y_val_;
-	std::vector<int> iDelay_; // Vector l?u tr? th?i gian tr? cho t?ng khung hình 
+	std::vector<int> iDelay_; 
 	Uint32 passed_time_; // work better with SDL , 0 - 4m
 
 };

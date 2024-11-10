@@ -55,6 +55,15 @@ void Skill::initializeSpellMap() {
 	spellMap["EEW"] = CHAOS_METEOR;
 	spellMap["EQW"] = DEAFENING_BLAST;
 }
+void Skill::setElement(Element element) {
+	elements[nextElementIndex] = element; 
+}
+void Skill::resetElementIndex() {
+	nextElementIndex = 0;
+}
+void Skill::incrementElementIndex() {
+	nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
+}
 std::string Skill::getElementCombination() {
 	std::string combo;
 	for (Element elem : elements) {
@@ -84,31 +93,19 @@ void Skill::saveSpellToSlot() {
 	slotF = slotD;
 	slotD = activeSpell;
 }
-void Skill::handleKeyPress(SDL_Event key) {
-	if (key.type == SDL_KEYDOWN) {
-		switch (key.key.keysym.sym) {
-		case SDLK_q: elements[nextElementIndex] = QUAS; printf("=====Q===== "); break;
-		case SDLK_w: elements[nextElementIndex] = WEX; printf("====W===== "); break;
-		case SDLK_e: elements[nextElementIndex] = EXORT; printf("====E====== "); break;
-		case SDLK_r: combine(); nextElementIndex = 0; return; // Reset index after combining
-			// Additional keys (D, F) might be handled separately if needed
-		}
-		nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
-	}
-}
-
 //void Skill::handleKeyPress(SDL_Event key) {
 //	if (key.type == SDL_KEYDOWN) {
 //		switch (key.key.keysym.sym) {
-//		case SDLK_q: elements[0] = QUAS; printf("=====Q===== "); break;
-//		case SDLK_w: elements[1] = WEX; printf("=====W===== "); break;
-//		case SDLK_e: elements[2] = EXORT; printf("=====E===== "); break;
-//		case SDLK_r: combine(); break;
+//		case SDLK_q: elements[nextElementIndex] = QUAS; printf("=====Q===== "); break;
+//		case SDLK_w: elements[nextElementIndex] = WEX; printf("====W===== "); break;
+//		case SDLK_e: elements[nextElementIndex] = EXORT; printf("====E====== "); break;
+//		case SDLK_r: combine(); nextElementIndex = 0; return; // Reset index after combining
 //			// Additional keys (D, F) might be handled separately if needed
 //		}
 //		nextElementIndex = (nextElementIndex + 1) % 3; // Loop over 0, 1, 2
 //	}
 //}
+
 //=========================== <End First Setup>==================================
 bool Skill::LoadImg(std::string path, SDL_Renderer* screen)
 {
