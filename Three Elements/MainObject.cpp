@@ -70,7 +70,6 @@ void MainObject::keyHandle(SDL_Event eventKey)
 			// cho nay bam phim d se thuc hien giet quai vat
 			//1. tu vi tri nay, lam sao tim ra dc con quai can giet
 			//2. sau do dua m_active cua skill ve = false.
-			// em se phai nghien cu logic cho nay nhe
 		}
 	}
 	break;
