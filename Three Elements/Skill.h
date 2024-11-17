@@ -4,7 +4,7 @@
 #include <map>
 #include "BaseObject.h"
 
-
+using namespace std;
 #define FRAME_NUM 1
 enum Spell {
 	NO_SPELL,
@@ -27,25 +27,11 @@ enum Element {
 };
 class Skill : public BaseObject
 {
-public:
-	//enum SkillType
-	//{
-	//	SKILL_TONADO = 0,
-	//	SKILL_GREEN_VOLT = 1,
-	//	SKILL_FREEZING = 2,
-	//};
-	// MON 10/14/2024 First Setup	
-	Spell activeSpell;
-	Element elements[3];
-	Spell slotD;
-	Spell slotF;
+public:	
 
 	// MON 10/14/2024 First Setup
 	Skill();
 	~Skill();
-	void combine();
-	//void handleKeyPress(SDL_Event key);
-	
 
 	void keyHandle(SDL_Event event);
 	bool LoadImg(std::string path, SDL_Renderer* screen);
@@ -56,10 +42,6 @@ public:
 	void SetType(int type) { m_type = type; }
 	void SetActive(bool at) { m_active = at; }
 	bool GetActive() const { return m_active; }
-
-	void setElement(Element element);
-	void resetElementIndex();
-	void incrementElementIndex();
 private:
 	bool m_active;
 	int m_type;
@@ -69,12 +51,6 @@ private:
 	int height_frame_; // for 1 frame
 	int x_val_;
 	int y_val_;
-	// MON 10/14/2024 First Setup
-	std::map<std::string, Spell> spellMap;
-	std::string getElementCombination();
-	void initializeSpellMap();
-	void saveSpellToSlot();
-	int nextElementIndex;
 };
 
 

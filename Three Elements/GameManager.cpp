@@ -100,15 +100,6 @@ void GameManager::LoopGame()
                    enemy2->LoadImg("assets/goblin_run.png", m_screen);
                    m_Enemylist.push_back(enemy1);
                    m_Enemylist.push_back(enemy2);
-
-    // keyboard
-    Keyboard* keyQ = new Keyboard();
-    Keyboard* keyW = new Keyboard();
-    Keyboard* keyE = new Keyboard();
-    Keyboard* keyR = new Keyboard();
-    Keyboard* keyD = new Keyboard();
-    Keyboard* keyF = new Keyboard();
-
     // Skill
     Skill* sNO_SPELL = new Skill();
     Skill* sCOLD_SNAP = new Skill();
@@ -121,7 +112,13 @@ void GameManager::LoopGame()
     Skill* sFORGE_SPIRIT = new Skill();
     Skill* sCHAOS_METEOR = new Skill();
     Skill* sDEAFENING_BLAST = new Skill();
-
+    // keyboard
+    Keyboard* keyQ = new Keyboard();
+    Keyboard* keyW = new Keyboard();
+    Keyboard* keyE = new Keyboard();
+    Keyboard* keyR = new Keyboard();
+    Keyboard* keyD = new Keyboard();
+    Keyboard* keyF = new Keyboard();
 
     bool bQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
     keyQ->SetType(Keyboard::KEY_Q);
@@ -158,6 +155,9 @@ void GameManager::LoopGame()
     bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
 
     bool bSkill = bTORNADO && bCOLD_SNAP && bICE_WALL;
+
+
+
 
     if (bSkill)
     {
@@ -199,13 +199,10 @@ void GameManager::LoopGame()
         int spSkill = 0;
         for (int i = 0; i < m_Keylist.size(); i++)
         {           
-            if (i < 3) {
+            if (i <= 3) {
                 m_Keylist[i]->set_clips();
-                m_Keylist[i]->SetPos((50 + sp), 150);
-            }
-            else if (i == 3) {
-                m_Keylist[i]->set_clips();
-                m_Keylist[i]->SetPos(250, 150);
+                m_Keylist[i]->SetPos((50 + sp), 150);           
+
             }
             else {
                 m_Keylist[i]->set_clips();
@@ -233,6 +230,7 @@ void GameManager::LoopGame()
     }
 
     bool bStop = false;
+    // ====================== render here !!!
     while (!bStop)
     {
         fps_timer.start();
@@ -275,9 +273,22 @@ void GameManager::LoopGame()
 
         if (bKey)
         {
-            int keyDown = m_player.GetKeyPress();
-            for (int i = 0; i < m_Keylist.size(); i++)
+            //int keyDown = m_player.GetKeyPress();
+            string curCombo = m_player.getElementCombination();
+            for (char elem : curCombo) {
+                switch (elem) {
+                case 'Q': keyQ->Render(m_screen); break;
+                case 'W':  keyW->Render(m_screen); break;
+                case 'E':  keyE->Render(m_screen); break;
+                }
+            }
+
+
+
+           
+            /*for (int i = 0; i < m_Keylist.size(); i++)
             {
+           
                 int keyType = m_Keylist.at(i)->GetType();
                 if (keyDown  == keyType)
                 {
@@ -287,7 +298,7 @@ void GameManager::LoopGame()
                 {
                     m_Keylist[i]->Render(m_screen);
                 }
-            }
+            }*/
         }
 
         if (bSkill == true)
