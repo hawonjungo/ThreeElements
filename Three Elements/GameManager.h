@@ -11,7 +11,7 @@
 #include "Keyboard.h"
 #include "Skill.h"
 #include <vector>
-
+using namespace std;
 //Screen dimension constants
 const int SCREEN_WIDTH = 928;
 const int SCREEN_HEIGHT = 544;
@@ -38,9 +38,12 @@ protected:
     //EnemyObject m_Enemy;  // temp, could be use to set x and random value later
    
     
-    std::vector<Keyboard*> m_Keylist;
-    std::vector<EnemyObject*> m_Enemylist;
-    std::vector<Skill*> m_Skilllist;
+    vector<Keyboard*> m_Keylist;
+    vector<EnemyObject*> m_Enemylist;
+    vector<Skill*> m_Skilllist;
+    vector<pair<int, int>> pos = { {50, 150}, {100, 150}, {150, 150} };
+
+
 public:
     static GameManager* getInstace()
     {

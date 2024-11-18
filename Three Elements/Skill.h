@@ -33,24 +33,15 @@ public:
 	Skill();
 	~Skill();
 
-	void keyHandle(SDL_Event event);
-	bool LoadImg(std::string path, SDL_Renderer* screen);
-	void set_clips();
-	void Render(SDL_Renderer* screen);
-	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }
-	int GetType() const { return m_type; }
-	void SetType(int type) { m_type = type; }
+	void initializeSpellMap();
+
 	void SetActive(bool at) { m_active = at; }
 	bool GetActive() const { return m_active; }
+	map<std::string, Spell> spellMap;
 private:
 	bool m_active;
-	int m_type;
 	int currentFrame_;
-	SDL_Rect frame_clip_[FRAME_NUM];
-	int width_frame_;  // for 1 frame
-	int height_frame_; // for 1 frame
-	int x_val_;
-	int y_val_;
+
 };
 
 

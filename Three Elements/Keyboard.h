@@ -20,11 +20,7 @@ public:
 	Keyboard();
 	~Keyboard();
 
-	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }
-	void SetType(int type) { m_type = type; }
-	int GetType() const { return m_type; }
 private:
-	int m_type;
 
 };
 

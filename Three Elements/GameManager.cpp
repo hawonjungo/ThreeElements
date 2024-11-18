@@ -3,6 +3,7 @@
 #include "MainPlayer.h"
 #include "Skill.h"
 #include "ImpTimer.h"
+#include <algorithm>
 
 
 GameManager* GameManager::instance_ = NULL;
@@ -140,12 +141,12 @@ void GameManager::LoopGame()
 
     bool bKey = bQ && bW && bE && bR && bD && bF;
 
-    m_Keylist.push_back(keyQ);
-    m_Keylist.push_back(keyW);
-    m_Keylist.push_back(keyE);
-    m_Keylist.push_back(keyR);
-    m_Keylist.push_back(keyD);
-    m_Keylist.push_back(keyF);
+    //m_Keylist.push_back(keyQ);
+    //m_Keylist.push_back(keyW);
+    //m_Keylist.push_back(keyE);
+    //m_Keylist.push_back(keyR);
+    //m_Keylist.push_back(keyD);
+    //m_Keylist.push_back(keyF);
 
 
 
@@ -156,7 +157,7 @@ void GameManager::LoopGame()
 
     bool bSkill = bTORNADO && bCOLD_SNAP && bICE_WALL;
 
-
+ 
 
 
     if (bSkill)
@@ -192,26 +193,11 @@ void GameManager::LoopGame()
         }              
     }
     
-    // setup when player click and it show up later
-    if (bKey)
-    {
-        int sp = 0;
-        int spSkill = 0;
-        for (int i = 0; i < m_Keylist.size(); i++)
-        {           
-            if (i <= 3) {
-                m_Keylist[i]->set_clips();
-                m_Keylist[i]->SetPos((50 + sp), 150);           
-
-            }
-            else {
-                m_Keylist[i]->set_clips();
-                m_Keylist[i]->SetPos(150+spSkill , 200);
-                spSkill += 50;
-            }           
-            sp += 50;        
-        }
-    }
+    // setup when player click D & F later 
+                //m_Keylist[i]->set_clips();
+                //m_Keylist[i]->SetPos(150+spSkill , 200);
+                //spSkill += 50;
+          
 
     SDL_Rect rect_D;
     SDL_Rect rect_F;
@@ -250,6 +236,11 @@ void GameManager::LoopGame()
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
         SDL_RenderClear(m_screen);
    
+
+        // Declare variables area
+        string eleCombo = m_player.getElementComb();
+        
+
         // render background
         if (bBkgn)
         {
@@ -270,39 +261,48 @@ void GameManager::LoopGame()
             m_Skilllist[i]->Render(m_screen);
             
         }
-
+  
         if (bKey)
-        {
-            //int keyDown = m_player.GetKeyPress();
-            string curCombo = m_player.getElementCombination();
-            for (char elem : curCombo) {
-                switch (elem) {
-                case 'Q': keyQ->Render(m_screen); break;
-                case 'W':  keyW->Render(m_screen); break;
-                case 'E':  keyE->Render(m_screen); break;
+        {          
+            
+            for (size_t i = 0; i < eleCombo.size(); ++i) {
+                if (i >= pos.size()) break;
+                int x = pos[i].first;
+                int y = pos[i].second;
+                switch (eleCombo[i]) {
+                case 'Q':
+                    keyQ->Render(m_screen);
+                    keyQ->set_clips();
+                    keyQ->SetPos(x, y);
+                    break;
+                case 'W':  
+                    keyW->Render(m_screen);
+                    keyW->set_clips();
+                    keyW->SetPos(x, y);
+                    break;
+                case 'E':  
+                    keyE->Render(m_screen);
+                    keyE->set_clips();
+                    keyE->SetPos(x, y);
+                    break;
                 }
+            }           
+           
+        }
+
+        if (bSkill)
+        {
+            sort(eleCombo.begin(), eleCombo.end());
+            if (m_skill.spellMap.find(eleCombo) != m_skill.spellMap.end()) {
+                sTORNADO->Render(m_screen);
+                rect_D = sTORNADO->getRect();
+                int xp = rect_D.x;
+                int yp = rect_D.y + rect_D.h + 20;
+                sTORNADO->SetPos(xp, yp);
+                sTORNADO->Render(m_screen);
             }
 
 
-
-           
-            /*for (int i = 0; i < m_Keylist.size(); i++)
-            {
-           
-                int keyType = m_Keylist.at(i)->GetType();
-                if (keyDown  == keyType)
-                {
-                    m_Keylist[i]->Render(m_screen);
-                }   
-                else if (keyType == Keyboard::KEY_D || keyType == Keyboard::KEY_F)
-                {
-                    m_Keylist[i]->Render(m_screen);
-                }
-            }*/
-        }
-
-        if (bSkill == true)
-        {
             int keyQNum = m_player.GetQKey();
             int keyWNum = m_player.GetWKey();
             int keyENum = m_player.GetEKey();

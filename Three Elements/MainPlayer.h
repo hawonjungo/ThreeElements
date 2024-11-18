@@ -16,10 +16,9 @@ public:
 	MainPlayer();
 	~MainPlayer();
 
-	void initializeSpellMap();
+	
 
 
-	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }
 	int GetQKey() { return m_QKeyNum; }
 	int GetWKey() { return m_WKeyNum; }
 	int GetEKey() { return m_EKeyNum; }
@@ -29,19 +28,13 @@ public:
 	void ResetWR() { m_WKeyNum = 0;  m_KeyRactive = false; }
 	void handleKeyPress(SDL_Event key);
 
-	string getElementCombination();
-
-	void combine();
-
+	string getElementComb();
+	string getCombineComb();
 	void saveSpellToSlot();
 
 
 
-	vector<Element> elements;
-	std::map<std::string, Spell> spellMap;
-	Spell activeSpell;
-	Spell slotD;
-	Spell slotF;
+	
 private:
 
 	Skill skill_;
@@ -53,8 +46,11 @@ private:
 	int m_EKeyNum;
 
 	bool m_KeyRactive;
-
-
+	vector<Element> elements;
+	Spell activeSpell;
+	Spell slotD;
+	Spell slotF;
+	Skill skill;
 
 
 };

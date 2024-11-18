@@ -21,8 +21,11 @@ public:
 	virtual bool LoadImg(std::string path, SDL_Renderer* screen);
 	void render(SDL_Renderer* render, const SDL_Rect* clip);
 	void Render(SDL_Renderer* screen);
+	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }
 	void SetFrameNum(int frameNum); 
 	int GetFrameNum() const;
+	int GetType() const { return m_type; }
+	void SetType(int type) { m_type = type; }
 	void set_clips();
 	void free();
 
@@ -36,6 +39,7 @@ public:
 	int currentFrame_;
 	int x_val_;
 	int y_val_;
+	int m_type;
 	std::vector<int> iDelay_; 
 	Uint32 passed_time_; // work better with SDL , 0 - 4m
 
