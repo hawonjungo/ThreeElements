@@ -46,3 +46,5 @@ void Skill::initializeSpellMap() {
 	spellMap["EEW"] = CHAOS_METEOR;
 	spellMap["EQW"] = DEAFENING_BLAST;
 }
+
+

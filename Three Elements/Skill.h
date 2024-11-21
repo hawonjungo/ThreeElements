@@ -35,9 +35,10 @@ public:
 
 	void initializeSpellMap();
 
+
 	void SetActive(bool at) { m_active = at; }
 	bool GetActive() const { return m_active; }
-	map<std::string, Spell> spellMap;
+	map<string, Spell> spellMap;
 private:
 	bool m_active;
 	int currentFrame_;

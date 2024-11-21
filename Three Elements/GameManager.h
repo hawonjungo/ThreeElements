@@ -25,7 +25,7 @@ class GameManager
 private:
     static GameManager* instance_;
     GameManager();
-
+    ~GameManager();
 protected:
     SDL_Window* m_window;
     SDL_Renderer* m_screen;
@@ -41,8 +41,10 @@ protected:
     vector<Keyboard*> m_Keylist;
     vector<EnemyObject*> m_Enemylist;
     vector<Skill*> m_Skilllist;
-    vector<pair<int, int>> pos = { {50, 150}, {100, 150}, {150, 150} };
+    vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
+    vector<pair<int, int>> skillPos = { {150,250},{250,250} };
 
+    map<string, Skill*> skillMap;
 
 public:
     static GameManager* getInstace()

@@ -15,6 +15,13 @@ GameManager::GameManager()
     m_screen = NULL;
 }
 
+GameManager::~GameManager()
+{
+    for (auto& pair : skillMap) {
+        delete pair.second; 
+    }
+}
+
 bool GameManager::InitSDL()
 {
     bool success = true;
@@ -102,6 +109,11 @@ void GameManager::LoopGame()
                    m_Enemylist.push_back(enemy1);
                    m_Enemylist.push_back(enemy2);
     // Skill
+    m_skill.initializeSpellMap();
+    // Generate and map Skill objects using a loop
+    for (const auto& pair : m_skill.spellMap) {
+        skillMap[pair.first] = new Skill();
+    }
     Skill* sNO_SPELL = new Skill();
     Skill* sCOLD_SNAP = new Skill();
     Skill* sGHOST_WALK = new Skill();
@@ -113,6 +125,7 @@ void GameManager::LoopGame()
     Skill* sFORGE_SPIRIT = new Skill();
     Skill* sCHAOS_METEOR = new Skill();
     Skill* sDEAFENING_BLAST = new Skill();
+
     // keyboard
     Keyboard* keyQ = new Keyboard();
     Keyboard* keyW = new Keyboard();
@@ -121,38 +134,26 @@ void GameManager::LoopGame()
     Keyboard* keyD = new Keyboard();
     Keyboard* keyF = new Keyboard();
 
+    map<char, Keyboard*> keyMap = {
+        {'Q', keyQ},
+        {'W', keyW}, 
+        {'E', keyE}
+    };
+
     bool bQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
-    keyQ->SetType(Keyboard::KEY_Q);
-
     bool bW = keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
-    keyW->SetType(Keyboard::KEY_W);
-
     bool bE = keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
-    keyE->SetType(Keyboard::KEY_E);
-
     bool bR = keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
-    keyR->SetType(Keyboard::KEY_R);
-
     bool bD = keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
-    keyD->SetType(Keyboard::KEY_D);
-
     bool bF = keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
-    keyF->SetType(Keyboard::KEY_F);
 
     bool bKey = bQ && bW && bE && bR && bD && bF;
 
-    //m_Keylist.push_back(keyQ);
-    //m_Keylist.push_back(keyW);
-    //m_Keylist.push_back(keyE);
-    //m_Keylist.push_back(keyR);
-    //m_Keylist.push_back(keyD);
-    //m_Keylist.push_back(keyF);
-
-
-
-
-    bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
+    skillMap["QQQ"]->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    skillMap["QWW"]->LoadImg("assets/skill/Tonado.png", m_screen);
+    skillMap["EQQ"]->LoadImg("assets/skill/Freezing.png", m_screen);
     bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
     bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
 
     bool bSkill = bTORNADO && bCOLD_SNAP && bICE_WALL;
@@ -265,42 +266,44 @@ void GameManager::LoopGame()
         if (bKey)
         {          
             
-            for (size_t i = 0; i < eleCombo.size(); ++i) {
-                if (i >= pos.size()) break;
-                int x = pos[i].first;
-                int y = pos[i].second;
-                switch (eleCombo[i]) {
-                case 'Q':
-                    keyQ->Render(m_screen);
-                    keyQ->set_clips();
-                    keyQ->SetPos(x, y);
-                    break;
-                case 'W':  
-                    keyW->Render(m_screen);
-                    keyW->set_clips();
-                    keyW->SetPos(x, y);
-                    break;
-                case 'E':  
-                    keyE->Render(m_screen);
-                    keyE->set_clips();
-                    keyE->SetPos(x, y);
-                    break;
+            for (int i = 0; i < eleCombo.size(); ++i) {        
+
+                char ele = eleCombo[i];
+                int x = elementPos[i].first;
+                int y = elementPos[i].second;
+                               
+                if (keyMap.find(ele) != keyMap.end()) {
+                    Keyboard* key = keyMap[ele];
+                    key->Render(m_screen);
+                    key->set_clips();
+                    key->SetPos(x, y);
                 }
             }           
            
         }
-
         if (bSkill)
         {
             sort(eleCombo.begin(), eleCombo.end());
-            if (m_skill.spellMap.find(eleCombo) != m_skill.spellMap.end()) {
+            for (int i = 0; i < 2; i++) {
+                int x = skillPos[i].first;
+                int y = skillPos[i].second;
+                if (skillMap.find(eleCombo) != skillMap.end()) {
+                    Skill* skill = skillMap[eleCombo];
+                    skill->Render(m_screen);
+                    skill->set_clips();
+                    skill->SetPos(x, y);
+                }
+            }
+
+            
+  /*          if (m_skill.spellMap.find(eleCombo) != m_skill.spellMap.end()) {
                 sTORNADO->Render(m_screen);
                 rect_D = sTORNADO->getRect();
                 int xp = rect_D.x;
                 int yp = rect_D.y + rect_D.h + 20;
                 sTORNADO->SetPos(xp, yp);
                 sTORNADO->Render(m_screen);
-            }
+            }*/
 
 
             int keyQNum = m_player.GetQKey();
