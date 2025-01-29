@@ -4,18 +4,4 @@ D:\Dev\Code\3Elements\ThreeElements\Three Elements\Enemy.h(8,9): warning C4005: 
       D:\Dev\Code\3Elements\ThreeElements\Three Elements\Skill.h(8,9):
       see previous definition of 'FRAME_NUM'
   
-D:\Dev\Code\3Elements\ThreeElements\Three Elements\GameManager.cpp(314,46): warning C4805: '==': unsafe mix of type 'int' and type 'bool' in operation
-  ThreatObject.cpp
-D:\Dev\Code\3Elements\ThreeElements\Three Elements\Enemy.h(8,9): warning C4005: 'FRAME_NUM': macro redefinition
-  (compiling source file 'ThreatObject.cpp')
-      D:\Dev\Code\3Elements\ThreeElements\Three Elements\Skill.h(8,9):
-      see previous definition of 'FRAME_NUM'
-  
-  main.cpp
-D:\Dev\Code\3Elements\ThreeElements\Three Elements\Enemy.h(8,9): warning C4005: 'FRAME_NUM': macro redefinition
-  (compiling source file 'main.cpp')
-      D:\Dev\Code\3Elements\ThreeElements\Three Elements\Skill.h(8,9):
-      see previous definition of 'FRAME_NUM'
-  
-  Generating Code...
   Three Elements.vcxproj -> D:\Dev\Code\3Elements\ThreeElements\x64\Debug\Three Elements.exe

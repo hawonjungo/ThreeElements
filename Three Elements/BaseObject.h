@@ -30,6 +30,7 @@ public:
 	void free();
 
 public:
+	SDL_Renderer* m_screen;
 	SDL_Texture* p_object_;
 	SDL_Rect rect_;
 	std::vector<SDL_Rect> frame_clip_;

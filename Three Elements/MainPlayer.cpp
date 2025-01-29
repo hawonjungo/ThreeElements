@@ -17,7 +17,7 @@ MainPlayer::MainPlayer() {
 	currentFrame_ = 0;
 	totalFrame_ = -1;
 	m_QKeyNum = 0;
-	m_KeyRactive = false;
+	m_KeyRActive = false;
 	SetFrameNum(8);
 	passed_time_ = 0;
 	iDelay_.resize(totalFrame_, 100);
@@ -51,7 +51,8 @@ void MainPlayer::handleKeyPress(SDL_Event key) {
 			elements.push_back(EXORT);
 			printf("====E====== "); break;
 		case SDLK_r:
-			getCombineComb();			
+			getCombineComb();		
+			m_KeyRActive = true;
 			return; 
 			// Additional keys (D, F) might be handled separately if needed
 		}
@@ -82,7 +83,7 @@ string MainPlayer::getCombineComb() {
 	sort(combo.begin(), combo.end());
 	if (skill.spellMap.find(combo) != skill.spellMap.end()) {
 		activeSpell = skill.spellMap[combo];
-		saveSpellToSlot();
+		saveSpellToSlot(combo);
 		printf("Current combination: %s\n", combo.c_str());
 	}
 	else {
@@ -90,8 +91,14 @@ string MainPlayer::getCombineComb() {
 	}
 	return combo;
 }
-
-void MainPlayer::saveSpellToSlot() {
-	slotF = slotD;
-	slotD = activeSpell;
+// good thinking
+void MainPlayer::saveSpellToSlot(string combo) {
+			
+	if (!slotD.empty() && slotD != slotF && slotD != combo) {
+			slotF = slotD;
+	
+	}
+		slotD = combo;
+		
+		printf("Slot D: %s, Slot F: %s\n", slotD.c_str(), slotF.c_str());
 }

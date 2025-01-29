@@ -149,17 +149,30 @@ void GameManager::LoopGame()
 
     bool bKey = bQ && bW && bE && bR && bD && bF;
 
-    skillMap["QQQ"]->LoadImg("assets/skill/GreenVolt.png", m_screen);
-    skillMap["QWW"]->LoadImg("assets/skill/Tonado.png", m_screen);
-    skillMap["EQQ"]->LoadImg("assets/skill/Freezing.png", m_screen);
-    bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
-    bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
-    bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
+    skillMap["QQQ"]->LoadImg("assets/skill/ColdSnap.png", m_screen);
+    skillMap["QQW"]->LoadImg("assets/skill/GhostWalk.png", m_screen);
+    skillMap["EQQ"]->LoadImg("assets/skill/IceWall.png", m_screen);
+    skillMap["WWW"]->LoadImg("assets/skill/EMP.png", m_screen);
+    skillMap["QWW"]->LoadImg("assets/skill/Tornado.png", m_screen);
+    skillMap["EWW"]->LoadImg("assets/skill/Alacrity.png", m_screen);
+    skillMap["EEE"]->LoadImg("assets/skill/SunStrike.png", m_screen);
+    skillMap["EEQ"]->LoadImg("assets/skill/ForgeSpirit.png", m_screen);
+    skillMap["EEW"]->LoadImg("assets/skill/Meteor.png", m_screen);
+    skillMap["EQW"]->LoadImg("assets/skill/Blast.png", m_screen);
+    bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/ColdSnap.png", m_screen);
+    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
+    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
+    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
+    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
+    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
+    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
+    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
 
-    bool bSkill = bTORNADO && bCOLD_SNAP && bICE_WALL;
+    bool bSkill = bCOLD_SNAP;
 
- 
-
+    Skill* skillSlotD;
+    Skill* skillSlotF;
 
     if (bSkill)
     {
@@ -240,7 +253,7 @@ void GameManager::LoopGame()
 
         // Declare variables area
         string eleCombo = m_player.getElementComb();
-        
+        string eleComboR = m_player.getElementComb();
 
         // render background
         if (bBkgn)
@@ -281,90 +294,35 @@ void GameManager::LoopGame()
             }           
            
         }
-        if (bSkill)
+        if (bSkill && m_player.m_KeyRActive)
         {
-            sort(eleCombo.begin(), eleCombo.end());
-            for (int i = 0; i < 2; i++) {
-                int x = skillPos[i].first;
-                int y = skillPos[i].second;
-                if (skillMap.find(eleCombo) != skillMap.end()) {
-                    Skill* skill = skillMap[eleCombo];
-                    skill->Render(m_screen);
-                    skill->set_clips();
-                    skill->SetPos(x, y);
-                }
-            }
-
             
-  /*          if (m_skill.spellMap.find(eleCombo) != m_skill.spellMap.end()) {
-                sTORNADO->Render(m_screen);
-                rect_D = sTORNADO->getRect();
-                int xp = rect_D.x;
-                int yp = rect_D.y + rect_D.h + 20;
-                sTORNADO->SetPos(xp, yp);
-                sTORNADO->Render(m_screen);
-            }*/
+                // Assuming you have a method to render the active spell
+                m_player.skill.Render(m_screen);
+                if (m_player.m_KeyRActive) {     
+                    if (!m_player.slotD.empty() && m_player.slotD != m_player.slotF) {
 
+                        skillSlotD = skillMap[m_player.slotD];
+                        skillSlotD->Render(m_screen);
+                        skillSlotD->set_clips();
+                        skillSlotD->SetPos(skillPos[0].first, skillPos[0].second);
 
-            int keyQNum = m_player.GetQKey();
-            int keyWNum = m_player.GetWKey();
-            int keyENum = m_player.GetEKey();
-            int keyRState = m_player.GetRState();
-
-            if (keyQNum == 3 && keyRState == true)
-            {
-                for (int i = 0; i < m_Skilllist.size(); i++)
-                {
-                    int keyType = m_Skilllist.at(i)->GetType();
-                    if (keyType == TORNADO)
-                    {
-                        if (m_Skilllist[i]->GetActive() == true)
-                        {
-                            // Second time, D change to false
-                            m_Skilllist[i]->Render(m_screen);
-                        }
-                        else
-                        {
-                            // First time
-                            int xp = rect_D.x;
-                            int yp = rect_D.y + rect_D.h + 20;
-                            m_Skilllist[i]->SetPos(xp, yp);
-                            m_Skilllist[i]->Render(m_screen);
-
-                            // reset reset
-                            m_player.ResetQR();
-                        }
                     }
+                    if (!m_player.slotF.empty()) {
+                        skillSlotF = skillMap[m_player.slotF];
+                        skillSlotF->Render(m_screen);
+                        skillSlotF->set_clips();
+                        skillSlotF->SetPos(skillPos[1].first, skillPos[1].second);
 
-                }
-            }
-            else if (keyWNum == 3 )
-            {
-                for (int i = 0; i < m_Skilllist.size(); i++)
-                {
-                    int keyType = m_Skilllist.at(i)->GetType();
-                    if (keyType == COLD_SNAP)
-                    {
-                        if (m_Skilllist[i]->GetActive() == true)
-                        {
-                            // Second time, D change to false
-                            m_Skilllist[i]->Render(m_screen);
-                        }
-                        else
-                        {
-                            // First time
-                            int xp = rect_D.x;
-                            int yp = rect_D.y + rect_D.h + 20;
-                            m_Skilllist[i]->SetPos(xp, yp);
-                            m_Skilllist[i]->Render(m_screen);
-
-                            // reset reset
-                            m_player.ResetWR();
-                        }
                     }
+                       
+                   
+                   
                 }
-                
-            }
+             
+               
+
+
         }
 
         //Update screen

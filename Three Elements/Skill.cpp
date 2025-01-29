@@ -35,16 +35,16 @@ Skill::~Skill()
 
 }
 void Skill::initializeSpellMap() {
-	spellMap["QQQ"] = COLD_SNAP;
-	spellMap["QQW"] = GHOST_WALK;
-	spellMap["EQQ"] = ICE_WALL;
-	spellMap["WWW"] = EMP;
-	spellMap["QWW"] = TORNADO;
-	spellMap["EWW"] = ALACRITY;
-	spellMap["EEE"] = SUN_STRIKE;
-	spellMap["EEQ"] = FORGE_SPIRIT;
-	spellMap["EEW"] = CHAOS_METEOR;
-	spellMap["EQW"] = DEAFENING_BLAST;
+	spellMap["QQQ"] = "COLD_SNAP";
+	spellMap["QQW"] = "GHOST_WALK";
+	spellMap["EQQ"] = "ICE_WALL";
+	spellMap["WWW"] = "EMP";
+	spellMap["QWW"] = "TORNADO";
+	spellMap["EWW"] = "ALACRITY";
+	spellMap["EEE"] = "SUN_STRIKE";
+	spellMap["EEQ"] = "FORGE_SPIRIT";
+	spellMap["EEW"] = "CHAOS_METEOR";
+	spellMap["EQW"] = "DEAFENING_BLAST";
 }
 
 

@@ -38,7 +38,7 @@ public:
 
 	void SetActive(bool at) { m_active = at; }
 	bool GetActive() const { return m_active; }
-	map<string, Spell> spellMap;
+	map<string, string> spellMap;
 private:
 	bool m_active;
 	int currentFrame_;
