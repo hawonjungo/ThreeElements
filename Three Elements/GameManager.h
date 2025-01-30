@@ -26,6 +26,10 @@ private:
     static GameManager* instance_;
     GameManager();
     ~GameManager();
+
+    SDL_Texture* backgroundLayers[12];
+    float backgroundPositions[12];
+    float backgroundSpeeds[12];
 protected:
     SDL_Window* m_window;
     SDL_Renderer* m_screen;
@@ -53,6 +57,9 @@ public:
             instance_ = new GameManager();
         return instance_;
     }
+    bool loadBackgroundLayers();
+    void renderBackgroundLayers();
+    void updateBackgroundLayers();
     
     bool InitSDL();
     void LoopGame();

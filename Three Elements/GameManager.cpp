@@ -88,7 +88,10 @@ bool GameManager::InitSDL()
         }
         */
     }
-
+    // Load background layers
+    if (!loadBackgroundLayers()) {
+        return false;
+    }
     return success;
 }
 
@@ -140,14 +143,13 @@ void GameManager::LoopGame()
         {'E', keyE}
     };
 
-    bool bQ = keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
-    bool bW = keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
-    bool bE = keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
-    bool bR = keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
-    bool bD = keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
-    bool bF = keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
+    keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
+    keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
+    keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
+    keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
+    keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
+    keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
 
-    bool bKey = bQ && bW && bE && bR && bD && bF;
 
     skillMap["QQQ"]->LoadImg("assets/skill/ColdSnap.png", m_screen);
     skillMap["QQW"]->LoadImg("assets/skill/GhostWalk.png", m_screen);
@@ -159,7 +161,8 @@ void GameManager::LoopGame()
     skillMap["EEQ"]->LoadImg("assets/skill/ForgeSpirit.png", m_screen);
     skillMap["EEW"]->LoadImg("assets/skill/Meteor.png", m_screen);
     skillMap["EQW"]->LoadImg("assets/skill/Blast.png", m_screen);
-    bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/ColdSnap.png", m_screen);
+
+    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/ColdSnap.png", m_screen);
     //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
     //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
     //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
@@ -169,12 +172,12 @@ void GameManager::LoopGame()
     //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
     //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
 
-    bool bSkill = bCOLD_SNAP;
+
 
     Skill* skillSlotD;
     Skill* skillSlotF;
-
-    if (bSkill)
+	// change the true to false to disable the skill - later
+    if (true)
     {
         m_Skilllist.push_back(sTORNADO);
         m_Skilllist.push_back(sCOLD_SNAP);
@@ -184,7 +187,7 @@ void GameManager::LoopGame()
     if (bPlayer)
     {
         m_player.set_clips();
-        m_player.SetPos(10, 375);         
+        m_player.SetPos(10, 385);         
     }
 
                    
@@ -195,7 +198,7 @@ void GameManager::LoopGame()
         for (int i = 0; i < m_Enemylist.size(); i++)
         {
             m_Enemylist[i]->set_clips();
-            m_Enemylist[i]->SetPos(800+sp, 385);
+            m_Enemylist[i]->SetPos(800+sp, 395);
             m_Enemylist[i]->SetVal(5, 0);
             sp += 50;
             
@@ -207,12 +210,7 @@ void GameManager::LoopGame()
         }              
     }
     
-    // setup when player click D & F later 
-                //m_Keylist[i]->set_clips();
-                //m_Keylist[i]->SetPos(150+spSkill , 200);
-                //spSkill += 50;
-          
-
+   
     SDL_Rect rect_D;
     SDL_Rect rect_F;
     // Need D and F rect
@@ -249,17 +247,20 @@ void GameManager::LoopGame()
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
         SDL_RenderClear(m_screen);
-   
+
+        // Update and render background layers
+        updateBackgroundLayers();
+        renderBackgroundLayers();
 
         // Declare variables area
         string eleCombo = m_player.getElementComb();
         string eleComboR = m_player.getElementComb();
 
         // render background
-        if (bBkgn)
-        {
-            m_background.render(m_screen,NULL);
-        }
+        //if (bBkgn)
+        //{
+        //    m_background.render(m_screen,NULL);
+        //}
 
         if (bPlayer)
         {
@@ -276,7 +277,7 @@ void GameManager::LoopGame()
             
         }
   
-        if (bKey)
+        if (true)
         {          
             
             for (int i = 0; i < eleCombo.size(); ++i) {        
@@ -294,7 +295,7 @@ void GameManager::LoopGame()
             }           
            
         }
-        if (bSkill && m_player.m_KeyRActive)
+        if (m_player.m_KeyRActive)
         {
             
                 // Assuming you have a method to render the active spell
@@ -357,6 +358,66 @@ void GameManager::LoopGame()
     Close();
 }
 
+
+bool GameManager::loadBackgroundLayers() {
+    const char* layerPaths[12] = {
+       "assets/background/Layer_0011_0.png",
+       "assets/background/Layer_0010_1.png",
+        "assets/background/Layer_0009_2.png",
+         "assets/background/Layer_0008_3.png",
+         "assets/background/Layer_0007_Lights.png",
+         "assets/background/Layer_0006_4.png",
+         "assets/background/Layer_0005_5.png",
+         "assets/background/Layer_0004_Lights.png",
+        "assets/background/Layer_0003_6.png",
+         "assets/background/Layer_0002_7.png",
+         "assets/background/Layer_0001_8.png",
+          "assets/background/Layer_0000_9.png"         
+    };
+
+    for (int i = 0; i < 12; ++i) {
+        SDL_Surface* tempSurface = IMG_Load(layerPaths[i]);
+        if (!tempSurface) {
+            printf("Failed to load background layer %d: %s\n", i + 1, IMG_GetError());
+            return false;
+        }
+        backgroundLayers[i] = SDL_CreateTextureFromSurface(m_screen, tempSurface);
+        SDL_FreeSurface(tempSurface);
+        if (!backgroundLayers[i]) {
+            printf("Failed to create texture for background layer %d: %s\n", i + 1, SDL_GetError());
+            return false;
+        }
+        backgroundPositions[i] = 0.0f;
+        backgroundSpeeds[i] = 0.1f * (i + 1); // Adjust speed as needed
+    }
+    return true;
+}
+
+void GameManager::renderBackgroundLayers() {
+    for (int i = 0; i < 12; ++i) {
+        SDL_Rect destRect = { static_cast<int>(backgroundPositions[i]), 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+        SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+
+        // Render a second copy of the layer to create a seamless loop
+        if (backgroundPositions[i] <= 0) {
+            destRect.x = static_cast<int>(backgroundPositions[i]) + SCREEN_WIDTH;
+            SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+        }
+        else {
+            destRect.x = static_cast<int>(backgroundPositions[i]) - SCREEN_WIDTH;
+            SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+        }
+    }
+}
+
+void GameManager::updateBackgroundLayers() {
+    for (int i = 0; i < 12; ++i) {
+        backgroundPositions[i] -= backgroundSpeeds[i];
+        if (backgroundPositions[i] <= -SCREEN_WIDTH) {
+            backgroundPositions[i] += SCREEN_WIDTH;
+        }
+    }
+}
 
 void GameManager::Close()
 {
