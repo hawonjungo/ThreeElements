@@ -44,6 +44,8 @@ void EnemyObject::UpdatePos()
 
 }
 
+
+
 bool EnemyObject::LoadImg(std::string path, SDL_Renderer* screen)
 {
 	bool ret = BaseObject::LoadImg(path, screen);
@@ -82,6 +84,5 @@ void EnemyObject::Render(SDL_Renderer* screen)
 	SDL_Rect renderQuad = { rect_.x, rect_.y, width_frame_, height_frame_ };
 
 	SDL_RenderCopyEx(screen, p_object_, current_clip, &renderQuad, 0, 0, SDL_FLIP_HORIZONTAL);
-	//SDL_RenderCopy(screen, p_object_, current_clip, &renderQuad);
 	
 }

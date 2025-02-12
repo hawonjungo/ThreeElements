@@ -50,6 +50,12 @@ protected:
 
     map<string, Skill*> skillMap;
 
+    const vector<string> enemyPaths = {
+    "assets/mushroom_run.png",
+    "assets/goblin_run.png",
+    "assets/flight.png",
+    "assets/flight.png"
+    };
 public:
     static GameManager* getInstace()
     {
@@ -60,6 +66,8 @@ public:
     bool loadBackgroundLayers();
     void renderBackgroundLayers();
     void updateBackgroundLayers();
+
+    void respawnEnemy();
     
     bool InitSDL();
     void LoopGame();

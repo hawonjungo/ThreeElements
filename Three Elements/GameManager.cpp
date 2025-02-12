@@ -13,6 +13,7 @@ GameManager::GameManager()
 {
     m_window = NULL;
     m_screen = NULL;
+
 }
 
 GameManager::~GameManager()
@@ -60,9 +61,9 @@ bool GameManager::InitSDL()
         {
             success = false;
         }
-        */
+        
 
-        /*
+
         g_sound_bullet[0] = Mix_LoadWAV(g_name_audio_bullet_main1);
         g_sound_bullet[1] = Mix_LoadWAV(g_name_audio_bullet_main2);
         g_sound_explosion = Mix_LoadWAV(g_name_audio_ex_main);
@@ -72,21 +73,24 @@ bool GameManager::InitSDL()
         {
             return false;
         }
-        */
+     
 
-        /*if (TTF_Init() == -1)
+        if (TTF_Init() == -1)
         {
             success = false;
-        }*/
+        }
 
-        /*
-        * // prepare for font text
+        
+         // prepare for font text
         font_time = TTF_OpenFont("font//dlxfont.ttf", 15);
         if (font_time == NULL)
         {
             success = false;
         }
+        
         */
+        
+        
     }
     // Load background layers
     if (!loadBackgroundLayers()) {
@@ -104,13 +108,36 @@ void GameManager::LoopGame()
     bool bBkgn = m_background.LoadImg("assets/bg.png", m_screen);
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
+    
     // enemy
-    EnemyObject* enemy1 = new EnemyObject();
+    
+    //  Generate and load 10 random enemies
+    //for (int i = 0; i < enemyPaths.size(); ++i) {
+    //    EnemyObject* enemy = new EnemyObject();
+    //   
+    //     bool  bEnemy = enemy->LoadImg(enemyPaths[i], m_screen);
+    //     m_Enemylist.push_back(enemy);
+    //    if (bEnemy) {
+    //        enemy->set_clips();
+    //        enemy->SetPos(800 + i * 50, 395); // Adjust position as needed
+    //        enemy->SetVal(5, 0);
+    //       
+    //    }
+    //}
+
+
+   /* EnemyObject* enemy1 = new EnemyObject();
     EnemyObject* enemy2 = new EnemyObject();
+    EnemyObject* enemy3 = new EnemyObject();
+    EnemyObject* enemy4 = new EnemyObject();
     bool bEnemy1 = enemy1->LoadImg("assets/mushroom_run.png", m_screen);
                    enemy2->LoadImg("assets/goblin_run.png", m_screen);
+                   enemy3->LoadImg("assets/flight.png", m_screen);
+                   enemy4->LoadImg("assets/flight.png", m_screen);
                    m_Enemylist.push_back(enemy1);
                    m_Enemylist.push_back(enemy2);
+                   m_Enemylist.push_back(enemy3);
+                   m_Enemylist.push_back(enemy4);*/
     // Skill
     m_skill.initializeSpellMap();
     // Generate and map Skill objects using a loop
@@ -191,7 +218,7 @@ void GameManager::LoopGame()
     }
 
                    
-    if (bEnemy1)
+   /* if (bEnemy)
     {
         int sp = 0;
         int spSkill = 0;
@@ -203,12 +230,9 @@ void GameManager::LoopGame()
             sp += 50;
             
 
-            m_Skilllist[i]->set_clips();
-            m_Skilllist[i]->SetPos(700+spSkill, 150);
-            spSkill += 100;
             
         }              
-    }
+    }*/
     
    
     SDL_Rect rect_D;
@@ -226,7 +250,9 @@ void GameManager::LoopGame()
             rect_F = m_Keylist[i]->getRect();
         }
     }
-
+    Uint32 lastRespawnTime = SDL_GetTicks() - 5000;
+    Uint32 respawnInterval = 5000; // Initial respawn interval in milliseconds
+   
     bool bStop = false;
     // ====================== render here !!!
     while (!bStop)
@@ -266,16 +292,25 @@ void GameManager::LoopGame()
         {
             m_player.Render(m_screen);
         }
+        // Update and render enemies
+        for (int i = 0; i < m_Enemylist.size(); ++i) {
+            m_Enemylist[i]->Render(m_screen);
+            m_Enemylist[i]->UpdatePos();
 
+            // Check collision with player
+            //if (checkCollision(m_player.getRect(), m_Enemylist[i]->getRect())) {
+            //    bStop = true; // Stop the game if an enemy touches the player
+            //}
+        }
 
-        for (int i = 0; i < m_Enemylist.size(); i++)
+        /*for (int i = 0; i < m_Enemylist.size(); i++)
         {
             m_Enemylist[i]->Render(m_screen);
             m_Enemylist[i]->UpdatePos();
 
-            m_Skilllist[i]->Render(m_screen);
+          
             
-        }
+        }*/
   
         if (true)
         {          
@@ -325,7 +360,12 @@ void GameManager::LoopGame()
 
 
         }
-
+        Uint32 currentTime = SDL_GetTicks();
+        if (currentTime - lastRespawnTime >= respawnInterval) {
+            respawnEnemy();
+            lastRespawnTime = currentTime;
+           // respawnInterval = std::max(1000U, respawnInterval - 500); // Decrease interval, minimum 1 second
+        }
         //Update screen
         SDL_RenderPresent(m_screen);
      
@@ -418,7 +458,22 @@ void GameManager::updateBackgroundLayers() {
         }
     }
 }
+void GameManager::respawnEnemy() {
+    int randomIndex = std::rand() % enemyPaths.size();
+    EnemyObject* enemy = new EnemyObject();
+    bool bEnemy = enemy->LoadImg(enemyPaths[randomIndex], m_screen);
+    if (bEnemy) {
+    
+        enemy->set_clips();
+        enemy->SetPos(800, 395); // Adjust position as needed
+        enemy->SetVal(5, 0);
 
+        m_Enemylist.push_back(enemy);
+    }
+    else {
+        delete enemy;
+    }
+}
 void GameManager::Close()
 {
     //g_background.Free();
