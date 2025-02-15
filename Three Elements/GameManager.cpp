@@ -109,35 +109,7 @@ void GameManager::LoopGame()
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
     
-    // enemy
     
-    //  Generate and load 10 random enemies
-    //for (int i = 0; i < enemyPaths.size(); ++i) {
-    //    EnemyObject* enemy = new EnemyObject();
-    //   
-    //     bool  bEnemy = enemy->LoadImg(enemyPaths[i], m_screen);
-    //     m_Enemylist.push_back(enemy);
-    //    if (bEnemy) {
-    //        enemy->set_clips();
-    //        enemy->SetPos(800 + i * 50, 395); // Adjust position as needed
-    //        enemy->SetVal(5, 0);
-    //       
-    //    }
-    //}
-
-
-   /* EnemyObject* enemy1 = new EnemyObject();
-    EnemyObject* enemy2 = new EnemyObject();
-    EnemyObject* enemy3 = new EnemyObject();
-    EnemyObject* enemy4 = new EnemyObject();
-    bool bEnemy1 = enemy1->LoadImg("assets/mushroom_run.png", m_screen);
-                   enemy2->LoadImg("assets/goblin_run.png", m_screen);
-                   enemy3->LoadImg("assets/flight.png", m_screen);
-                   enemy4->LoadImg("assets/flight.png", m_screen);
-                   m_Enemylist.push_back(enemy1);
-                   m_Enemylist.push_back(enemy2);
-                   m_Enemylist.push_back(enemy3);
-                   m_Enemylist.push_back(enemy4);*/
     // Skill
     m_skill.initializeSpellMap();
     // Generate and map Skill objects using a loop
@@ -189,27 +161,11 @@ void GameManager::LoopGame()
     skillMap["EEW"]->LoadImg("assets/skill/Meteor.png", m_screen);
     skillMap["EQW"]->LoadImg("assets/skill/Blast.png", m_screen);
 
-    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/ColdSnap.png", m_screen);
-    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
-    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
-    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
-    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
-    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
-    //bool bCOLD_SNAP = sCOLD_SNAP->LoadImg("assets/skill/GreenVolt.png", m_screen);
-    //bool bTORNADO = sTORNADO->LoadImg("assets/skill/Tonado.png", m_screen);
-    //bool bICE_WALL = sICE_WALL->LoadImg("assets/skill/Freezing.png", m_screen);
-
 
 
     Skill* skillSlotD;
     Skill* skillSlotF;
-	// change the true to false to disable the skill - later
-    if (true)
-    {
-        m_Skilllist.push_back(sTORNADO);
-        m_Skilllist.push_back(sCOLD_SNAP);
-        m_Skilllist.push_back(sICE_WALL);
-    }
+
           
     if (bPlayer)
     {
@@ -218,23 +174,8 @@ void GameManager::LoopGame()
     }
 
                    
-   /* if (bEnemy)
-    {
-        int sp = 0;
-        int spSkill = 0;
-        for (int i = 0; i < m_Enemylist.size(); i++)
-        {
-            m_Enemylist[i]->set_clips();
-            m_Enemylist[i]->SetPos(800+sp, 395);
-            m_Enemylist[i]->SetVal(5, 0);
-            sp += 50;
-            
-
-            
-        }              
-    }*/
-    
    
+	// Set position for keyboard
     SDL_Rect rect_D;
     SDL_Rect rect_F;
     // Need D and F rect
@@ -303,14 +244,7 @@ void GameManager::LoopGame()
             //}
         }
 
-        /*for (int i = 0; i < m_Enemylist.size(); i++)
-        {
-            m_Enemylist[i]->Render(m_screen);
-            m_Enemylist[i]->UpdatePos();
 
-          
-            
-        }*/
   
         if (true)
         {          
@@ -362,10 +296,12 @@ void GameManager::LoopGame()
         }
         Uint32 currentTime = SDL_GetTicks();
         if (currentTime - lastRespawnTime >= respawnInterval) {
-            respawnEnemy();
+            respawnEnemy(currentTime);
             lastRespawnTime = currentTime;
            // respawnInterval = std::max(1000U, respawnInterval - 500); // Decrease interval, minimum 1 second
         }
+     
+         //respawnEnemy();
         //Update screen
         SDL_RenderPresent(m_screen);
      
@@ -458,21 +394,78 @@ void GameManager::updateBackgroundLayers() {
         }
     }
 }
-void GameManager::respawnEnemy() {
-    int randomIndex = std::rand() % enemyPaths.size();
-    EnemyObject* enemy = new EnemyObject();
-    bool bEnemy = enemy->LoadImg(enemyPaths[randomIndex], m_screen);
-    if (bEnemy) {
-    
-        enemy->set_clips();
-        enemy->SetPos(800, 395); // Adjust position as needed
-        enemy->SetVal(5, 0);
+void GameManager::respawnEnemy(Uint32 currentTime) {
+    if (currentTime - lastRespawnTime < respawnInterval) {
+        return; // Too soon to respawn
+    }
 
-        m_Enemylist.push_back(enemy);
+    // Populate availableEnemy with indices of enemies not currently on the screen
+    std::vector<int> availableEnemy;
+    for (int i = 0; i < enemyPaths.size(); ++i) {
+        bool isOnScreen = false;
+        for (const auto& enemy : m_Enemylist) {
+            if (enemy->GetPath() == enemyPaths[i].first) {
+                isOnScreen = true;
+                break;
+            }
+        }
+        if (!isOnScreen) {
+            availableEnemy.push_back(i);
+        }
+    }
+
+    if (availableEnemy.empty()) {
+        return; // No available enemy types to respawn
+    }
+
+    // Select a random enemy from the available list
+    int randomIndex = availableEnemy[std::rand() % availableEnemy.size()];
+
+    // Create and initialize the enemy
+    EnemyObject* enemy = new EnemyObject();
+    const auto& enemyData = enemyPaths[randomIndex];
+    bool bEnemy = enemy->LoadImg(enemyData.first, m_screen, enemyData.second);
+    if (bEnemy) {
+        enemy->set_clips();
+        // Randomize position as needed
+        //int posX = 800; // Example: spawn at the right edge of the screen
+        //int posY = std::rand() % (SCREEN_HEIGHT - enemy->getRect().h);
+               // Randomize position as needed and ensure minimum distance
+        int posX = 800, posY=400;
+        const int minDistance = 100; // Minimum distance in pixels
+        int attempts = 0;
+        const int maxAttempts = 150; // Limit the number of attempts to avoid infinite loop
+        do {
+            posX = 800; // Reset horizontal position
+            attempts++;
+        } while (!EnemyDistance(posX, posY, minDistance) && attempts < maxAttempts);
+        if (attempts < maxAttempts) {
+            enemy->SetPos(posX, posY);
+            enemy->SetVal(5, 0);
+            m_Enemylist.push_back(enemy);
+        }
+        else {
+            delete enemy; // Failed to find a valid position, clean up
+        }
     }
     else {
         delete enemy;
     }
+
+    lastRespawnTime = currentTime; // Update the last respawn time
+	
+}
+
+bool GameManager::EnemyDistance(int x, int y, int minDistance) {
+    for (const auto& enemy : m_Enemylist) {
+        int enemyX = enemy->getRect().x;
+        int enemyY = enemy->getRect().y;
+        int distance = std::sqrt(std::pow(x - enemyX, 2) + std::pow(y - enemyY, 2));
+        if (distance < minDistance) {
+            return false;
+        }
+    }
+    return true;
 }
 void GameManager::Close()
 {

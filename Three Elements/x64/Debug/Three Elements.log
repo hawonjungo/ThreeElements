@@ -1,7 +1,3 @@
 ﻿  GameManager.cpp
-D:\Dev\Code\3Elements\ThreeElements\Three Elements\Enemy.h(8,9): warning C4005: 'FRAME_NUM': macro redefinition
-  (compiling source file 'GameManager.cpp')
-      D:\Dev\Code\3Elements\ThreeElements\Three Elements\Skill.h(8,9):
-      see previous definition of 'FRAME_NUM'
-  
+D:\Dev\Code\3Elements\ThreeElements\Three Elements\GameManager.cpp(463,22): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
   Three Elements.vcxproj -> D:\Dev\Code\3Elements\ThreeElements\x64\Debug\Three Elements.exe

@@ -23,55 +23,68 @@ const int RENDER_DRAW_COLOR = 0Xff;
 class GameManager
 {
 private:
-    static GameManager* instance_;
-    GameManager();
-    ~GameManager();
+	static GameManager* instance_;
+	GameManager();
+	~GameManager();
 
-    SDL_Texture* backgroundLayers[12];
-    float backgroundPositions[12];
-    float backgroundSpeeds[12];
+	SDL_Texture* backgroundLayers[12];
+	float backgroundPositions[12];
+	float backgroundSpeeds[12];
 protected:
-    SDL_Window* m_window;
-    SDL_Renderer* m_screen;
-    SDL_Event m_event;
+	SDL_Window* m_window;
+	SDL_Renderer* m_screen;
+	SDL_Event m_event;
 
-    // declare object
-    BaseObject m_background;
-    MainPlayer m_player;
-    Skill m_skill;
-    //EnemyObject m_Enemy;  // temp, could be use to set x and random value later
-   
-    
-    vector<Keyboard*> m_Keylist;
-    vector<EnemyObject*> m_Enemylist;
-    vector<Skill*> m_Skilllist;
-    vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
-    vector<pair<int, int>> skillPos = { {150,250},{250,250} };
+	// declare object
+	BaseObject m_background;
+	MainPlayer m_player;
+	Skill m_skill;
+	
 
-    map<string, Skill*> skillMap;
+	vector<Keyboard*> m_Keylist;
+	vector<EnemyObject*> m_Enemylist;
+	// Existing members...
+	std::vector<EnemyObject*> activeEnemies;
+	vector<int> availableEnemy;
+	Uint32 lastRespawnTime;
+	bool isEnemyOnScreen = false;
 
-    const vector<string> enemyPaths = {
-    "assets/mushroom_run.png",
-    "assets/goblin_run.png",
-    "assets/flight.png",
-    "assets/flight.png"
-    };
+	const Uint32 respawnInterval = 5000; // 5 seconds
+	vector<Skill*> m_Skilllist;
+	vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
+	vector<pair<int, int>> skillPos = { {150,250},{250,250} };
+
+	map<string, Skill*> skillMap;
+
+	const vector<pair<string, int>> enemyPaths = {
+		  {"assets/enemies/mushroom_run.png", 8},
+		  {"assets/enemies/goblin_run.png", 8},
+		  {"assets/enemies/eyes_fly.png", 8},
+		  {"assets/enemies/skeleton.png", 4},
+
+		  {"assets/enemies/fire_wiz.png", 8},
+		  {"assets/enemies/nec_walk.png", 10},
+	  	  {"assets/enemies/worm_run.png", 9}
+
+
+	};
 public:
-    static GameManager* getInstace()
-    {
-        if (instance_ == NULL)
-            instance_ = new GameManager();
-        return instance_;
-    }
-    bool loadBackgroundLayers();
-    void renderBackgroundLayers();
-    void updateBackgroundLayers();
+	static GameManager* getInstace()
+	{
+		if (instance_ == NULL)
+			instance_ = new GameManager();
+		return instance_;
+	}
+	bool loadBackgroundLayers();
+	void renderBackgroundLayers();
+	void updateBackgroundLayers();
 
-    void respawnEnemy();
-    
-    bool InitSDL();
-    void LoopGame();
-    void Close();
+	void respawnEnemy(Uint32 currentTime);
+
+	bool InitSDL();
+	void LoopGame();
+	bool EnemyDistance(int x, int y, int minDistance);
+	void Close();
 };
 
 #endif
