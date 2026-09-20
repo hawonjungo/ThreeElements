@@ -13,17 +13,6 @@ void EnemyObject::keyHandle(SDL_Event event)
 {
 }
 
-void EnemyObject::UpdatePos()
-{
-	rect_.x -= x_val_;
-	if (rect_.x < 0)
-	{
-		// TODO:
-		rect_.x = 800;
-	}
-	
-}
-
 std::string EnemyObject::GetPath() const
 {
 	return path_;

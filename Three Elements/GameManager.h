@@ -10,6 +10,8 @@
 #include "Enemy.h"
 #include "Keyboard.h"
 #include "Skill.h"
+#include "Core/Invoker.h"
+#include "Practice/Practice.h"
 #include <vector>
 using namespace std;
 //Screen dimension constants
@@ -19,6 +21,9 @@ const int SCREEN_HEIGHT = 544;
 const int FRAME_PER_SECOND = 25;  // fps
 
 const int RENDER_DRAW_COLOR = 0Xff;
+
+// y of the ground the enemies run on: an enemy's lowest visible pixel (EnemyDefinition::feetRow) is drawn here
+const int GROUND_LINE_Y = 500;
 
 class GameManager
 {
@@ -38,36 +43,16 @@ protected:
 	// declare object
 	BaseObject m_background;
 	MainPlayer m_player;
-	Skill m_skill;
-	
+	Skill m_skillIcons[invoker::SKILL_COUNT];  // icon sprites, indexed by invoker::SkillId
+	Keyboard m_keyQ, m_keyW, m_keyE, m_keyD, m_keyF;  // key icons: orbs (Q/W/E) and slot labels (D/F)
+	EnemyObject m_enemySprites[practice::ENEMY_TYPE_COUNT];  // one sprite sheet per enemy definition, loaded once
 
-	vector<Keyboard*> m_Keylist;
-	vector<EnemyObject*> m_Enemylist;
-	// Existing members...
-	std::vector<EnemyObject*> activeEnemies;
-	vector<int> availableEnemy;
-	Uint32 lastRespawnTime;
-	bool isEnemyOnScreen = false;
+	practice::PracticeSession m_session;  // the Practice Mode rules: enemy, HP, score, combo, accuracy, difficulty
+	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
 
-	const Uint32 respawnInterval = 5000; // 5 seconds
-	vector<Skill*> m_Skilllist;
 	vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
 	vector<pair<int, int>> skillPos = { {150,250},{250,250} };
 
-	map<string, Skill*> skillMap;
-
-	const vector<pair<string, int>> enemyPaths = {
-		  {"assets/enemies/mushroom_run.png", 8},
-		  {"assets/enemies/goblin_run.png", 8},
-		  {"assets/enemies/eyes_fly.png", 8},
-		  {"assets/enemies/skeleton.png", 4},
-
-		  {"assets/enemies/fire_wiz.png", 8},
-		  {"assets/enemies/nec_walk.png", 10},
-	  	  {"assets/enemies/worm_run.png", 9}
-
-
-	};
 public:
 	static GameManager* getInstace()
 	{
@@ -79,12 +64,26 @@ public:
 	void renderBackgroundLayers();
 	void updateBackgroundLayers();
 
-	void respawnEnemy(Uint32 currentTime);
+	void SetDebug(bool on) { m_debug = on; }
 
 	bool InitSDL();
 	void LoopGame();
-	bool EnemyDistance(int x, int y, int minDistance);
 	void Close();
+
+private:
+	void HandleKeyDown(const SDL_Event& e, bool& quit);
+	void ProcessAction(invoker::InputAction action);
+	void StartSession();
+	void LogUpdate(const practice::UpdateResult& result);
+
+	Keyboard* KeyIcon(invoker::Orb orb);
+	void RenderEnemy();
+	void RenderInvokerHud();
+	void RenderStatsHud();
+	void RenderReadyScreen();
+	void RenderGameOverScreen();
+	void RenderDebugOverlay();
+	void DimScreen(Uint8 alpha);
 };
 
 #endif

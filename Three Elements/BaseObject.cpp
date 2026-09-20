@@ -53,6 +53,10 @@ bool BaseObject::LoadImg(std::string path,SDL_Renderer* screen)
 		//Get rid of old loaded surface
 		SDL_FreeSurface(load_surface);
 	}
+	else
+	{
+		printf("Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError());
+	}
 	//Return success
 	p_object_ = new_Texture;
 	return p_object_ != NULL;
