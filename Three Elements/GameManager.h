@@ -43,14 +43,8 @@ protected:
 
 	vector<Keyboard*> m_Keylist;
 	vector<EnemyObject*> m_Enemylist;
-	// Existing members...
-	std::vector<EnemyObject*> activeEnemies;
-	vector<int> availableEnemy;
-	Uint32 lastRespawnTime;
-	bool isEnemyOnScreen = false;
-
+	Uint32 lastRespawnTime = 0; // tick of the last spawn check, (re)set in LoopGame
 	const Uint32 respawnInterval = 5000; // 5 seconds
-	vector<Skill*> m_Skilllist;
 	vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
 	vector<pair<int, int>> skillPos = { {150,250},{250,250} };
 

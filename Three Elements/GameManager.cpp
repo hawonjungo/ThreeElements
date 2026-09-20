@@ -4,6 +4,9 @@
 #include "Skill.h"
 #include "ImpTimer.h"
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
 
 
 GameManager* GameManager::instance_ = NULL;
@@ -28,7 +31,10 @@ bool GameManager::InitSDL()
     bool success = true;
     int ret = SDL_Init(SDL_INIT_VIDEO);
     if (ret < 0)
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
+    }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
@@ -40,19 +46,26 @@ bool GameManager::InitSDL()
 
     if (m_window == NULL)
     {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
         success = false;
     }
     else
     {
         m_screen = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
         if (m_screen == NULL)
+        {
+            printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
             success = false;
+        }
         else
         {
             SDL_SetRenderDrawColor(m_screen, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR);
             int imgFlags = IMG_INIT_PNG;
             if (!(IMG_Init(imgFlags) && imgFlags))
+            {
+                printf("IMG_Init failed: %s\n", IMG_GetError());
                 success = false;
+            }
         }
 
         /*
@@ -92,6 +105,9 @@ bool GameManager::InitSDL()
         
         
     }
+    if (!success) {
+        return false;
+    }
     // Load background layers
     if (!loadBackgroundLayers()) {
         return false;
@@ -101,6 +117,9 @@ bool GameManager::InitSDL()
 
 void GameManager::LoopGame()
 {
+    // seed std::rand once, otherwise the enemy order is identical on every run
+    std::srand(static_cast<unsigned int>(std::time(NULL)));
+
     // frame fps
     ImpTimer fps_timer;
 
@@ -116,18 +135,6 @@ void GameManager::LoopGame()
     for (const auto& pair : m_skill.spellMap) {
         skillMap[pair.first] = new Skill();
     }
-    Skill* sNO_SPELL = new Skill();
-    Skill* sCOLD_SNAP = new Skill();
-    Skill* sGHOST_WALK = new Skill();
-    Skill* sICE_WALL = new Skill();
-    Skill* sEMP = new Skill();
-    Skill* sTORNADO = new Skill();
-    Skill* sALACRITY = new Skill();
-    Skill* sSUN_STRIKE = new Skill();
-    Skill* sFORGE_SPIRIT = new Skill();
-    Skill* sCHAOS_METEOR = new Skill();
-    Skill* sDEAFENING_BLAST = new Skill();
-
     // keyboard
     Keyboard* keyQ = new Keyboard();
     Keyboard* keyW = new Keyboard();
@@ -191,9 +198,9 @@ void GameManager::LoopGame()
             rect_F = m_Keylist[i]->getRect();
         }
     }
-    Uint32 lastRespawnTime = SDL_GetTicks() - 5000;
-    Uint32 respawnInterval = 5000; // Initial respawn interval in milliseconds
-   
+    // members lastRespawnTime / respawnInterval (GameManager.h) are used here, no local copies
+    lastRespawnTime = SDL_GetTicks();
+
     bool bStop = false;
     // ====================== render here !!!
     while (!bStop)
@@ -443,6 +450,7 @@ void GameManager::respawnEnemy(Uint32 currentTime) {
             enemy->SetPos(posX, posY);
             enemy->SetVal(5, 0);
             m_Enemylist.push_back(enemy);
+            printf("Enemy path: %s\n", enemy->GetPath().c_str());
         }
         else {
             delete enemy; // Failed to find a valid position, clean up

@@ -10,83 +10,13 @@ GameManager* g_GameMan = GameManager::getInstace();
  {
 
      bool ret = g_GameMan->InitSDL();
-     if (ret)
+     if (!ret)
      {
-         g_GameMan->LoopGame();
-     }
-     
-
-#if 0
-     //Start up SDL and create window
-     if (!baseObject->init())
-     {
-         printf("Failed to initialize!\n");
-     }
-     else
-     {
-         //Load media
-         if (!baseObject->loadMedia())
-         {
-             printf("Failed to load media!\n");
-         }
-         else
-         {
-
-             baseObject->loadBackground();
-             //gameManage->loadMainCharacter();
-
-
-             
-
-
-
-             //Main loop flag
-             bool quit = false;
-
-             //Event handler
-             SDL_Event e;
-
-             //Current animation frame
-             int frame = 0;
-
-             //While application is running
-             while (!quit)
-             {
-                 //Handle events on queue
-                 while (SDL_PollEvent(&e) != 0)
-                 {
-                     //User requests quit
-                     if (e.type == SDL_QUIT)
-                     {
-                         quit = true;
-                     }
-                 }
-                 //Clear screen
-                 baseObject->clearScreen();
-
-
-                 // animate sprite
-                 baseObject->animateSprite();
-
-
-                 //Render texture to screen
-                 baseObject->renderScreen();
-
-
-
-                 //Update screen
-                 baseObject->updateScreen();
-
-
-             }
-         }
+         printf("Initialization failed, exiting.\n");
+         g_GameMan->Close();
+         return 1;
      }
 
-     //Free resources and close SDL
-     baseObject->close();
-
-
-     system("pause");
-#endif
+     g_GameMan->LoopGame();
      return 0;
  }
