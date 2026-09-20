@@ -1,3 +1,0 @@
-﻿  GameManager.cpp
-D:\Dev\Code\3Elements\ThreeElements\Three Elements\GameManager.cpp(463,22): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
-  Three Elements.vcxproj -> D:\Dev\Code\3Elements\ThreeElements\x64\Debug\Three Elements.exe

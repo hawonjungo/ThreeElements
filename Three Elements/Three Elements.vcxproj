@@ -70,17 +70,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="Dependencies">
+    <!-- All paths are relative to this project file, so the repo builds from any location. -->
+    <DepsDir>$(MSBuildThisFileDirectory)..\Dependencies\</DepsDir>
+    <SdlLibDir Condition="'$(Platform)'=='x64'">$(DepsDir)lib\x64\</SdlLibDir>
+    <SdlLibDir Condition="'$(Platform)'=='Win32'">$(DepsDir)lib\x86\</SdlLibDir>
+    <!-- The game loads "assets\..." relative to the working directory. -->
+    <LocalDebuggerWorkingDirectory>$(MSBuildThisFileDirectory)</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>E:\Study\AIT\Game engine\Three Elements\Three Elements\Dependencies\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>D:\Dev\Code\3Elements\ThreeElements\Dependencies\lib\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>D:\Dev\Code\3Elements\ThreeElements\Dependencies\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -119,13 +124,10 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\Dev\Code\3Elements\ThreeElements\Dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Users\hawon\source\repos\ThreeElements\Dependencies\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -144,6 +146,15 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(DepsDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(SdlLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BaseObject.cpp" />
     <ClCompile Include="Enemy.cpp" />
@@ -153,21 +164,25 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainPlayer.cpp" />
     <ClCompile Include="Skill.cpp" />
-    <ClCompile Include="ThreatObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseObject.h" />
     <ClInclude Include="Define.h" />
     <ClInclude Include="Enemy.h" />
     <ClInclude Include="GameManager.h" />
-    <ClInclude Include="IKeyHandler.h" />
     <ClInclude Include="ImpTimer.h" />
     <ClInclude Include="Keyboard.h" />
     <ClInclude Include="MainPlayer.h" />
     <ClInclude Include="Skill.h" />
-    <ClInclude Include="ThreatObject.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!-- Copy the SDL runtime DLLs next to the exe so a fresh clone runs without manual steps. -->
+  <Target Name="CopySdlRuntimeDlls" AfterTargets="Build">
+    <ItemGroup>
+      <SdlRuntimeDll Include="$(SdlLibDir)*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SdlRuntimeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
