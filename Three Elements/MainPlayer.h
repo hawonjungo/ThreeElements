@@ -2,11 +2,12 @@
 #ifndef MAIN_OBJECT_H_
 #define MAIN_OBJECT_H_
 #include "BaseObject.h"
-#include "Skill.h"
 #include "Keyboard.h"
-#include "Skill.h"
+#include "Core/Invoker.h"
 using namespace std;
 
+// Player sprite + the SDL keyboard -> logical Invoker action mapping.
+// The Invoker rules live in Core/Invoker.h, the practice rules in Practice/Practice.h.
 class MainPlayer : public BaseObject
 {
 public:
@@ -16,37 +17,25 @@ public:
 	MainPlayer();
 	~MainPlayer();
 
-	
+
 
 
 	int GetQKey() { return m_QKeyNum; }
 	int GetWKey() { return m_WKeyNum; }
 	int GetEKey() { return m_EKeyNum; }
-	bool GetRState() const { return m_KeyRActive; }
 	int GetKeyPress() const { return m_KeyDown; }
-	void ResetRKey() {  m_KeyRActive = false; }
-	void handleKeyPress(SDL_Event key);
+	// SDL keyboard event -> logical Invoker action. Returns false for keys other than Q/W/E/R/D/F, for key
+	// releases and for auto-repeat KEYDOWN events (holding a key must not flood the orbs).
+	static bool TranslateKey(const SDL_Event& e, invoker::InputAction& action);
 
-	string getElementComb();
-	string getCombineComb();
-	void saveSpellToSlot(string);
 
-	
 
-	Skill skill_;
 
 	int m_KeyDown;
 
 	int m_QKeyNum;
 	int m_WKeyNum;
 	int m_EKeyNum;
-
-	bool m_KeyRActive;
-	vector<Element> elements;
-	string activeSpell;
-	string slotD;
-	string slotF;
-	Skill skill;
 
 
 };

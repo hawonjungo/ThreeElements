@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{7B3D2C1E-5A64-4F8B-9E10-2C6A0D4E8F31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Practice">
+      <UniqueIdentifier>{A41C6E92-0B37-4D58-8F26-3E9D1B7C5A04}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -39,6 +45,15 @@
     <ClCompile Include="Skill.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Invoker.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Practice\Practice.cpp">
+      <Filter>Practice</Filter>
+    </ClCompile>
+    <ClCompile Include="PixelText.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GameManager.h">
@@ -63,6 +78,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Skill.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Invoker.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Practice\Practice.h">
+      <Filter>Practice</Filter>
+    </ClInclude>
+    <ClInclude Include="PixelText.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

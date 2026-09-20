@@ -21,10 +21,7 @@ public:
 	void Render(SDL_Renderer* screen);
 	void SetPos(int x, int y) {
 		rect_.x = x; rect_.y = y;
-		std::cout << "Enemy set to position: (" << x << ", " << y << ")" << std::endl;
 	}
-	void SetVal(int xv, int yv) { x_val_ = xv; y_val_ = yv; }
-	void UpdatePos();
 	std::string GetPath() const;
 private:
 	int currentFrame_;

@@ -3,7 +3,9 @@
 #include "MainPlayer.h"
 #include "Skill.h"
 #include "ImpTimer.h"
+#include "PixelText.h"
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -21,9 +23,6 @@ GameManager::GameManager()
 
 GameManager::~GameManager()
 {
-    for (auto& pair : skillMap) {
-        delete pair.second; 
-    }
 }
 
 bool GameManager::InitSDL()
@@ -117,9 +116,6 @@ bool GameManager::InitSDL()
 
 void GameManager::LoopGame()
 {
-    // seed std::rand once, otherwise the enemy order is identical on every run
-    std::srand(static_cast<unsigned int>(std::time(NULL)));
-
     // frame fps
     ImpTimer fps_timer;
 
@@ -127,97 +123,71 @@ void GameManager::LoopGame()
     bool bBkgn = m_background.LoadImg("assets/bg.png", m_screen);
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
-    
-    
-    // Skill
-    m_skill.initializeSpellMap();
-    // Generate and map Skill objects using a loop
-    for (const auto& pair : m_skill.spellMap) {
-        skillMap[pair.first] = new Skill();
+    // key icons: the orbs (Q/W/E) and the slot labels (D/F)
+    Keyboard* keyIcons[] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyD, &m_keyF };
+    const char* keyPaths[] = {
+        "assets/keyboard/keyQ.png", "assets/keyboard/keyW.png", "assets/keyboard/keyE.png",
+        "assets/keyboard/keyD.png", "assets/keyboard/keyF.png" };
+    for (int i = 0; i < 5; ++i)
+    {
+        keyIcons[i]->LoadImg(keyPaths[i], m_screen);
+        keyIcons[i]->set_clips();
     }
-    // keyboard
-    Keyboard* keyQ = new Keyboard();
-    Keyboard* keyW = new Keyboard();
-    Keyboard* keyE = new Keyboard();
-    Keyboard* keyR = new Keyboard();
-    Keyboard* keyD = new Keyboard();
-    Keyboard* keyF = new Keyboard();
 
-    map<char, Keyboard*> keyMap = {
-        {'Q', keyQ},
-        {'W', keyW}, 
-        {'E', keyE}
-    };
+    // skill icons: one sprite per Core skill, indexed by SkillId; icon paths come from Core
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    {
+        m_skillIcons[i].LoadImg(invoker::GetSkillDefinition(static_cast<invoker::SkillId>(i)).icon, m_screen);
+        m_skillIcons[i].set_clips();
+    }
 
-    keyQ->LoadImg("assets/keyboard/keyQ.png", m_screen);
-    keyW->LoadImg("assets/keyboard/keyW.png", m_screen);
-    keyE->LoadImg("assets/keyboard/keyE.png", m_screen);
-    keyR->LoadImg("assets/keyboard/keyR.png", m_screen);
-    keyD->LoadImg("assets/keyboard/keyD.png", m_screen);
-    keyF->LoadImg("assets/keyboard/keyF.png", m_screen);
+    // enemy sprites: one per Practice enemy definition, loaded once (not on every spawn)
+    for (int i = 0; i < practice::ENEMY_TYPE_COUNT; ++i)
+    {
+        const practice::EnemyDefinition& def = practice::GetEnemyDefinition(i);
+        if (m_enemySprites[i].LoadImg(def.sprite, m_screen, def.frames))
+            m_enemySprites[i].set_clips();
+        else
+            printf("Failed to load enemy sprite %s\n", def.sprite);
+    }
 
-
-    skillMap["QQQ"]->LoadImg("assets/skill/ColdSnap.png", m_screen);
-    skillMap["QQW"]->LoadImg("assets/skill/GhostWalk.png", m_screen);
-    skillMap["EQQ"]->LoadImg("assets/skill/IceWall.png", m_screen);
-    skillMap["WWW"]->LoadImg("assets/skill/EMP.png", m_screen);
-    skillMap["QWW"]->LoadImg("assets/skill/Tornado.png", m_screen);
-    skillMap["EWW"]->LoadImg("assets/skill/Alacrity.png", m_screen);
-    skillMap["EEE"]->LoadImg("assets/skill/SunStrike.png", m_screen);
-    skillMap["EEQ"]->LoadImg("assets/skill/ForgeSpirit.png", m_screen);
-    skillMap["EEW"]->LoadImg("assets/skill/Meteor.png", m_screen);
-    skillMap["EQW"]->LoadImg("assets/skill/Blast.png", m_screen);
-
-
-
-    Skill* skillSlotD;
-    Skill* skillSlotF;
-
-          
     if (bPlayer)
     {
         m_player.set_clips();
-        m_player.SetPos(10, 385);         
+        m_player.SetPos(10, 385);
     }
 
-                   
-   
-	// Set position for keyboard
-    SDL_Rect rect_D;
-    SDL_Rect rect_F;
-    // Need D and F rect
-    for (int i = 0; i < m_Keylist.size(); i++)
-    {
-        int type = m_Keylist[i]->GetType();
-        if (type == Keyboard::KEY_D)
-        {
-            rect_D = m_Keylist[i]->getRect();
-        }
-        else if (type == Keyboard::KEY_F)
-        {
-            rect_F = m_Keylist[i]->getRect();
-        }
-    }
-    // members lastRespawnTime / respawnInterval (GameManager.h) are used here, no local copies
-    lastRespawnTime = SDL_GetTicks();
+    printf("Three Elements - Practice Mode. Press Enter to start.\n");
 
+    Uint32 lastTick = SDL_GetTicks();
     bool bStop = false;
     // ====================== render here !!!
     while (!bStop)
     {
         fps_timer.start();
+
+        // Real time since the previous frame. The Practice rules run on this, not on the frame count.
+        Uint32 now = SDL_GetTicks();
+        float dt = static_cast<float>(now - lastTick) / 1000.0f;
+        lastTick = now;
+
         //Handle events on queue
         while (SDL_PollEvent(&m_event) != 0)
         {
             //User requests quit
             if (m_event.type == SDL_QUIT)
             {
-               
                 bStop = true;
             }
-            //m_player.keyHandle(m_event);
-            m_player.handleKeyPress(m_event);
+            else if (m_event.type == SDL_KEYDOWN)
+            {
+                HandleKeyDown(m_event, bStop);
+            }
         }
+
+        // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied)
+        LogUpdate(m_session.Update(dt));
+
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
         SDL_RenderClear(m_screen);
@@ -226,92 +196,23 @@ void GameManager::LoopGame()
         updateBackgroundLayers();
         renderBackgroundLayers();
 
-        // Declare variables area
-        string eleCombo = m_player.getElementComb();
-        string eleComboR = m_player.getElementComb();
-
-        // render background
-        //if (bBkgn)
-        //{
-        //    m_background.render(m_screen,NULL);
-        //}
-
         if (bPlayer)
         {
             m_player.Render(m_screen);
         }
-        // Update and render enemies
-        for (int i = 0; i < m_Enemylist.size(); ++i) {
-            m_Enemylist[i]->Render(m_screen);
-            m_Enemylist[i]->UpdatePos();
+        RenderEnemy();
+        RenderInvokerHud();
+        RenderStatsHud();
+        RenderDebugOverlay();
 
-            // Check collision with player
-            //if (checkCollision(m_player.getRect(), m_Enemylist[i]->getRect())) {
-            //    bStop = true; // Stop the game if an enemy touches the player
-            //}
-        }
+        if (m_session.State() == practice::GameState::Ready)
+            RenderReadyScreen();
+        else if (m_session.State() == practice::GameState::GameOver)
+            RenderGameOverScreen();
 
-
-  
-        if (true)
-        {          
-            
-            for (int i = 0; i < eleCombo.size(); ++i) {        
-
-                char ele = eleCombo[i];
-                int x = elementPos[i].first;
-                int y = elementPos[i].second;
-                               
-                if (keyMap.find(ele) != keyMap.end()) {
-                    Keyboard* key = keyMap[ele];
-                    key->Render(m_screen);
-                    key->set_clips();
-                    key->SetPos(x, y);
-                }
-            }           
-           
-        }
-        if (m_player.m_KeyRActive)
-        {
-            
-                // Assuming you have a method to render the active spell
-                m_player.skill.Render(m_screen);
-                if (m_player.m_KeyRActive) {     
-                    if (!m_player.slotD.empty() && m_player.slotD != m_player.slotF) {
-
-                        skillSlotD = skillMap[m_player.slotD];
-                        skillSlotD->Render(m_screen);
-                        skillSlotD->set_clips();
-                        skillSlotD->SetPos(skillPos[0].first, skillPos[0].second);
-
-                    }
-                    if (!m_player.slotF.empty()) {
-                        skillSlotF = skillMap[m_player.slotF];
-                        skillSlotF->Render(m_screen);
-                        skillSlotF->set_clips();
-                        skillSlotF->SetPos(skillPos[1].first, skillPos[1].second);
-
-                    }
-                       
-                   
-                   
-                }
-             
-               
-
-
-        }
-        Uint32 currentTime = SDL_GetTicks();
-        if (currentTime - lastRespawnTime >= respawnInterval) {
-            respawnEnemy(currentTime);
-            lastRespawnTime = currentTime;
-           // respawnInterval = std::max(1000U, respawnInterval - 500); // Decrease interval, minimum 1 second
-        }
-     
-         //respawnEnemy();
         //Update screen
         SDL_RenderPresent(m_screen);
-     
+
         int real_imp_time = fps_timer.get_ticks();
         int time_one_frame = 1000 / FRAME_PER_SECOND;// ms
 
@@ -321,26 +222,280 @@ void GameManager::LoopGame()
             if (delay_time >= 0)
                 SDL_Delay(delay_time);
         }
-              
     }
-
-    // Clean memories
-    for (int i = 0; i < m_Keylist.size(); i++)
-    {
-        Keyboard* p = m_Keylist[i];
-        if (p != NULL)
-        {
-            delete p;
-            p = NULL;
-        }      
-    }
-    m_Keylist.clear();
-
-    // Cleam for skill----------------------
 
     Close();
 }
 
+// ------------------------------------------------------------------ input and session
+
+void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
+{
+    if (e.key.repeat)  // auto-repeat of a held key is not a new press (Enter/Esc included)
+        return;
+
+    SDL_Keycode sym = e.key.keysym.sym;
+    if (sym == SDLK_ESCAPE)
+    {
+        quit = true;
+        return;
+    }
+    if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+    {
+        if (m_session.State() != practice::GameState::Playing)  // start from Ready, restart after Game Over
+            StartSession();
+        return;
+    }
+
+    invoker::InputAction action;
+    if (MainPlayer::TranslateKey(e, action))
+        ProcessAction(action);
+}
+
+void GameManager::StartSession()
+{
+    unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
+    m_session.Start(seed);  // resets HP, score, combo, accuracy, timers, enemy, orbs and D/F slots
+    printf("[practice] session started (seed %u)\n", seed);
+}
+
+// Feeds one logical key to the session and prints the development log.
+void GameManager::ProcessAction(invoker::InputAction action)
+{
+    practice::InputResult r = m_session.Input(action);
+    if (!r.accepted)  // Ready / Game Over: the gameplay keys do nothing
+        return;
+
+    switch (action)
+    {
+    case invoker::InputAction::Q: printf("=====Q===== "); break;
+    case invoker::InputAction::W: printf("====W===== "); break;
+    case invoker::InputAction::E: printf("====E====== "); break;
+    default: break;
+    }
+
+    const invoker::InvokerState& inv = m_session.Invoker();
+    const char* slotName = action == invoker::InputAction::D ? "D" : "F";
+    if (r.invoker.event == invoker::InvokerEvent::Invoked)
+    {
+        printf("Slot D: %s, Slot F: %s\n",
+            invoker::RecipeLetters(inv.GetSlot(invoker::Slot::D)).c_str(),
+            invoker::RecipeLetters(inv.GetSlot(invoker::Slot::F)).c_str());
+        printf("Current combination: %s\n", invoker::RecipeLetters(r.invoker.skill).c_str());
+    }
+    else if (r.invoker.event == invoker::InvokerEvent::Cast)
+    {
+        printf("Cast %s: %s\n", slotName, invoker::GetSkillDefinition(r.invoker.skill).name);
+    }
+    else if (r.invoker.event == invoker::InvokerEvent::CastEmpty)
+    {
+        printf("Cast %s: (empty)\n", slotName);
+    }
+
+    const practice::Stats& st = m_session.GetStats();
+    if (r.cast == practice::CastOutcome::Correct)
+    {
+        printf("[practice] correct cast: score %d, combo %d (best %d)\n", st.score, st.combo, st.bestCombo);
+    }
+    else if (r.cast == practice::CastOutcome::Incorrect)
+    {
+        printf("[practice] incorrect cast: the enemy keeps coming (HP %d/%d)\n", st.hp, st.maxHp);
+    }
+}
+
+void GameManager::LogUpdate(const practice::UpdateResult& result)
+{
+    const practice::Stats& st = m_session.GetStats();
+    if (result.spawned)
+    {
+        const practice::ActiveEnemy& e = m_session.Enemy();
+        printf("[practice] enemy #%d spawned\n", m_session.SpawnCount());
+        if (m_debug)  // development only: never printed in normal play
+        {
+            printf("[debug] enemy #%d %s -> target %s (recipe %s), speed %.0f px/s\n",
+                m_session.SpawnCount(), practice::GetEnemyDefinition(e.definition).name,
+                invoker::GetSkillDefinition(e.target).name, invoker::RecipeLetters(e.target).c_str(), e.speed);
+        }
+    }
+    if (result.leaked)
+    {
+        printf("[practice] enemy reached the player: HP %d/%d, combo reset\n", st.hp, st.maxHp);
+    }
+    if (result.gameOver)
+    {
+        printf("[practice] GAME OVER: score %d, best combo %d, accuracy %.1f%% (%d/%d), survived %.1f s\n",
+            st.score, st.bestCombo, st.Accuracy() * 100.0, st.correctCasts, st.TotalCasts(), st.survivalTime);
+    }
+}
+
+// ------------------------------------------------------------------ drawing
+
+Keyboard* GameManager::KeyIcon(invoker::Orb orb)
+{
+    switch (orb)
+    {
+    case invoker::Orb::Quas: return &m_keyQ;
+    case invoker::Orb::Wex:  return &m_keyW;
+    default:                 return &m_keyE;
+    }
+}
+
+// The single active enemy, drawn where the Practice session says it is.
+void GameManager::RenderEnemy()
+{
+    const practice::ActiveEnemy& e = m_session.Enemy();
+    if (!e.active)
+        return;
+
+    const practice::EnemyDefinition& def = practice::GetEnemyDefinition(e.definition);
+    EnemyObject& sprite = m_enemySprites[e.definition];
+    // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
+    sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, GROUND_LINE_Y - def.feetRow);
+    sprite.Render(m_screen);
+}
+
+// Current Q/W/E orbs and the two invoked spells (D = newest, F = previous). Never shows recipes or targets.
+void GameManager::RenderInvokerHud()
+{
+    const invoker::InvokerState& inv = m_session.Invoker();
+
+    for (int i = 0; i < inv.OrbCount(); ++i)
+    {
+        Keyboard* key = KeyIcon(inv.GetOrb(i));
+        key->SetPos(elementPos[i].first, elementPos[i].second);
+        key->Render(m_screen);
+    }
+
+    // frames for the two slots, so an empty slot is visible too
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 110);
+    for (int i = 0; i < 2; ++i)
+    {
+        SDL_Rect frame = { skillPos[i].first - 2, skillPos[i].second - 2, 68, 68 };
+        SDL_RenderFillRect(m_screen, &frame);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    m_keyD.SetPos(skillPos[0].first + 16, skillPos[0].second - 36);
+    m_keyD.Render(m_screen);
+    m_keyF.SetPos(skillPos[1].first + 16, skillPos[1].second - 36);
+    m_keyF.Render(m_screen);
+
+    invoker::SkillId spellD = inv.GetSlot(invoker::Slot::D);
+    invoker::SkillId spellF = inv.GetSlot(invoker::Slot::F);
+    if (spellD != invoker::SkillId::None)
+    {
+        Skill& icon = m_skillIcons[static_cast<int>(spellD)];
+        icon.SetPos(skillPos[0].first, skillPos[0].second);
+        icon.Render(m_screen);
+    }
+    if (spellF != invoker::SkillId::None)
+    {
+        Skill& icon = m_skillIcons[static_cast<int>(spellF)];
+        icon.SetPos(skillPos[1].first, skillPos[1].second);
+        icon.Render(m_screen);
+    }
+}
+
+// HP, score, combo, best combo, accuracy, survival time.
+void GameManager::RenderStatsHud()
+{
+    const practice::Stats& st = m_session.GetStats();
+    const SDL_Color white = { 255, 255, 255, 255 };
+    char buf[64];
+
+    // row 1: HP squares, score, combo, best combo
+    pixeltext::DrawShadowed(m_screen, "HP", 16, 12, 2, white);
+    for (int i = 0; i < st.maxHp; ++i)
+    {
+        SDL_Rect box = { 56 + i * 24, 10, 18, 18 };
+        if (i < st.hp)
+            SDL_SetRenderDrawColor(m_screen, 220, 50, 50, 255);
+        else
+            SDL_SetRenderDrawColor(m_screen, 40, 20, 24, 255);
+        SDL_RenderFillRect(m_screen, &box);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+        SDL_RenderDrawRect(m_screen, &box);
+    }
+    snprintf(buf, sizeof(buf), "SCORE %d", st.score);
+    pixeltext::DrawShadowed(m_screen, buf, 190, 12, 2, white);
+    snprintf(buf, sizeof(buf), "COMBO %d", st.combo);
+    pixeltext::DrawShadowed(m_screen, buf, 400, 12, 2, white);
+    snprintf(buf, sizeof(buf), "BEST %d", st.bestCombo);
+    pixeltext::DrawShadowed(m_screen, buf, 590, 12, 2, white);
+
+    // row 2: accuracy (a dash until the first judged cast) and survival time
+    if (st.TotalCasts() > 0)
+        snprintf(buf, sizeof(buf), "ACC %d%%", static_cast<int>(st.Accuracy() * 100.0 + 0.5));
+    else
+        snprintf(buf, sizeof(buf), "ACC --");
+    pixeltext::DrawShadowed(m_screen, buf, 16, 42, 2, white);
+    int seconds = static_cast<int>(st.survivalTime);
+    snprintf(buf, sizeof(buf), "TIME %02d:%02d", seconds / 60, seconds % 60);
+    pixeltext::DrawShadowed(m_screen, buf, 190, 42, 2, white);
+}
+
+void GameManager::DimScreen(Uint8 alpha)
+{
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, alpha);
+    SDL_RenderFillRect(m_screen, NULL);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+}
+
+void GameManager::RenderReadyScreen()
+{
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color grey = { 200, 200, 210, 255 };
+    DimScreen(150);
+    pixeltext::DrawCentered(m_screen, "THREE ELEMENTS", SCREEN_WIDTH, 120, 6, gold);
+    pixeltext::DrawCentered(m_screen, "PRACTICE MODE", SCREEN_WIDTH, 190, 3, white);
+    pixeltext::DrawCentered(m_screen, "PRESS ENTER TO START", SCREEN_WIDTH, 270, 3, white);
+    pixeltext::DrawCentered(m_screen, "Q W E  ORBS     R  INVOKE     D F  CAST", SCREEN_WIDTH, 350, 2, grey);
+    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);
+}
+
+void GameManager::RenderGameOverScreen()
+{
+    const practice::Stats& st = m_session.GetStats();
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color red = { 235, 70, 70, 255 };
+    const SDL_Color grey = { 200, 200, 210, 255 };
+    char buf[64];
+
+    DimScreen(170);
+    pixeltext::DrawCentered(m_screen, "GAME OVER", SCREEN_WIDTH, 80, 8, red);
+
+    snprintf(buf, sizeof(buf), "SCORE %d", st.score);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 170, 3, white);
+    snprintf(buf, sizeof(buf), "BEST COMBO %d", st.bestCombo);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 205, 3, white);
+    if (st.TotalCasts() > 0)
+        snprintf(buf, sizeof(buf), "ACCURACY %d%%", static_cast<int>(st.Accuracy() * 100.0 + 0.5));
+    else
+        snprintf(buf, sizeof(buf), "ACCURACY --");
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 240, 3, white);
+    int seconds = static_cast<int>(st.survivalTime);
+    snprintf(buf, sizeof(buf), "SURVIVED %02d:%02d", seconds / 60, seconds % 60);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 275, 3, white);
+
+    pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
+    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 395, 2, grey);
+}
+
+// Development only (--debug): shows which skill the active enemy requires. Off in normal play.
+void GameManager::RenderDebugOverlay()
+{
+    const practice::ActiveEnemy& e = m_session.Enemy();
+    if (!m_debug || !e.active)
+        return;
+
+    const SDL_Color yellow = { 255, 235, 60, 255 };
+    char buf[64];
+    snprintf(buf, sizeof(buf), "DEBUG TARGET: %s", invoker::GetSkillDefinition(e.target).name);
+    pixeltext::DrawShadowed(m_screen, buf, SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16, 78, 2, yellow);
+}
 
 bool GameManager::loadBackgroundLayers() {
     const char* layerPaths[12] = {
@@ -400,80 +555,6 @@ void GameManager::updateBackgroundLayers() {
             backgroundPositions[i] += SCREEN_WIDTH;
         }
     }
-}
-void GameManager::respawnEnemy(Uint32 currentTime) {
-    if (currentTime - lastRespawnTime < respawnInterval) {
-        return; // Too soon to respawn
-    }
-
-    // Populate availableEnemy with indices of enemies not currently on the screen
-    std::vector<int> availableEnemy;
-    for (int i = 0; i < enemyPaths.size(); ++i) {
-        bool isOnScreen = false;
-        for (const auto& enemy : m_Enemylist) {
-            if (enemy->GetPath() == enemyPaths[i].first) {
-                isOnScreen = true;
-                break;
-            }
-        }
-        if (!isOnScreen) {
-            availableEnemy.push_back(i);
-        }
-    }
-
-    if (availableEnemy.empty()) {
-        return; // No available enemy types to respawn
-    }
-
-    // Select a random enemy from the available list
-    int randomIndex = availableEnemy[std::rand() % availableEnemy.size()];
-
-    // Create and initialize the enemy
-    EnemyObject* enemy = new EnemyObject();
-    const auto& enemyData = enemyPaths[randomIndex];
-    bool bEnemy = enemy->LoadImg(enemyData.first, m_screen, enemyData.second);
-    if (bEnemy) {
-        enemy->set_clips();
-        // Randomize position as needed
-        //int posX = 800; // Example: spawn at the right edge of the screen
-        //int posY = std::rand() % (SCREEN_HEIGHT - enemy->getRect().h);
-               // Randomize position as needed and ensure minimum distance
-        int posX = 800, posY=400;
-        const int minDistance = 100; // Minimum distance in pixels
-        int attempts = 0;
-        const int maxAttempts = 150; // Limit the number of attempts to avoid infinite loop
-        do {
-            posX = 800; // Reset horizontal position
-            attempts++;
-        } while (!EnemyDistance(posX, posY, minDistance) && attempts < maxAttempts);
-        if (attempts < maxAttempts) {
-            enemy->SetPos(posX, posY);
-            enemy->SetVal(5, 0);
-            m_Enemylist.push_back(enemy);
-            printf("Enemy path: %s\n", enemy->GetPath().c_str());
-        }
-        else {
-            delete enemy; // Failed to find a valid position, clean up
-        }
-    }
-    else {
-        delete enemy;
-    }
-
-    lastRespawnTime = currentTime; // Update the last respawn time
-	
-}
-
-bool GameManager::EnemyDistance(int x, int y, int minDistance) {
-    for (const auto& enemy : m_Enemylist) {
-        int enemyX = enemy->getRect().x;
-        int enemyY = enemy->getRect().y;
-        int distance = std::sqrt(std::pow(x - enemyX, 2) + std::pow(y - enemyY, 2));
-        if (distance < minDistance) {
-            return false;
-        }
-    }
-    return true;
 }
 void GameManager::Close()
 {

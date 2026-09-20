@@ -164,6 +164,9 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainPlayer.cpp" />
     <ClCompile Include="Skill.cpp" />
+    <ClCompile Include="Core\Invoker.cpp" />
+    <ClCompile Include="Practice\Practice.cpp" />
+    <ClCompile Include="PixelText.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseObject.h" />
@@ -174,6 +177,9 @@
     <ClInclude Include="Keyboard.h" />
     <ClInclude Include="MainPlayer.h" />
     <ClInclude Include="Skill.h" />
+    <ClInclude Include="Core\Invoker.h" />
+    <ClInclude Include="Practice\Practice.h" />
+    <ClInclude Include="PixelText.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,7 +1,7 @@
 
 #include "MainPlayer.h"
-#include "Skill.h"
-#include <algorithm>
+
+
 
 MainPlayer::MainPlayer() {
 	rect_.x = 0;
@@ -17,7 +17,6 @@ MainPlayer::MainPlayer() {
 	currentFrame_ = 0;
 	totalFrame_ = -1;
 	m_QKeyNum = 0;
-	m_KeyRActive = false;
 	SetFrameNum(8);
 	passed_time_ = 0;
 	iDelay_.resize(totalFrame_, 100);
@@ -38,67 +37,20 @@ MainPlayer::~MainPlayer()
 }
 
 
-void MainPlayer::handleKeyPress(SDL_Event key) {
-	if (key.type == SDL_KEYDOWN) {
-		switch (key.key.keysym.sym) {
-		case SDLK_q:
-			elements.push_back(QUAS);			
-			printf("=====Q===== "); break;
-		case SDLK_w:
-			elements.push_back(WEX);			
-			printf("====W===== "); break;
-		case SDLK_e: 
-			elements.push_back(EXORT);
-			printf("====E====== "); break;
-		case SDLK_r:
-			getCombineComb();		
-			m_KeyRActive = true;
-			return; 
-			// Additional keys (D, F) might be handled separately if needed
-		}
-		if (elements.size() > 3) {
-			elements.erase(elements.begin());
-		}
+// SDL keyboard event -> logical Invoker action (the only place that knows SDL key codes).
+bool MainPlayer::TranslateKey(const SDL_Event& e, invoker::InputAction& action) {
+	if (e.type != SDL_KEYDOWN)
+		return false;
+	if (e.key.repeat)  // the OS auto-repeat of a held key is not a new press
+		return false;
+
+	switch (e.key.keysym.sym) {
+	case SDLK_q: action = invoker::InputAction::Q; return true;
+	case SDLK_w: action = invoker::InputAction::W; return true;
+	case SDLK_e: action = invoker::InputAction::E; return true;
+	case SDLK_r: action = invoker::InputAction::R; return true;
+	case SDLK_d: action = invoker::InputAction::D; return true;
+	case SDLK_f: action = invoker::InputAction::F; return true;
+	default:     return false;
 	}
-}
-
-
-
-string MainPlayer::getElementComb() {
-	string combo;
-
-	for (Element elem : elements) {
-		switch (elem) {
-		case QUAS: combo += 'Q'; break;
-		case WEX: combo += 'W'; break;
-		case EXORT: combo += 'E'; break;
-		}
-	}	
-	return combo;
-}
-
-
-string MainPlayer::getCombineComb() {
-	string combo = getElementComb();
-	sort(combo.begin(), combo.end());
-	if (skill.spellMap.find(combo) != skill.spellMap.end()) {
-		activeSpell = skill.spellMap[combo];
-		saveSpellToSlot(combo);
-		printf("Current combination: %s\n", combo.c_str());
-	}
-	else {
-		activeSpell = NO_SPELL;
-	}
-	return combo;
-}
-// good thinking
-void MainPlayer::saveSpellToSlot(string combo) {
-			
-	if (!slotD.empty() && slotD != slotF && slotD != combo) {
-			slotF = slotD;
-	
-	}
-		slotD = combo;
-		
-		printf("Slot D: %s, Slot F: %s\n", slotD.c_str(), slotF.c_str());
 }

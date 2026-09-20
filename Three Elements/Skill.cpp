@@ -1,10 +1,9 @@
 #include "Skill.h"
-#include <algorithm>
 
 // MON 10/14/2024 First Setup
 Skill::Skill() {
 
-	
+
 
 	rect_.x = 0;
 	rect_.y = 0;
@@ -27,24 +26,9 @@ Skill::Skill() {
 	}
 	m_type = 0;
 	m_active = false;
-	initializeSpellMap();
 }
 
 Skill::~Skill()
 {
 
 }
-void Skill::initializeSpellMap() {
-	spellMap["QQQ"] = "COLD_SNAP";
-	spellMap["QQW"] = "GHOST_WALK";
-	spellMap["EQQ"] = "ICE_WALL";
-	spellMap["WWW"] = "EMP";
-	spellMap["QWW"] = "TORNADO";
-	spellMap["EWW"] = "ALACRITY";
-	spellMap["EEE"] = "SUN_STRIKE";
-	spellMap["EEQ"] = "FORGE_SPIRIT";
-	spellMap["EEW"] = "CHAOS_METEOR";
-	spellMap["EQW"] = "DEAFENING_BLAST";
-}
-
-
