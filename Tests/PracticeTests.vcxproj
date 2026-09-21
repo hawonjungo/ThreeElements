@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Test-only project. It compiles Three Elements\Practice\Practice.cpp, Practice\SpellEffects.cpp and Core\Invoker.cpp directly
+  Test-only project. It compiles Three Elements\Practice\Practice.cpp and Core\Invoker.cpp directly
   (no SDL, no game code) and is never linked into or copied next to the game.
   Output goes to Tests\bin, intermediates to Tests\obj.
 -->
@@ -82,12 +82,10 @@
   <ItemGroup>
     <ClCompile Include="PracticeTests.cpp" />
     <ClCompile Include="..\Three Elements\Practice\Practice.cpp" />
-    <ClCompile Include="..\Three Elements\Practice\SpellEffects.cpp" />
     <ClCompile Include="..\Three Elements\Core\Invoker.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Three Elements\Practice\Practice.h" />
-    <ClInclude Include="..\Three Elements\Practice\SpellEffects.h" />
     <ClInclude Include="..\Three Elements\Core\Invoker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

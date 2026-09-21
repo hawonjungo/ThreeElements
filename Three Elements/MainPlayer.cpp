@@ -9,14 +9,10 @@ MainPlayer::MainPlayer() {
 	rect_.w = 0;
 	rect_.y = 0;
 	
-	x_val_ = 0;
-	y_val_ = 0;
-
 	width_frame_ = 0;
 	height_frame_ = 0;
 	currentFrame_ = 0;
 	totalFrame_ = -1;
-	m_QKeyNum = 0;
 	SetFrameNum(8);
 	passed_time_ = 0;
 	iDelay_.resize(totalFrame_, 100);
@@ -27,8 +23,6 @@ MainPlayer::MainPlayer() {
 		frame_clip_[0].w = 0;
 		frame_clip_[0].h = 0;
 	}
-
-	m_KeyDown = -1;
 }
 
 MainPlayer::~MainPlayer() 

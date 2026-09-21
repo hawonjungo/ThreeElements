@@ -5,7 +5,6 @@
 // How to run: see Tests/README.md.
 
 #include "Practice/Practice.h"
-#include "Practice/SpellEffects.h"
 
 #include <cmath>
 #include <cstdio>
@@ -162,77 +161,6 @@ static void TestEnemyDefinitions()
 	}
 	for (int i = 0; i < invoker::SKILL_COUNT; ++i)
 		CHECK(seen[i]);           // all 10 skills are required by some enemy
-}
-
-// M1: the spell definition table (Practice/SpellEffects.h). Data only: PracticeSession does not read it yet,
-// Tornado still runs on the TORNADO_* constants, so these tests only pin what the table says.
-static void TestSpellDefinitions()
-{
-	CHECK(invoker::SKILL_COUNT == 10);
-
-	// exactly one definition per skill, each one describing its own skill
-	const SpellDefinition* seen[invoker::SKILL_COUNT] = {};
-	int onCast = 0, onContact = 0;
-	for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-	{
-		SkillId id = static_cast<SkillId>(i);
-		const SpellDefinition& d = GetSpellDefinition(id);
-		CHECK(d.skill == id);
-		CHECK(&GetSpellDefinition(id) == &d);              // the same object on every call
-		seen[i] = &d;
-		for (int j = 0; j < i; ++j)
-			CHECK(seen[j] != seen[i]);                     // no two skills share a definition
-		if (d.resolve == ResolveType::OnCast)
-			++onCast;
-		if (d.resolve == ResolveType::OnContact)
-			++onContact;
-	}
-	CHECK(onContact == 1 && onCast == invoker::SKILL_COUNT - 1);
-
-	// Tornado is the only OnContact spell, with exactly its current tuning values
-	const SpellDefinition& tornado = GetSpellDefinition(SkillId::Tornado);
-	CHECK(tornado.skill == SkillId::Tornado);
-	CHECK(tornado.resolve == ResolveType::OnContact);
-	CHECK(tornado.projectile.speed == 700.0f);
-	CHECK(tornado.projectile.hitRadius == 20.0f);
-	CHECK(tornado.projectile.maxDistance == 1200.0f);
-	CHECK(tornado.projectile.speed == TORNADO_SPEED);      // no drift from the constants the game still uses
-	CHECK(tornado.projectile.hitRadius == TORNADO_HIT_RADIUS);
-	CHECK(tornado.projectile.maxDistance == TORNADO_MAX_DISTANCE);
-
-	// the other nine are OnCast and carry no projectile data at all (in particular not Tornado's)
-	for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-	{
-		SkillId id = static_cast<SkillId>(i);
-		if (id == SkillId::Tornado)
-			continue;
-		const SpellDefinition& d = GetSpellDefinition(id);
-		CHECK(d.resolve == ResolveType::OnCast);
-		CHECK(d.projectile.speed == 0.0f && d.projectile.hitRadius == 0.0f && d.projectile.maxDistance == 0.0f);
-	}
-
-	// every skill an enemy can ask for has a definition (the enemy table and the spell table agree on the ids)
-	for (int i = 0; i < ENEMY_TYPE_COUNT; ++i)
-	{
-		SkillId target = GetEnemyDefinition(i).targetSkill;
-		CHECK(GetSpellDefinition(target).skill == target);
-	}
-
-	// not a skill: SkillId::None and values outside the enum's real range. `enum class` is backed by int, so
-	// these values are legal; the answer is one fixed "no spell" definition, never a real skill's entry.
-	const SpellDefinition& none = GetSpellDefinition(SkillId::None);
-	CHECK(none.skill == SkillId::None);
-	CHECK(none.resolve == ResolveType::OnCast);
-	CHECK(none.projectile.speed == 0.0f && none.projectile.hitRadius == 0.0f && none.projectile.maxDistance == 0.0f);
-	const int invalid[] = { -2, -1000000, invoker::SKILL_COUNT, invoker::SKILL_COUNT + 1, 1000000 };
-	for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
-	{
-		const SpellDefinition& d = GetSpellDefinition(static_cast<SkillId>(invalid[i]));
-		CHECK(&d == &none);                                // deterministic: always the same object
-		CHECK(d.skill == SkillId::None && d.resolve == ResolveType::OnCast);
-		for (int j = 0; j < invoker::SKILL_COUNT; ++j)
-			CHECK(&d != seen[j]);                          // never a real skill's definition
-	}
 }
 
 static void TestInitialState()
@@ -1543,7 +1471,6 @@ static void TestInvokerThroughSession()
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
-	RunTest("spell definitions", TestSpellDefinitions);
 	RunTest("initial state", TestInitialState);
 	RunTest("enemy spawn flow", TestSpawnFlow);
 	RunTest("correct cast", TestCorrectCast);

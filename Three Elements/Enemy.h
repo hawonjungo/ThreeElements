@@ -3,7 +3,6 @@
 #define ENEMY_OBJECT_H_
 
 #include "BaseObject.h"
-#include <iostream>
 #include <vector>
 
 
@@ -15,23 +14,18 @@ public:
 	EnemyObject();
 	~EnemyObject();
 
-	void keyHandle(SDL_Event event);
 	bool LoadImg(std::string path, SDL_Renderer* screen,int frame_num);
 	void set_clips();
 	void Render(SDL_Renderer* screen);
 	void SetPos(int x, int y) {
 		rect_.x = x; rect_.y = y;
 	}
-	std::string GetPath() const;
 private:
 	int currentFrame_;
 	int frame_num_;
 	std::vector<SDL_Rect> frame_clip_;
 	int width_frame_;  // for 1 frame
 	int height_frame_; // for 1 frame
-	int x_val_;
-	int y_val_;
-	std::string path_;
 };
 
 

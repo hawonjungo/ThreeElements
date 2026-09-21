@@ -166,7 +166,6 @@
     <ClCompile Include="Skill.cpp" />
     <ClCompile Include="Core\Invoker.cpp" />
     <ClCompile Include="Practice\Practice.cpp" />
-    <ClCompile Include="Practice\SpellEffects.cpp" />
     <ClCompile Include="PixelText.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -180,7 +179,6 @@
     <ClInclude Include="Skill.h" />
     <ClInclude Include="Core\Invoker.h" />
     <ClInclude Include="Practice\Practice.h" />
-    <ClInclude Include="Practice\SpellEffects.h" />
     <ClInclude Include="PixelText.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -50,7 +50,6 @@ protected:
 	SDL_Event m_event;
 
 	// declare object
-	BaseObject m_background;
 	MainPlayer m_player;
 	Skill m_skillIcons[invoker::SKILL_COUNT];  // icon sprites, indexed by invoker::SkillId
 	Keyboard m_keyQ, m_keyW, m_keyE, m_keyD, m_keyF;  // key icons: orbs (Q/W/E) and slot labels (D/F)

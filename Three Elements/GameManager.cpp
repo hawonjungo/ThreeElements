@@ -4,10 +4,6 @@
 #include "Skill.h"
 #include "ImpTimer.h"
 #include "PixelText.h"
-#include <algorithm>
-#include <map>
-#include <cmath>
-#include <cstdlib>
 #include <ctime>
 
 
@@ -67,42 +63,6 @@ bool GameManager::InitSDL()
             }
         }
 
-        /*
-        * // prepare for sound
-        if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) == -1)
-        {
-            success = false;
-        }
-        
-
-
-        g_sound_bullet[0] = Mix_LoadWAV(g_name_audio_bullet_main1);
-        g_sound_bullet[1] = Mix_LoadWAV(g_name_audio_bullet_main2);
-        g_sound_explosion = Mix_LoadWAV(g_name_audio_ex_main);
-        g_sound_ex_main = Mix_LoadWAV(g_name_audio_ex_threats);
-
-        if (g_sound_bullet[0] == NULL || g_sound_bullet[1] == NULL || g_sound_explosion == NULL)
-        {
-            return false;
-        }
-     
-
-        if (TTF_Init() == -1)
-        {
-            success = false;
-        }
-
-        
-         // prepare for font text
-        font_time = TTF_OpenFont("font//dlxfont.ttf", 15);
-        if (font_time == NULL)
-        {
-            success = false;
-        }
-        
-        */
-        
-        
     }
     if (!success) {
         return false;
@@ -119,8 +79,6 @@ void GameManager::LoopGame()
     // frame fps
     ImpTimer fps_timer;
 
-    //background
-    bool bBkgn = m_background.LoadImg("assets/bg.png", m_screen);
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
     // key icons: the orbs (Q/W/E) and the slot labels (D/F)
@@ -637,8 +595,6 @@ void GameManager::updateBackgroundLayers() {
 }
 void GameManager::Close()
 {
-    //g_background.Free();
-
     if (m_tornadoSheet != NULL)
     {
         SDL_DestroyTexture(m_tornadoSheet);
@@ -653,42 +609,4 @@ void GameManager::Close()
 
     IMG_Quit();
     SDL_Quit();
-
-    // cHECK TO CLEAR MEMORY FOR A VECTOR !!!
-    /*
-    
-     m_background.free();
-    m_player.free();
-
-    for (int i = 0; i < m_Enemylist.size(); i++) {
-        m_Enemylist[i]->free();
-        delete m_Enemylist[i];
-        m_Enemylist[i] = NULL;
-    }
-    m_Enemylist.clear();
-
-    for (int i = 0; i < m_Keylist.size(); i++) {
-        m_Keylist[i]->free();
-        delete m_Keylist[i];
-        m_Keylist[i] = NULL;
-    }
-    m_Keylist.clear();
-
-    for (int i = 0; i < m_Skilllist.size(); i++) {
-        m_Skilllist[i]->free();
-        delete m_Skilllist[i];
-        m_Skilllist[i] = NULL;
-    }
-    m_Skilllist.clear();
-
-    SDL_DestroyRenderer(m_screen);
-    m_screen = NULL;
-
-    SDL_DestroyWindow(m_window);
-    m_window = NULL;
-
-    IMG_Quit();
-    SDL_Quit();
-    
-    */
 }

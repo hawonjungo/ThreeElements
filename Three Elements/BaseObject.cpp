@@ -14,8 +14,6 @@ BaseObject::BaseObject()
 	height_frame_ = 0;
 	totalFrame_ = 1;
 	currentFrame_ = 0;
-	x_val_ = 0;
-	y_val_ = 0;
 	passed_time_ = 0;
 	iDelay_.resize(totalFrame_, 100);
 	frame_clip_.resize(totalFrame_);
@@ -74,21 +72,6 @@ void BaseObject::set_clips()
 			frame_clip_[i].h = height_frame_;
 		}
 	}
-}
-
-void  BaseObject::render(SDL_Renderer* render, const SDL_Rect* clip) 
-{
-	//Set rendering space and render to screen
-	SDL_Rect renderQuad = { rect_.x, rect_.y, rect_.w,rect_.h };
-
-	//Set clip rendering dimensions
-	if (clip != NULL)
-	{
-		renderQuad.w = clip->w;
-		renderQuad.h = clip->h;
-	}
-	//Render to screen
-	SDL_RenderCopy(render, p_object_, clip, &renderQuad);
 }
 
 void BaseObject::Render(SDL_Renderer* screen)

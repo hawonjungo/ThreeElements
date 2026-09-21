@@ -2,23 +2,12 @@
 #include "Enemy.h"
 
 
-EnemyObject::EnemyObject() : currentFrame_(0), frame_num_(0), width_frame_(0), height_frame_(0), x_val_(0), y_val_(0) {}
+EnemyObject::EnemyObject() : currentFrame_(0), frame_num_(0), width_frame_(0), height_frame_(0) {}
 
 EnemyObject::~EnemyObject()
 {
 
 }
-
-void EnemyObject::keyHandle(SDL_Event event)
-{
-}
-
-std::string EnemyObject::GetPath() const
-{
-	return path_;
-}
-
-
 
 bool EnemyObject::LoadImg(std::string path, SDL_Renderer* screen, int frame_num)
 {
@@ -30,7 +19,6 @@ bool EnemyObject::LoadImg(std::string path, SDL_Renderer* screen, int frame_num)
 
 		frame_num_ = frame_num; // Store the frame number
 		frame_clip_.resize(frame_num_);
-		path_ = path;
 	}
 	
 	return ret;

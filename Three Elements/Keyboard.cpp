@@ -7,9 +7,6 @@ Keyboard::Keyboard() {
 	rect_.w = 0;
 	rect_.y = 0;
 
-	x_val_ = 0;
-	y_val_ = 0;
-
 	width_frame_ = 0;
 	height_frame_ = 0;
 	currentFrame_ = 0;
@@ -18,8 +15,6 @@ Keyboard::Keyboard() {
 
 	passed_time_ = 0;
 	iDelay_.resize(totalFrame_, 100);
-
-	m_type = KeyType::KEY_NONE;
 
 	for (int i = 0; i < GetFrameNum(); ++i)
 	{
