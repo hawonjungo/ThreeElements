@@ -81,12 +81,13 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `main.cpp` | Tạo singleton `GameManager`, đọc tùy chọn `--debug` (chỉ dev), gọi `InitSDL()` rồi `LoopGame()`; trả 1 nếu khởi tạo lỗi |
 | `GameManager.h/.cpp` | **Presentation**: khởi tạo SDL, vòng lặp (đo `dt`, xử lý phím Enter/Esc, gọi `PracticeSession::Input/Update`), vẽ background, quái, HUD, màn Ready/Game Over, log phát triển |
 | `Practice/Practice.h/.cpp` | **Practice** (không SDL, không đồng hồ, không biến toàn cục): `EnemyDefinition` (10 quái, `targetSkill`), `DifficultyAt(elapsed)`, `PracticeSession` (Ready/Playing/GameOver, HP, điểm, combo, độ chính xác, thời gian sống sót, một quái đang hoạt động, sở hữu `InvokerState`) |
+| `Practice/SpellEffects.h/.cpp` | **Practice** (không SDL, chỉ dữ liệu): `ResolveType` (`OnCast`/`OnContact`), `ProjectileParams`, `SpellDefinition`, bảng 10 skill và `GetSpellDefinition(SkillId)` (id không hợp lệ/`None` trả về một định nghĩa "không có spell" cố định). **Mới ở bước M1 của kiến trúc spell, chưa được dùng:** Tornado vẫn chạy bằng các hằng và hàm `TORNADO_*`/`MakeTornado`… trong `Practice.*`, chưa migrate. Core không biết bảng này |
 | `PixelText.h/.cpp` | Chữ pixel 5×7 vẽ bằng `SDL_RenderFillRect` cho HUD (không cần font hay SDL2_ttf) |
 | `BaseObject.h/.cpp` | Lớp gốc: texture, rect, clip animation, `LoadImg`, `Render` |
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
 | `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
-| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (864 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (1030 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame, có enum `KeyType`); dùng cho orb Q/W/E và nhãn D/F |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation; vị trí do Practice quyết định |
 | `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định |

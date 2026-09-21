@@ -5,7 +5,7 @@ Two small console programs, no test framework, no SDL, no game assets. Each prin
 | Program | Tests | Checks |
 |---|---|---|
 | `InvokerCoreTests` | the **Invoker Core** (`Three Elements/Core/Invoker.h/.cpp`): the Q/W/E → R → D/F mechanic | 243 |
-| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile | 864 |
+| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`, plus the spell definition table in `Practice/SpellEffects.h/.cpp`) running on top of the Core: enemies, spell definitions, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile | 1030 |
 
 The SDL presentation (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) has no automated test; see "Not covered" at the end.
 
@@ -77,6 +77,7 @@ A failing check prints `FAIL line N: <expression>` and the program exits with co
 | Group | What it checks |
 |---|---|
 | enemy definitions | 10 enemies, each with a valid sprite/frames/target; every one of the 10 skills is required by exactly one enemy |
+| spell definitions | the table in `Practice/SpellEffects.h/.cpp` (data only, not used by `PracticeSession` yet): exactly one definition per skill, each describing its own skill; Tornado is the only `OnContact` spell with speed 700, hit radius 20, max distance 1200 (also equal to the `TORNADO_*` constants the game still uses); the other nine are `OnCast` with an all-zero projectile; every enemy target has a definition; `SkillId::None` and out-of-range ids return one fixed "no spell" definition, never a real skill's |
 | initial state | Ready, HP 3/3, everything else 0, accuracy 0.0; nothing happens before `Start()` |
 | enemy spawn flow | first enemy after the initial delay, one enemy at a time, spawns at the right edge and moves at `speed * dt`, next enemy after a kill, never the same target twice in a row (400 spawns), same seed → same order |
 | correct cast | clears the enemy, score +1, combo +1, correct count, HP unchanged, spell stays in its slot, works from D and from F |
