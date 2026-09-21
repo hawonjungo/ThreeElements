@@ -5,7 +5,7 @@ Two small console programs, no test framework, no SDL, no game assets. Each prin
 | Program | Tests | Checks |
 |---|---|---|
 | `InvokerCoreTests` | the **Invoker Core** (`Three Elements/Core/Invoker.h/.cpp`): the Q/W/E → R → D/F mechanic | 243 |
-| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty | 280 |
+| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty | 328 |
 
 The SDL presentation (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) has no automated test; see "Not covered" at the end.
 
@@ -86,15 +86,17 @@ A failing check prints `FAIL line N: <expression>` and the program exits with co
 | game over | HP 0 → Game Over exactly once; no spawns, no clock, no input afterwards |
 | casts that are not judged | empty D/F, casts with no active enemy (before the first spawn and between two enemies), R with fewer than 3 orbs: no penalty and not counted |
 | accuracy | 10 correct + 2 wrong = 83.3 % (no integer division), zero casts → 0.0, leaks do not change it |
-| new session resets everything | HP, score, combo, best combo, counters, accuracy, clock, enemy, orbs, D/F, spawn timer and difficulty clock; restart mid-session and after Game Over |
+| new session resets everything | HP, score, current combo, counters, accuracy, clock, enemy, orbs, D/F, spawn timer and difficulty clock; restart mid-session and after Game Over. The best combo record is the one thing that is kept |
+| best combo across restarts | new session / restart / Game Over / return to Ready reset the current combo but keep the record; the record only rises on a new record (lower or equal streaks and wrong casts leave it alone); a fresh session object starts at 0 |
+| state transitions (Enter/Esc) | Ready: Esc requests quit, Enter starts; Playing: Enter ignored, Esc returns to Ready (session stopped and reset, no quit); Ready is inert; Game Over: Enter starts a new session, Esc returns to Ready; Esc twice from Playing = Ready then quit request |
 | difficulty bounds | speed and delay stay inside their limits, never get easier, no jumps, playable at both ends |
 | time step (dt) | negative and huge `dt` are clamped; movement does not depend on how the time is sliced |
 | input outside Playing | gameplay keys are ignored in Ready and Game Over |
 | invoker through the session | the Core rules still hold when driven through `PracticeSession::Input` |
 
-These tests were also checked with 12 deliberate bugs (e.g. wrong casts costing HP, combo not reset by a leak, best combo never updated, integer-division accuracy, missing `dt` clamp, target repeated); every one made the suite fail.
+These tests were also checked with 12 deliberate bugs (e.g. wrong casts costing HP, combo not reset by a leak, best combo never updated, integer-division accuracy, missing `dt` clamp, target repeated) plus 6 for the best combo and Enter/Esc rules (restart resetting the record, Esc quitting from Playing, Enter restarting a running session, ...); every one made the suite fail.
 
 ## Not covered by automated tests
 
-- The SDL layer: window, drawing, HUD, Enter/Esc handling and `MainPlayer::TranslateKey` (which ignores `key.repeat`).
+- The SDL layer: window, drawing, HUD, the mapping of the SDL Enter/Esc keys to `PressEnter` / `PressEscape` (the rules behind them are tested above) and `MainPlayer::TranslateKey` (which ignores `key.repeat`).
 - To check it manually, run the game from `Three Elements/` with `--debug` (development only). It prints each enemy's target skill and recipe to the console and shows a `DEBUG TARGET` line, so a session can be driven by hand or by a script. In normal play nothing reveals the target.

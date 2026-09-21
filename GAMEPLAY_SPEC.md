@@ -164,6 +164,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 **Statistics to track and display in the MVP [CONFIRMED]:** Score, Current Combo, Best Combo, Accuracy, Survival Time (HP and the D/F slots/orbs are also shown as part of the play UI). Survival Time counts only while Playing.
 
 **Persistent local statistics [CONFIRMED]:** **Best Score, Best Combo, Best Survival Time** persist locally and are **not reset by Restart**.
+- **Current state (Phase 3 review, owner decision):** only **Best Combo** exists so far. It is a record kept for as long as the application runs: a new session or a return to Ready resets the *current* combo but not the record, and it only changes when a new record is reached. Nothing is written to disk yet and every application run starts at 0. Best Score and Best Survival Time are not implemented yet.
 - **P-7 [RECOMMENDED]** Practice exposes a plain result struct at Game Over; comparing/saving lives in presentation/platform (browser local storage on web, a small file on desktop). A failed load/save must never break the game (treat as "no saved data"). Implement after the session logic works; until then bests may live in memory only.
 
 ## 14. Difficulty model
@@ -172,6 +173,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 - **D-2 [CONFIRMED]** MVP tunes only **enemy movement speed** and the **delay between challenges**, via **one simple deterministic function of elapsed time**. No difficulty tiers.
 - **D-3 [RECOMMENDED]** `difficulty(elapsedSeconds) → { enemySpeed, challengeDelay }`, a pure function; continuous and monotonic (never easier over time); **clamped** to a playable min/max; all constants in one place. The struct may gain fields later.
 - **D-4 [RECOMMENDED]** Starting values = the current code's behaviour (≈125 px/s, 5 s between spawns) as placeholders, to be tuned by playtesting. Effective speed = `enemySpeed × EnemyDefinition.speedMultiplier`, sampled when the enemy spawns.
+- **D-4b [CONFIRMED]** The values in Practice.h — enemy speed 125 → 380 px/s (+2.5 px/s per second survived), challenge delay 1.5 → 0.5 s (−0.01 s per second) — are **initial MVP tuning values**, not final and not balanced. The bounds (max speed, min delay, `dt` clamp) are part of the design; the numbers are for playtesting.
 - **D-5 [RECOMMENDED]** Elapsed time = survival time accumulated from `dt` while Playing (not wall-clock), with `dt` clamped per frame.
 - **D-6 [FUTURE]** More pressure variables; harder modes with several enemies (not MVP).
 
@@ -180,8 +182,9 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 `Loading → Ready → Playing → GameOver → (Restart) → Playing`
 
 - **Z-1 [CONFIRMED]** **New Game / Restart resets:** active orbs, D/F slots, HP, score, current combo, accuracy, survival timer, active enemy, difficulty timer. It does **not** reset Best Score / Best Combo / Best Survival Time (§13).
-- **Z-2 [RECOMMENDED]** A `PracticeSession` owns all resettable Practice state; restart creates a fresh one; assets are **not** reloaded.
+- **Z-2 [RECOMMENDED]** A `PracticeSession` owns all resettable Practice state; a restart (or a return to Ready) resets it in place and keeps only the best combo record; assets are **not** reloaded.
 - **Z-3 [RECOMMENDED]** Restart is a UI command separate from the six gameplay actions (never Q/W/E/R/D/F): e.g. Enter/Space on keyboard, a button on mobile. Starting on a key press (rather than immediately) is preferred for web focus and future audio unlock.
+- **Z-3b [CONFIRMED]** Controls (owner decision, Phase 3 review): **Ready** — Enter starts a session, Esc quits the application. **Playing** — Esc returns to Ready (the session is stopped and reset, the best combo record is kept), Enter is ignored, so nothing can restart or quit by accident. **Game Over** — Enter starts a new session, Esc returns to Ready. There is no pause.
 - **Z-4 [RECOMMENDED]** Focus loss/hidden tab: clamp `dt`; never spawn several enemies to "catch up".
 
 ## 16. MVP scope (in)

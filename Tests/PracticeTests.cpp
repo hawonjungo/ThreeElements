@@ -515,7 +515,8 @@ static void TestNewSession()
 	s.Start(6);
 	CHECK(s.State() == GameState::Playing);
 	CHECK(s.GetStats().hp == 3 && s.GetStats().maxHp == 3);
-	CHECK(s.GetStats().score == 0 && s.GetStats().combo == 0 && s.GetStats().bestCombo == 0);
+	CHECK(s.GetStats().score == 0 && s.GetStats().combo == 0);
+	CHECK(s.GetStats().bestCombo == 3);             // the record is kept across restarts (see TestBestComboAcrossRestarts)
 	CHECK(s.GetStats().correctCasts == 0 && s.GetStats().incorrectCasts == 0);
 	CHECK(Near(s.GetStats().Accuracy(), 0.0));
 	CHECK(s.GetStats().survivalTime == 0.0f);
@@ -540,6 +541,119 @@ static void TestNewSession()
 	CHECK(RunUntilEnemy(s));                        // and it can be played again
 	Kill(s);
 	CHECK(s.GetStats().score == 1);
+}
+
+// Best combo is a record for the whole application run: a new session resets the current combo, not the record.
+static void TestBestComboAcrossRestarts()
+{
+	PracticeSession s;
+	CHECK(s.GetStats().bestCombo == 0);             // no record yet
+	s.Start(1);
+	Kill(s); Kill(s); Kill(s);
+	CHECK(s.GetStats().combo == 3 && s.GetStats().bestCombo == 3);
+
+	s.Start(2);                                     // restart in the middle of a session
+	CHECK(s.GetStats().combo == 0);                 // the current combo starts again
+	CHECK(s.GetStats().bestCombo == 3);             // the record survives
+	Kill(s); Kill(s);
+	CHECK(s.GetStats().combo == 2 && s.GetStats().bestCombo == 3);  // below the record: unchanged
+	Kill(s);
+	CHECK(s.GetStats().combo == 3 && s.GetStats().bestCombo == 3);  // equal to the record: unchanged
+	Kill(s);
+	CHECK(s.GetStats().combo == 4 && s.GetStats().bestCombo == 4);  // beyond it: new record
+
+	// a wrong cast changes neither combo nor record
+	RunUntilEnemy(s);
+	InvokeSkill(s, Different(s.Enemy().target));
+	s.Input(InputAction::D);
+	CHECK(s.GetStats().combo == 4 && s.GetStats().bestCombo == 4);
+
+	LoseAllHp(s);                                   // Game Over keeps the record ...
+	CHECK(s.State() == GameState::GameOver && s.GetStats().bestCombo == 4);
+	s.Start(3);                                     // ... and so does the restart
+	CHECK(s.GetStats().combo == 0 && s.GetStats().bestCombo == 4);
+
+	Kill(s); Kill(s);                               // a leak resets the current combo, never the record
+	RunUntilEnemy(s);
+	RunUntilLeak(s);
+	CHECK(s.GetStats().combo == 0 && s.GetStats().bestCombo == 4);
+
+	s.ReturnToReady();                              // going back to Ready keeps it as well
+	CHECK(s.GetStats().combo == 0 && s.GetStats().bestCombo == 4);
+	s.Start(4);
+	Kill(s);
+	CHECK(s.GetStats().combo == 1 && s.GetStats().bestCombo == 4);
+
+	// each PracticeSession object starts without a record (nothing is saved to disk)
+	PracticeSession other;
+	CHECK(other.GetStats().bestCombo == 0);
+}
+
+// State transitions and the Enter / Esc rules.
+static void TestStateTransitions()
+{
+	PracticeSession s;
+	CHECK(s.State() == GameState::Ready);
+
+	// Ready: Esc asks the application to quit, Enter starts a session
+	CHECK(s.PressEscape());
+	CHECK(s.State() == GameState::Ready);
+	CHECK(s.PressEnter(1));
+	CHECK(s.State() == GameState::Playing);
+
+	// Playing: Enter is ignored, nothing of the running session is touched
+	Kill(s);
+	PressLetters(s, "QW");
+	int spawns = s.SpawnCount();
+	int orbs = s.Invoker().OrbCount();
+	CHECK(!s.PressEnter(2));
+	CHECK(s.State() == GameState::Playing && s.GetStats().score == 1);
+	CHECK(s.SpawnCount() == spawns && s.Invoker().OrbCount() == orbs);
+
+	// Playing: Esc goes back to Ready (no quit), the session is stopped and reset, the record is kept
+	RunUntilEnemy(s);
+	CHECK(s.Enemy().active);
+	CHECK(!s.PressEscape());
+	CHECK(s.State() == GameState::Ready);
+	CHECK(!s.Enemy().active && s.SpawnCount() == 0);
+	CHECK(s.GetStats().hp == 3 && s.GetStats().score == 0 && s.GetStats().combo == 0);
+	CHECK(s.GetStats().correctCasts == 0 && s.GetStats().incorrectCasts == 0 && s.GetStats().survivalTime == 0.0f);
+	CHECK(s.GetStats().bestCombo == 1);
+	CHECK(s.Invoker().OrbCount() == 0 && s.Invoker().GetSlot(Slot::D) == SkillId::None);
+
+	// Ready is inert: no input, no time, no enemy
+	CHECK(!s.Input(InputAction::Q).accepted);
+	for (int i = 0; i < 100; ++i)
+		s.Update(0.1f);
+	CHECK(!s.Enemy().active && s.SpawnCount() == 0 && s.GetStats().survivalTime == 0.0f);
+
+	// Ready -> Playing again with a fresh session
+	CHECK(s.PressEnter(3));
+	CHECK(s.State() == GameState::Playing);
+	CHECK(RunUntilEnemy(s));
+
+	// Game Over: Esc goes back to Ready (no quit)
+	LoseAllHp(s);
+	CHECK(s.State() == GameState::GameOver);
+	CHECK(!s.PressEscape());
+	CHECK(s.State() == GameState::Ready && s.GetStats().hp == 3);
+
+	// Game Over: Enter starts a new session
+	CHECK(s.PressEnter(4));
+	LoseAllHp(s);
+	CHECK(s.State() == GameState::GameOver);
+	CHECK(s.PressEnter(5));
+	CHECK(s.State() == GameState::Playing && s.GetStats().hp == 3 && s.GetStats().score == 0);
+	CHECK(!s.Enemy().active && s.SpawnCount() == 0);
+
+	// Esc twice from Playing: first back to Ready, then a quit request
+	CHECK(!s.PressEscape());
+	CHECK(s.State() == GameState::Ready);
+	CHECK(s.PressEscape());
+
+	// ReturnToReady while already Ready is harmless
+	s.ReturnToReady();
+	CHECK(s.State() == GameState::Ready && s.GetStats().hp == 3);
 }
 
 // 14. difficulty
@@ -655,6 +769,8 @@ int main()
 	RunTest("casts that are not judged", TestUnjudgedCasts);
 	RunTest("accuracy", TestAccuracy);
 	RunTest("new session resets everything", TestNewSession);
+	RunTest("best combo across restarts", TestBestComboAcrossRestarts);
+	RunTest("state transitions (Enter/Esc)", TestStateTransitions);
 	RunTest("difficulty bounds", TestDifficulty);
 	RunTest("time step (dt)", TestTimeStep);
 	RunTest("input outside Playing", TestInputOutsidePlaying);

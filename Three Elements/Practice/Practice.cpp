@@ -54,16 +54,47 @@ namespace practice
 		m_enemy = { false, 0, SkillId::None, 0.0f, 0.0f };
 	}
 
-	void PracticeSession::Start(unsigned seed)
+	// Everything a session owns goes back to its initial value; only the best combo record survives.
+	void PracticeSession::ResetSession()
 	{
+		int record = m_stats.bestCombo;
 		m_stats = { START_HP, START_HP, 0, 0, 0, 0, 0, 0.0f };
+		m_stats.bestCombo = record;
 		m_enemy = { false, 0, SkillId::None, 0.0f, 0.0f };
 		m_invoker.Reset();                       // orbs and D/F slots
 		m_lastTarget = SkillId::None;
-		m_rng = seed != 0 ? seed : 1u;
 		m_spawnCount = 0;
+		m_spawnTimer = 0.0f;
+	}
+
+	void PracticeSession::Start(unsigned seed)
+	{
+		ResetSession();
+		m_rng = seed != 0 ? seed : 1u;
 		StartWaiting();                          // difficulty clock is survivalTime = 0
 		m_state = GameState::Playing;
+	}
+
+	void PracticeSession::ReturnToReady()
+	{
+		ResetSession();
+		m_state = GameState::Ready;
+	}
+
+	bool PracticeSession::PressEnter(unsigned seed)
+	{
+		if (m_state == GameState::Playing)       // no accidental restart in the middle of a session
+			return false;
+		Start(seed);
+		return true;
+	}
+
+	bool PracticeSession::PressEscape()
+	{
+		if (m_state == GameState::Ready)
+			return true;                         // nothing left to go back to: quit
+		ReturnToReady();                         // Playing and Game Over step back to Ready, never quit
+		return false;
 	}
 
 	InputResult PracticeSession::Input(invoker::InputAction action)

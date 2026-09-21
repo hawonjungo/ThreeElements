@@ -235,28 +235,27 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
 
     SDL_Keycode sym = e.key.keysym.sym;
+    // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE)
     {
-        quit = true;
+        // Ready: quit the application. Playing / Game Over: step back to Ready, never quit.
+        if (m_session.PressEscape())
+            quit = true;
+        else
+            printf("[practice] back to Ready\n");
         return;
     }
     if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
     {
-        if (m_session.State() != practice::GameState::Playing)  // start from Ready, restart after Game Over
-            StartSession();
+        unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
+        if (m_session.PressEnter(seed))  // Ready / Game Over: new session (ignored while Playing)
+            printf("[practice] session started (seed %u)\n", seed);
         return;
     }
 
     invoker::InputAction action;
     if (MainPlayer::TranslateKey(e, action))
         ProcessAction(action);
-}
-
-void GameManager::StartSession()
-{
-    unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
-    m_session.Start(seed);  // resets HP, score, combo, accuracy, timers, enemy, orbs and D/F slots
-    printf("[practice] session started (seed %u)\n", seed);
 }
 
 // Feeds one logical key to the session and prints the development log.
@@ -397,6 +396,21 @@ void GameManager::RenderInvokerHud()
     }
 }
 
+// "83%" or "--" until the first judged cast, and "mm:ss": shared by the HUD and the Game Over screen
+static void FormatAccuracy(char* out, size_t size, const practice::Stats& st)
+{
+    if (st.TotalCasts() > 0)
+        snprintf(out, size, "%d%%", static_cast<int>(st.Accuracy() * 100.0 + 0.5));
+    else
+        snprintf(out, size, "--");
+}
+
+static void FormatTime(char* out, size_t size, float seconds)
+{
+    int total = static_cast<int>(seconds);
+    snprintf(out, size, "%02d:%02d", total / 60, total % 60);
+}
+
 // HP, score, combo, best combo, accuracy, survival time.
 void GameManager::RenderStatsHud()
 {
@@ -424,15 +438,21 @@ void GameManager::RenderStatsHud()
     snprintf(buf, sizeof(buf), "BEST %d", st.bestCombo);
     pixeltext::DrawShadowed(m_screen, buf, 590, 12, 2, white);
 
-    // row 2: accuracy (a dash until the first judged cast) and survival time
-    if (st.TotalCasts() > 0)
-        snprintf(buf, sizeof(buf), "ACC %d%%", static_cast<int>(st.Accuracy() * 100.0 + 0.5));
-    else
-        snprintf(buf, sizeof(buf), "ACC --");
+    // row 2: accuracy and survival time
+    char value[16];
+    FormatAccuracy(value, sizeof(value), st);
+    snprintf(buf, sizeof(buf), "ACC %s", value);
     pixeltext::DrawShadowed(m_screen, buf, 16, 42, 2, white);
-    int seconds = static_cast<int>(st.survivalTime);
-    snprintf(buf, sizeof(buf), "TIME %02d:%02d", seconds / 60, seconds % 60);
+    FormatTime(value, sizeof(value), st.survivalTime);
+    snprintf(buf, sizeof(buf), "TIME %s", value);
     pixeltext::DrawShadowed(m_screen, buf, 190, 42, 2, white);
+
+    // reminder of the control that leaves the session (only while playing)
+    if (m_session.State() == practice::GameState::Playing)
+    {
+        const SDL_Color grey = { 200, 200, 210, 255 };
+        pixeltext::DrawShadowed(m_screen, "ESC  MENU", SCREEN_WIDTH - pixeltext::Width("ESC  MENU", 2) - 16, 42, 2, grey);
+    }
 }
 
 void GameManager::DimScreen(Uint8 alpha)
@@ -471,17 +491,16 @@ void GameManager::RenderGameOverScreen()
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 170, 3, white);
     snprintf(buf, sizeof(buf), "BEST COMBO %d", st.bestCombo);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 205, 3, white);
-    if (st.TotalCasts() > 0)
-        snprintf(buf, sizeof(buf), "ACCURACY %d%%", static_cast<int>(st.Accuracy() * 100.0 + 0.5));
-    else
-        snprintf(buf, sizeof(buf), "ACCURACY --");
+    char value[16];
+    FormatAccuracy(value, sizeof(value), st);
+    snprintf(buf, sizeof(buf), "ACCURACY %s", value);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 240, 3, white);
-    int seconds = static_cast<int>(st.survivalTime);
-    snprintf(buf, sizeof(buf), "SURVIVED %02d:%02d", seconds / 60, seconds % 60);
+    FormatTime(value, sizeof(value), st.survivalTime);
+    snprintf(buf, sizeof(buf), "SURVIVED %s", value);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 275, 3, white);
 
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
-    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 395, 2, grey);
+    pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
 }
 
 // Development only (--debug): shows which skill the active enemy requires. Off in normal play.

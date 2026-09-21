@@ -11,7 +11,7 @@ Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code b
 | 0 | Audit & Gameplay Specification | **Done** |
 | 1 | Stabilization | **Done** (branch `phase-1-stabilization`) |
 | 2 | Invoker Core Extraction | **Done** (branch `phase-2-invoker-core`) |
-| 3 | Practice Gameplay | **Implemented, awaiting owner review** (branch `phase-2-invoker-core`, not committed) |
+| 3 | Practice Gameplay | **Committed (`a76802e`) + review round (`fix: refine practice session lifecycle`); awaiting owner review** |
 | 4 | Game Loop / Input / State readiness | placeholder |
 | 5 | Web MVP (GitHub Pages) | placeholder |
 | 6 | UX / Audio / Game Feel | placeholder |
@@ -72,11 +72,12 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
   - [x] 3.2 **Cast judging** (§9–§11): correct → enemy removed, +1 score, +1 combo; wrong → only the accuracy counters change, the enemy keeps coming; empty-slot casts and casts with no active enemy are ignored; leak → HP −1, combo 0, enemy removed; HP ≤ 0 → Game Over; `Start()` resets Core and Practice and keeps assets loaded.
   - [x] 3.3 **Enemy data and lifecycle:** 10 sprites (7 existing + `dark_wiz`, `kitsune_run`, `knight_run`; frame counts checked visually), each sheet loaded once, aligned to a common ground line, single active enemy; the old free-running spawn/wrap-around code was removed (this also removes the enemy leaks).
   - [x] 3.4 **Loop changes Practice needs:** real `dt` from `SDL_GetTicks` (clamped inside Practice), time-based enemy movement, key auto-repeat ignored (spec Q-7). The 25 FPS cap, per-frame background scrolling and per-call enemy animation are unchanged.
-  - [x] 3.5 **HUD:** HP, score, combo, best combo, accuracy ("--" until the first judged cast), survival time, orbs, D/F slots; Ready and Game Over screens; Enter starts/restarts, Esc quits. Text uses a small built-in 5×7 pixel font (`PixelText`) because SDL2_ttf is not integrated (no font asset, not linked). No hints: nothing shows the target or recipe; a development-only `--debug` command-line switch prints/shows the target.
-  - [x] 3.6 **Tests:** `Tests/PracticeTests` (280 checks) next to the unchanged Core tests (243); `Tests\run_tests.cmd` runs both.
+  - [x] 3.5 **HUD:** HP, score, combo, best combo, accuracy ("--" until the first judged cast), survival time, orbs, D/F slots; Ready and Game Over screens; Enter starts/restarts, Esc steps back (Playing → Ready, Game Over → Ready) and quits only from Ready. Text uses a small built-in 5×7 pixel font (`PixelText`) because SDL2_ttf is not integrated (no font asset, not linked). No hints: nothing shows the target or recipe; a development-only `--debug` command-line switch prints/shows the target.
+  - [x] 3.6 **Tests:** `Tests/PracticeTests` (328 checks after the review round) next to the unchanged Core tests (243); `Tests\run_tests.cmd` runs both.
 - **Deviations / notes for review:**
-  - Best Combo is **per session and reset by Restart** and nothing is persisted, as requested for Phase 3. Spec §13 (persistent Best Score / Best Combo / Best Survival Time that Restart does not reset) is still to be implemented in Phase 6.
-  - Initial challenge delay is 1.5 s, first spawn included; enemy speed starts at 125 px/s and grows 2.5 px/s per second up to 380 px/s; delay shrinks 0.01 s per second down to 0.5 s. All in `Practice.h`, tune by playtesting.
+  - **Best Combo (review decision):** the current combo resets with every new session, the Best Combo record is kept across restarts while the application runs and only rises on a new record. Nothing is saved to disk yet; Best Score / Best Survival Time and saving to disk (local storage / file) remain for Phase 6 (spec §13).
+  - **Controls (review decision):** Ready: Enter starts, Esc quits. Playing: Esc returns to Ready (session stopped and reset, record kept), Enter ignored. Game Over: Enter starts, Esc returns to Ready. No pause. The Enter/Esc rules live in `PracticeSession::PressEnter/PressEscape` (tested); `GameManager` only maps the SDL keys.
+  - **Difficulty values are initial MVP tuning values, not final or balanced:** challenge delay 1.5 s → 0.5 s (first spawn included), enemy speed 125 → 380 px/s (+2.5 px/s per second survived), delay −0.01 s per second. Bounded above/below and `dt` is clamped to 0.1 s; all in `Practice.h`.
   - The sprite ↔ skill table in `Practice.cpp` is an arbitrary one-to-one assignment; change `targetSkill` there to remap.
 - **Dependencies:** Phase 2.
 - **Not done on purpose:** combat, story, hints, cooldowns, multi-target, HUD polish/effects/audio, persistent best stats (Phase 6), CMake, Web, touch/mobile.
@@ -110,4 +111,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-21 — **Phase 0** done (audit, gameplay spec v2, plan).
 - 2026-09-21 — **Phase 1** done: build portable, UB and spawn-timer bugs fixed, dead code removed (branch `phase-1-stabilization`, commit `eb25131`).
 - 2026-09-21 — **Phase 2** done: Invoker Core extracted, legacy logic removed, `Tests/InvokerCoreTests` added (243 checks) (branch `phase-2-invoker-core`). Next: Phase 3.
-- 2026-09-21 — **Phase 3** implemented: Practice layer + tests (280 checks), SDL integration, HUD, Ready/Game Over screens, `--debug` switch. Awaiting owner review; not committed. Next: Phase 4 (only after approval).
+- 2026-09-21 — **Phase 3** implemented (branch `phase-2-invoker-core`, commit `a76802e`): Practice layer + tests, SDL integration, HUD, Ready/Game Over screens, `--debug` switch.
+- 2026-09-21 — **Phase 3 review round** (commit `fix: refine practice session lifecycle`): Best Combo kept across restarts, Esc behaviour by state, Enter/Esc rules moved into `PracticeSession`, tests 328 checks, duplicate HUD formatting removed. Awaiting owner review. Next: Phase 4 (only after approval).

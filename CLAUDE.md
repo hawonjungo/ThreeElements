@@ -1,6 +1,6 @@
 # Three Elements — tài liệu bàn giao cho agent
 
-> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-21, sau Phase 3 (nhánh làm việc `phase-2-invoker-core`, các phase 2–3 chưa commit). Debug và Release x64 đều đã được build và chạy thử.
+> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-21, sau Phase 3 (nhánh `phase-2-invoker-core`; các phase 2–3 ở commit `a76802e`, vòng review Phase 3 ở commit `fix: refine practice session lifecycle`). Debug và Release x64 đều đã được build và chạy thử.
 
 **Đọc theo thứ tự này trước khi sửa code:**
 
@@ -86,7 +86,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
 | `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
-| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (280 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (328 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame, có enum `KeyType`); dùng cho orb Q/W/E và nhãn D/F |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation; vị trí do Practice quyết định |
 | `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định |
@@ -104,15 +104,15 @@ Tài nguyên trong `assets/`:
 ## 5. Đã làm được (sau Phase 3)
 
 - **Core (Phase 2):** nhập Q/W/E (3 orb, thứ tự không quan trọng), R invoke khi đủ 3 orb, ô D/F đúng kiểu Invoker, catalog 10 skill. Có test (`Tests/InvokerCoreTests`).
-- **Practice Mode (Phase 3):** `Practice/Practice.*` (không SDL) — 10 loại quái, mỗi loại mang `targetSkill` (bảng dữ liệu, tự do đổi); đúng **một quái** mỗi lượt; cast D/F đúng thì quái biến mất (+1 điểm, +1 combo), cast sai thì chỉ tính vào độ chính xác, quái chạm người chơi thì HP −1 và combo về 0, HP 0 thì Game Over; độ khó tăng theo thời gian (tốc độ quái và độ trễ giữa các lượt); chơi lại bằng Enter. Có test (`Tests/PracticeTests`).
+- **Practice Mode (Phase 3):** `Practice/Practice.*` (không SDL) — 10 loại quái, mỗi loại mang `targetSkill` (bảng dữ liệu, tự do đổi); đúng **một quái** mỗi lượt; cast D/F đúng thì quái biến mất (+1 điểm, +1 combo), cast sai thì chỉ tính vào độ chính xác, quái chạm người chơi thì HP −1 và combo về 0, HP 0 thì Game Over; độ khó tăng theo thời gian (tốc độ quái 125→380 px/s, độ trễ giữa các lượt 1,5→0,5 s: **giá trị tuning ban đầu của MVP, chưa cân bằng**); chơi lại bằng Enter. Có test (`Tests/PracticeTests`).
 - **Trình bày (SDL):** vòng lặp dùng `dt` thật (vẫn giới hạn 25 FPS); quái vẽ theo vị trí Practice (10 sprite nạp một lần, đặt đúng mặt đất); HUD gồm HP, điểm, combo, best combo, độ chính xác, thời gian, orb, ô D/F; màn hình Ready và Game Over; bộ chữ pixel tự vẽ (`PixelText.*`) vì SDL2_ttf chưa được tích hợp và repo chưa có file font.
-- **Điều khiển:** Q/W/E/R/D/F chơi; Enter bắt đầu / chơi lại; Esc thoát. Phím giữ (auto-repeat) không còn tạo nhiều lần bấm.
+- **Điều khiển:** Q/W/E/R/D/F chơi. **Ready:** Enter bắt đầu, Esc thoát app. **Playing:** Esc về Ready (phiên bị dừng và reset, kỷ lục best combo giữ nguyên), Enter bị bỏ qua. **Game Over:** Enter bắt đầu phiên mới, Esc về Ready. Không có pause. Luật Enter/Esc nằm trong `PracticeSession::PressEnter/PressEscape` (có test). Phím giữ (auto-repeat) không còn tạo nhiều lần bấm.
 - **Không có gợi ý:** HUD không hiện skill mục tiêu, recipe hay bảng tra. Chỉ chạy `"Three Elements.exe" --debug` (chỉ để phát triển, tắt mặc định) mới in `[debug] ... target ... recipe ...` ra console và hiện dòng `DEBUG TARGET` trên màn hình.
 - **Background:** 12 lớp parallax như cũ.
 
 ## 6. Chưa có (phần việc còn lại)
 
-- **Lưu trữ:** Best Score / Best Combo / Best Survival Time lưu cục bộ (spec §13) chưa làm; hiện Best Combo chỉ tính trong một phiên và bị Restart xóa (xem mục "Xung đột spec" trong báo cáo Phase 3).
+- **Lưu trữ:** Best Combo hiện là kỷ lục **trong một lần chạy app**: phiên mới reset combo hiện tại nhưng giữ Best Combo, chỉ tăng khi lập kỷ lục mới. Chưa ghi ra đĩa (local storage/file) và chưa có Best Score / Best Survival Time (spec §13, Phase 6).
 - **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, hiệu ứng khi diệt quái/mất máu, animation người chơi, âm thanh, cài đặt.
 - **Nền tảng:** Web (Emscripten, CMake), Android (nút cảm ứng), PC/Steam.
 - **Sau MVP:** chiến đấu, cốt truyện Threne, nhiều mục tiêu, chế độ người mới có gợi ý.
@@ -143,5 +143,5 @@ Hướng thiết kế đã chốt (mục 2). Lộ trình chi tiết nằm trong 
 - Style hiện có: tab để thụt lề, tên hàm lẫn lộn giữa `PascalCase` (`LoadImg`, `SetPos`) và `camelCase` (`handleKeyPress`), biến thành viên có hậu tố `_` hoặc tiền tố `m_`. Code mới nên theo style của file đang sửa.
 - Comment trong code trộn tiếng Anh và tiếng Việt; commit message bằng tiếng Anh.
 - **Test:** logic Core và Practice có bộ test riêng trong `Tests/` (không dùng framework, không dính SDL). Chạy `Tests\run_tests.cmd` (build + chạy cả hai chương trình, mã thoát 0 = đạt); xem `Tests/README.md`. Phải chạy trước khi sửa Core/Practice. Không có CI. Phần SDL (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) chưa có test tự động; kiểm bằng cách chạy game (`--debug` in mục tiêu ra console để lái phiên chơi).
-- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = thoát, Q/W/E/R/D/F = chơi.
+- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready), Q/W/E/R/D/F = chơi.
 - Lịch sử commit: bắt đầu từ game nền (background + nhân vật), rồi refactor OOP, sau đó thêm Keyboard/Skill, gộp combo skill, và gần đây nhất là respawn quái ngẫu nhiên và chỉnh thời gian respawn.

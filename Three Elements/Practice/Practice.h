@@ -41,6 +41,8 @@ namespace practice
 	const EnemyDefinition& GetEnemyDefinition(int index);  // 0 <= index < ENEMY_TYPE_COUNT
 
 	// ---- difficulty: a plain deterministic function of the elapsed survival time ----
+	// INITIAL MVP TUNING VALUES. They are a starting point for playtesting, not balanced or final.
+	// Bounds: the speed never exceeds MAX_ENEMY_SPEED and the delay never drops below MIN_CHALLENGE_DELAY.
 	const float START_ENEMY_SPEED = 125.0f;   // px/s (the speed the game had before Practice Mode)
 	const float MAX_ENEMY_SPEED = 380.0f;
 	const float ENEMY_SPEED_GROWTH = 2.5f;    // px/s gained per second survived
@@ -65,8 +67,8 @@ namespace practice
 		int hp;
 		int maxHp;
 		int score;
-		int combo;          // current combo
-		int bestCombo;      // best combo of this session
+		int combo;          // current combo, reset by every new session
+		int bestCombo;      // record: kept across restarts while the application runs (not saved to disk yet)
 		int correctCasts;
 		int incorrectCasts;
 		float survivalTime; // seconds spent Playing
@@ -107,7 +109,13 @@ namespace practice
 	public:
 		PracticeSession();                // starts in Ready
 
-		void Start(unsigned seed);        // new session (also used to restart): resets everything, state = Playing
+		void Start(unsigned seed);        // new session (also used to restart): resets everything except the
+		                                  // best combo record, state = Playing
+		void ReturnToReady();             // stop the current session and go back to Ready (same reset as Start)
+
+		// Session control keys. The presentation only maps the SDL keys to these two calls.
+		bool PressEnter(unsigned seed);   // Ready / Game Over -> new session; ignored while Playing. true = started
+		bool PressEscape();               // Ready -> true (quit the application); Playing / Game Over -> Ready, false
 
 		InputResult Input(invoker::InputAction action);  // Q/W/E/R/D/F; ignored unless Playing
 		UpdateResult Update(float dt);                   // seconds; ignored unless Playing
@@ -122,6 +130,7 @@ namespace practice
 		void SpawnEnemy();
 		unsigned NextRandom();
 		void StartWaiting();              // arm the timer for the next enemy
+		void ResetSession();              // fresh stats (best combo kept), no enemy, empty orbs and D/F
 
 		GameState m_state;
 		Stats m_stats;

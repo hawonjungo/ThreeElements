@@ -73,7 +73,6 @@ public:
 private:
 	void HandleKeyDown(const SDL_Event& e, bool& quit);
 	void ProcessAction(invoker::InputAction action);
-	void StartSession();
 	void LogUpdate(const practice::UpdateResult& result);
 
 	Keyboard* KeyIcon(invoker::Orb orb);
