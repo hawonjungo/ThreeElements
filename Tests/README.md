@@ -5,7 +5,7 @@ Two small console programs, no test framework, no SDL, no game assets. Each prin
 | Program | Tests | Checks |
 |---|---|---|
 | `InvokerCoreTests` | the **Invoker Core** (`Three Elements/Core/Invoker.h/.cpp`): the Q/W/E → R → D/F mechanic | 243 |
-| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty | 328 |
+| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile | 864 |
 
 The SDL presentation (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) has no automated test; see "Not covered" at the end.
 
@@ -93,8 +93,19 @@ A failing check prints `FAIL line N: <expression>` and the program exits with co
 | time step (dt) | negative and huge `dt` are clamped; movement does not depend on how the time is sliced |
 | input outside Playing | gameplay keys are ignored in Ready and Game Over |
 | invoker through the session | the Core rules still hold when driven through `PracticeSession::Input` |
+| tornado: pure functions | `MakeTornado` (origin, unit direction, zero-vector fallback), `AdvanceTornado` (`dir * speed * dt`, animation time independent, negative `dt` ignored, time slicing does not matter), removal outside the field or beyond the maximum range, `TornadoHits` (circle vs box: inside, touching, too far, above, corner cases), enemy hit box from the definition, animation frame (16 frames, 10 fps, loops, every frame shown, no skips) |
+| tornado: launch (D / F / others) | a Tornado in D creates exactly one projectile and does not kill the enemy at cast time; same for F; recognised by the SkillId in the slot (works after a swap), never "D means Tornado"; starts at the player cast origin; direction = normalised (enemy body centre − origin), fixed; tagged with its enemy; none of the other 9 spells creates a projectile; nothing to aim at (no enemy) or an empty slot creates none; the spell stays in its slot |
+| tornado: flight (direction, dt) | direction identical on every step while the enemy moves away (no homing), position = origin + dir × speed × time, straight line, animation time, time slicing (8 × 0.05 s vs 4 × 0.1 s), huge `dt` clamped |
+| tornado: hit | judged exactly once through the normal scoring (score +1, combo +1, one correct cast, accuracy), not instant, projectile removed, spell stays invoked, nothing counted again later, F slot identical, two projectiles at one enemy still give one result, a hit on an enemy needing another spell is one incorrect cast (enemy stays, no HP loss) |
+| tornado: miss | aimed away / out of the field: enemy untouched (still alive, same target, no replacement spawn), HP, combo, best combo, score, correct/incorrect counts and accuracy all unchanged; the enemy answered by another spell while the Tornado flies: that answer counts once and the Tornado then vanishes without effect |
+| tornado: bound to its enemy | a projectile never hits a later enemy that crosses its path (late game, 0.5 s between enemies) |
+| tornado: wrong target | CONFIRMED rule B: a hit on an enemy that needs another spell is exactly one wrong cast: enemy still alive (same enemy, no new spawn), HP unchanged, score unchanged, combo and best combo untouched (also with a running combo), accuracy follows the normal formula, the projectile is removed, the enemy keeps coming and a later correct answer scores normally; identical numbers to any other wrong spell (same seed, 30 seeds); repeated wrong hits = repeated wrong casts; an unanswered enemy still leaks for 1 HP |
+| tornado: no enemy | CONFIRMED rule C: with a running history, a Tornado cast from D or F with no active enemy (between enemies, before the first one) creates no projectile and changes nothing (HP, score, combo, best combo, correct / incorrect counts, accuracy); the direct `LaunchTornado` call agrees; nothing is left behind for the next enemy |
+| tornado: many projectiles | CONFIRMED rule D: 25 casts make 25 live projectiles at once (no cap); at a wrong-target enemy each one is one wrong cast, at the right enemy the first hit wins and the rest change nothing; projectiles launched at different moments move and animate independently |
+| tornado: animation loop | the frame sequence over three cycles is 0..15, 0..15, 0..15 (15 -> 0); a live projectile shows the frame of its own age; one removed early never completes the cycle |
+| tornado: lifetime | removed by a restart, by returning to Ready, and by Game Over; cannot be launched in Ready |
 
-These tests were also checked with 12 deliberate bugs (e.g. wrong casts costing HP, combo not reset by a leak, best combo never updated, integer-division accuracy, missing `dt` clamp, target repeated) plus 6 for the best combo and Enter/Esc rules (restart resetting the record, Esc quitting from Playing, Enter restarting a running session, ...); every one made the suite fail.
+These tests were also checked with 12 deliberate bugs (e.g. wrong casts costing HP, combo not reset by a leak, best combo never updated, integer-division accuracy, missing `dt` clamp, target repeated) plus 6 for the best combo and Enter/Esc rules and 23 for the Tornado (a projectile cap, wrong-target hit removing the enemy / costing HP / breaking the combo / not counted, no-enemy cast creating a projectile or counted as wrong, an animation that does not loop or wraps to the wrong frame, a new launch dropping the older projectile, hit projectiles never erased, plus instant judging, homing, a hit that is not used up, hitting any enemy, a penalty for launching, wrong origin, movement ignoring `dt`, no removal outside the field, wrong-target hit scored as correct, un-normalised direction, hit box ignoring height, frozen animation); every one made the suite fail.
 
 ## Not covered by automated tests
 

@@ -86,7 +86,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
 | `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
-| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (328 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (864 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame, có enum `KeyType`); dùng cho orb Q/W/E và nhãn D/F |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation; vị trí do Practice quyết định |
 | `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định |
@@ -98,7 +98,7 @@ Tài nguyên trong `assets/`:
 - `background/`: 12 lớp parallax
 - `enemies/`: 13 sprite, **10 đang dùng** (mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run + dark_wiz, kitsune_run, knight_run thêm ở Phase 3); chưa dùng: bat_fly, mush (trùng nấm), nec_walk_bg (trùng nec_walk)
 - `keyboard/`: icon Q W E R D F
-- `skill/`: 10 icon skill
+- `skill/`: 10 icon skill (`Tornado.png` là icon) + thư mục `Skills/Tornado/` (cạnh `skill/`, đã được code dùng) chứa `tornado_vfx_16f.png`, sheet hiệu ứng Tornado 512×512 (4×4 frame 128×128, nền trong suốt) và `tornado_icon.png` (chưa dùng)
 - `main.bmp`: sprite người chơi
 
 ## 5. Đã làm được (sau Phase 3)
@@ -107,6 +107,7 @@ Tài nguyên trong `assets/`:
 - **Practice Mode (Phase 3):** `Practice/Practice.*` (không SDL) — 10 loại quái, mỗi loại mang `targetSkill` (bảng dữ liệu, tự do đổi); đúng **một quái** mỗi lượt; cast D/F đúng thì quái biến mất (+1 điểm, +1 combo), cast sai thì chỉ tính vào độ chính xác, quái chạm người chơi thì HP −1 và combo về 0, HP 0 thì Game Over; độ khó tăng theo thời gian (tốc độ quái 125→380 px/s, độ trễ giữa các lượt 1,5→0,5 s: **giá trị tuning ban đầu của MVP, chưa cân bằng**); chơi lại bằng Enter. Có test (`Tests/PracticeTests`).
 - **Trình bày (SDL):** vòng lặp dùng `dt` thật (vẫn giới hạn 25 FPS); quái vẽ theo vị trí Practice (10 sprite nạp một lần, đặt đúng mặt đất); HUD gồm HP, điểm, combo, best combo, độ chính xác, thời gian, orb, ô D/F; màn hình Ready và Game Over; bộ chữ pixel tự vẽ (`PixelText.*`) vì SDL2_ttf chưa được tích hợp và repo chưa có file font.
 - **Điều khiển:** Q/W/E/R/D/F chơi. **Ready:** Enter bắt đầu, Esc thoát app. **Playing:** Esc về Ready (phiên bị dừng và reset, kỷ lục best combo giữ nguyên), Enter bị bỏ qua. **Game Over:** Enter bắt đầu phiên mới, Esc về Ready. Không có pause. Luật Enter/Esc nằm trong `PracticeSession::PressEnter/PressEscape` (có test). Phím giữ (auto-repeat) không còn tạo nhiều lần bấm.
+- **Tornado (hiệu ứng thật đầu tiên):** cast Tornado từ D hoặc F (nhận theo `SkillId` trong ô) bắn ra một quả cầu lốc từ người chơi về phía quái, hướng chốt một lần lúc bắn (không tự dẫn), bay thẳng theo `dt` (700 px/s). **Chỉ được chấm khi trúng con quái đã bị nhắm tới**, qua đúng đường chấm điểm cũ (`PracticeSession::JudgeCast`): trúng quái cần Tornado thì quái biến mất, điểm và combo +1 đúng một lần; trúng quái cần skill khác thì là **1 cast sai** (quái vẫn sống, HP không đổi, combo/điểm/độ chính xác theo luật cast sai thường); **trượt thì không đổi gì** (không combo, điểm, độ chính xác, HP). Không có quái thì không bắn và không tính cast. **Không giới hạn số projectile cùng lúc** (mỗi cast hợp lệ tạo đúng một quả). Animation lặp 0→15→0 khi projectile còn sống. Logic ở `Practice/Practice.*` (hàm thuần, có test), vẽ ở `GameManager::RenderTornadoes` (16 frame, 10 fps, nearest-neighbour, dưới HUD). Giá trị là tuning ban đầu.
 - **Không có gợi ý:** HUD không hiện skill mục tiêu, recipe hay bảng tra. Chỉ chạy `"Three Elements.exe" --debug` (chỉ để phát triển, tắt mặc định) mới in `[debug] ... target ... recipe ...` ra console và hiện dòng `DEBUG TARGET` trên màn hình.
 - **Background:** 12 lớp parallax như cũ.
 

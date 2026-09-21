@@ -151,6 +151,8 @@ void GameManager::LoopGame()
             printf("Failed to load enemy sprite %s\n", def.sprite);
     }
 
+    LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
+
     if (bPlayer)
     {
         m_player.set_clips();
@@ -201,6 +203,7 @@ void GameManager::LoopGame()
             m_player.Render(m_screen);
         }
         RenderEnemy();
+        RenderTornadoes();  // above the background, player and enemy, below the HUD
         RenderInvokerHud();
         RenderStatsHud();
         RenderDebugOverlay();
@@ -291,12 +294,20 @@ void GameManager::ProcessAction(invoker::InputAction action)
         printf("Cast %s: (empty)\n", slotName);
     }
 
+    if (r.tornadoLaunched)
+        printf("[practice] Tornado launched (judged when it hits the enemy)\n");
+    LogOutcome(r.cast);
+}
+
+// One log line per judged cast; shared by casts that are judged at once and by Tornado hits.
+void GameManager::LogOutcome(practice::CastOutcome outcome)
+{
     const practice::Stats& st = m_session.GetStats();
-    if (r.cast == practice::CastOutcome::Correct)
+    if (outcome == practice::CastOutcome::Correct)
     {
         printf("[practice] correct cast: score %d, combo %d (best %d)\n", st.score, st.combo, st.bestCombo);
     }
-    else if (r.cast == practice::CastOutcome::Incorrect)
+    else if (outcome == practice::CastOutcome::Incorrect)
     {
         printf("[practice] incorrect cast: the enemy keeps coming (HP %d/%d)\n", st.hp, st.maxHp);
     }
@@ -315,6 +326,11 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
                 m_session.SpawnCount(), practice::GetEnemyDefinition(e.definition).name,
                 invoker::GetSkillDefinition(e.target).name, invoker::RecipeLetters(e.target).c_str(), e.speed);
         }
+    }
+    if (result.cast != practice::CastOutcome::None)
+    {
+        printf("[practice] Tornado hit the enemy\n");
+        LogOutcome(result.cast);
     }
     if (result.leaked)
     {
@@ -349,8 +365,52 @@ void GameManager::RenderEnemy()
     const practice::EnemyDefinition& def = practice::GetEnemyDefinition(e.definition);
     EnemyObject& sprite = m_enemySprites[e.definition];
     // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
-    sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, GROUND_LINE_Y - def.feetRow);
+    sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow);
     sprite.Render(m_screen);
+}
+
+// Loads the Tornado sprite sheet as a plain texture: no colour key (BaseObject::LoadImg would make grey pixels
+// transparent) and nearest-neighbour scaling, so the pixel art stays crisp.
+bool GameManager::LoadTornadoSheet()
+{
+    SDL_Surface* surface = IMG_Load(TORNADO_SHEET_PATH);
+    if (surface == NULL)
+    {
+        printf("Failed to load Tornado sheet %s: %s\n", TORNADO_SHEET_PATH, IMG_GetError());
+        return false;
+    }
+    bool sizeOk = surface->w == TORNADO_SHEET_COLUMNS * TORNADO_FRAME_SIZE && surface->h == TORNADO_SHEET_COLUMNS * TORNADO_FRAME_SIZE;
+    if (!sizeOk)
+        printf("Tornado sheet %s is %dx%d, expected %dx%d: not used\n", TORNADO_SHEET_PATH, surface->w, surface->h,
+            TORNADO_SHEET_COLUMNS * TORNADO_FRAME_SIZE, TORNADO_SHEET_COLUMNS * TORNADO_FRAME_SIZE);
+    else
+        m_tornadoSheet = SDL_CreateTextureFromSurface(m_screen, surface);
+    SDL_FreeSurface(surface);
+    if (m_tornadoSheet == NULL)
+        return false;
+
+    SDL_SetTextureBlendMode(m_tornadoSheet, SDL_BLENDMODE_BLEND);   // transparent background
+    SDL_SetTextureScaleMode(m_tornadoSheet, SDL_ScaleModeNearest);  // no smoothing
+    return true;
+}
+
+// Tornado projectiles: the Practice session says where they are and which frame to show.
+void GameManager::RenderTornadoes()
+{
+    if (m_tornadoSheet == NULL)
+        return;
+
+    const int size = static_cast<int>(TORNADO_FRAME_SIZE * TORNADO_DRAW_SCALE);  // same on both axes: no distortion
+    for (int i = 0; i < m_session.ActiveTornadoCount(); ++i)
+    {
+        const practice::Tornado& t = m_session.GetTornado(i);
+
+        int frame = practice::TornadoFrame(t.animTime);
+        SDL_Rect src = { (frame % TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE, (frame / TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE,
+            TORNADO_FRAME_SIZE, TORNADO_FRAME_SIZE };
+        SDL_Rect dst = { static_cast<int>(t.x) - size / 2, static_cast<int>(t.y) - size / 2, size, size };
+        SDL_RenderCopy(m_screen, m_tornadoSheet, &src, &dst);
+    }
 }
 
 // Current Q/W/E orbs and the two invoked spells (D = newest, F = previous). Never shows recipes or targets.
@@ -578,6 +638,12 @@ void GameManager::updateBackgroundLayers() {
 void GameManager::Close()
 {
     //g_background.Free();
+
+    if (m_tornadoSheet != NULL)
+    {
+        SDL_DestroyTexture(m_tornadoSheet);
+        m_tornadoSheet = NULL;
+    }
 
     SDL_DestroyRenderer(m_screen);
     m_screen = NULL;
