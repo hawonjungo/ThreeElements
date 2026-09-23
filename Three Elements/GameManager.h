@@ -93,14 +93,14 @@ const int PLACEHOLDER_VFX_DRAW_SIZE = 140;  // px on screen
 // (Keyboard class, assets/keyboard/*.png, already-loaded 2-frame 32x32 sheets) at a larger on-screen size.
 // No new art, no new input system: SDL_FINGERDOWN and SDL_MOUSEBUTTONDOWN both hit-test this same table and
 // feed the result through the same ProcessAction() path the keyboard already uses.
-// Layout (owner decision 2026-09-24): Q/W/E/R sit in one row exactly like the top row of a physical keyboard
-// (evenly spaced, touching gaps only); D/F sit in a second row directly below, shifted right by half a key
-// step so D lines up under E/R and F under R, mirroring the real keyboard's home-row stagger. The whole
-// cluster sits bottom-right (this game has no movement input, so the right thumb owns the entire cluster).
+// Layout (owner decision 2026-09-24, moved to the left side 2026-09-25): Q/W/E/R sit in one row exactly
+// like the top row of a physical keyboard (evenly spaced, touching gaps only); D/F sit in a second row
+// directly below, shifted right by half a key step so D lines up under E/R and F under R, mirroring the
+// real keyboard's home-row stagger. The whole cluster sits bottom-left (owner's explicit placement).
 const int TOUCH_BUTTON_SIZE = 60;
 const int TOUCH_BUTTON_GAP = 6;
 const int TOUCH_BUTTON_STEP = TOUCH_BUTTON_SIZE + TOUCH_BUTTON_GAP;  // 66: centre-to-centre spacing within a row
-const int TOUCH_CLUSTER_LEFT = 600;  // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
+const int TOUCH_CLUSTER_LEFT = 24;   // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
 const int TOUCH_CLUSTER_TOP  = 400;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below
 struct TouchButton { invoker::InputAction action; SDL_Rect rect; };
 const TouchButton kTouchButtons[6] =
