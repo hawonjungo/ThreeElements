@@ -1,0 +1,11 @@
+{
+  "name": "Three Elements",
+  "short_name": "Three Elements",
+  "description": "Invoker-style practice prototype",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#11141c"
+}
