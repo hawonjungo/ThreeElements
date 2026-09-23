@@ -69,6 +69,20 @@
     }
     #status, progress { display: none; }
   }
+
+  /* Visible fullscreen button for touch devices (JS unhides it only when not already fullscreen/standalone).
+     Sits bottom-right: in phone landscape that is the black letterbox bar, clear of the left touch cluster. */
+  #fs-btn {
+    position: fixed; z-index: 10;
+    right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom));
+    padding: 6px 8px; font: inherit; font-size: 11px; line-height: 1.2; text-align: center;
+    color: #f2c14e; background: rgba(17, 20, 28, .85); border: 2px solid #f2c14e; border-radius: 8px;
+  }
+  #fs-tip {
+    position: fixed; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(360px, 90vw); padding: 14px; box-sizing: border-box; font-size: 13px; line-height: 1.5;
+    color: #cfd6e6; background: #11141c; border: 2px solid #f2c14e; border-radius: 8px;
+  }
 </style>
 </head>
 <body>
@@ -81,6 +95,13 @@
   <div id="status"><span class="spinner" id="spinner"></span>Loading&hellip;</div>
   <progress hidden id="progress" max="100" value="0"></progress>
   <div id="hint">Keyboard: Q/W/E orbs &middot; R invoke &middot; D/F cast &middot; Enter start &middot; Esc back/quit. On touch: use the on-screen buttons.</div>
+  <button id="fs-btn" type="button" hidden aria-label="Fullscreen"><span style="font-size:22px">&#x26F6;</span><br>Full</button>
+  <div id="fs-tip" hidden>
+    iPhone không cho web tự mở toàn màn hình. Hãy bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên) &rarr;
+    <b>Thêm vào MH chính</b>, rồi mở game từ biểu tượng trên màn hình chính.<br><br>
+    iPhone does not allow web pages to go fullscreen. Tap <b>Share</b> &rarr; <b>Add to Home Screen</b>,
+    then open the game from the home-screen icon.<br><br>(Chạm để đóng &middot; Tap to close)
+  </div>
   <script type="text/javascript">
     var statusElement = document.getElementById('status');
     var progressElement = document.getElementById('progress');
@@ -92,24 +113,37 @@
     }, false);
     canvasElement.addEventListener('click', () => canvasElement.focus());
 
-    // Real fullscreen on touch devices: browsers only allow requestFullscreen() from inside a user gesture, so
-    // we piggyback on taps on the canvas (the first one is also how they hit Start). If the player leaves
-    // fullscreen (Android back gesture), the next tap re-enters it. Once fullscreen, lock to landscape where
-    // the browser allows it (Android Chrome; screen.orientation.lock only works while fullscreen). Desktop is
-    // untouched. iOS Safari on iPhone has no Fullscreen API for non-video elements: there `req` is missing and
-    // the home-screen meta tags above are the only way to hide the browser chrome.
+    // Real fullscreen on touch devices. Browsers only allow requestFullscreen() during a user activation, and
+    // for a finger that is the END of the tap (touchend/pointerup), not touchstart/pointerdown - so we listen
+    // on touchend. Two entry points: the visible #fs-btn, and any tap on the canvas (re-enters after the player
+    // leaves fullscreen, e.g. Android back gesture). Once fullscreen, lock to landscape where allowed (Android
+    // Chrome; screen.orientation.lock only works while fullscreen). Desktop is untouched.
+    // iPhone Safari has no Fullscreen API for non-video elements: there the button shows #fs-tip explaining
+    // Add to Home Screen instead (the meta tags above make the home-screen launch chrome-free).
     var isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    var isStandalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+    var rootEl = document.documentElement;
+    var requestFs = rootEl.requestFullscreen || rootEl.webkitRequestFullscreen;
+    var fsButton = document.getElementById('fs-btn');
+    var fsTip = document.getElementById('fs-tip');
+    var isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
     var lockLandscape = () => {
       if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
     };
     var tryEnterFullscreen = () => {
-      if (!isTouchDevice || document.fullscreenElement || document.webkitFullscreenElement) return;
-      var el = document.documentElement;
-      var req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (!req) return;
-      try { Promise.resolve(req.call(el)).then(lockLandscape).catch(() => {}); } catch (e) {}
+      if (!isTouchDevice || !requestFs || isFullscreen()) return;
+      try { Promise.resolve(requestFs.call(rootEl)).then(lockLandscape).catch(() => {}); } catch (e) {}
     };
-    canvasElement.addEventListener('pointerdown', tryEnterFullscreen);
+    var updateFsButton = () => { fsButton.hidden = !isTouchDevice || isStandalone || isFullscreen(); };
+    fsButton.addEventListener('click', () => {
+      if (requestFs) tryEnterFullscreen();
+      else fsTip.hidden = false;
+    });
+    fsTip.addEventListener('click', () => { fsTip.hidden = true; });
+    canvasElement.addEventListener('touchend', tryEnterFullscreen);
+    document.addEventListener('fullscreenchange', updateFsButton);
+    document.addEventListener('webkitfullscreenchange', updateFsButton);
+    updateFsButton();
 
     var setStatus = (text) => {
       if (!setStatus.last) setStatus.last = { time: Date.now(), text: '' };
