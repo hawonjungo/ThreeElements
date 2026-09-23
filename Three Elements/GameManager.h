@@ -96,13 +96,22 @@ const int PLACEHOLDER_VFX_DRAW_SIZE = 140;  // px on screen
 // Layout (owner decision 2026-09-24, moved to the left side + raised + enlarged 2026-09-25): Q/W/E/R sit in
 // one row exactly like the top row of a physical keyboard (evenly spaced, touching gaps only); D/F sit in a
 // second row directly below, shifted right by half a key step so D lines up under E/R and F under R,
-// mirroring the real keyboard's home-row stagger. The cluster sits bottom-left, raised just clear of the
-// Slot D/F HUD icons above it (skillPos, ~y316 at the bottom) so it stops crowding the player sprite below.
-const int TOUCH_BUTTON_SIZE = 72;
+// mirroring the real keyboard's home-row stagger. The cluster sits bottom-left.
+// Enlarged 72 -> 88 px (2026-09-23, owner: finger-sized); now that the orb/slot HUD sits in the centre, the
+// cluster can drop down to the bottom edge. Only drawn/hit-tested on touch devices (m_showTouchControls).
+const int TOUCH_BUTTON_SIZE = 88;
 const int TOUCH_BUTTON_GAP = 8;
-const int TOUCH_BUTTON_STEP = TOUCH_BUTTON_SIZE + TOUCH_BUTTON_GAP;  // 80: centre-to-centre spacing within a row
-const int TOUCH_CLUSTER_LEFT = 24;   // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
-const int TOUCH_CLUSTER_TOP  = 330;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below
+const int TOUCH_BUTTON_STEP = TOUCH_BUTTON_SIZE + TOUCH_BUTTON_GAP;  // 96: centre-to-centre spacing within a row
+const int TOUCH_CLUSTER_LEFT = 16;   // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
+const int TOUCH_CLUSTER_TOP  = 344;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below (ends y528)
+// Element colours, indexed by invoker::Orb (owner 2026-09-23): Quas = ice, Wex = lightning, Exort = fire. Used
+// for the HUD orbs and the colour band on the Q/W/E touch buttons, so an active orb is recognisable at a glance.
+const SDL_Color kOrbColors[3] =
+{
+	{  90, 200, 255, 255 },  // Quas: ice blue
+	{ 190, 100, 255, 255 },  // Wex: electric violet
+	{ 255, 120,  30, 255 },  // Exort: fire orange
+};
 struct TouchButton { invoker::InputAction action; SDL_Rect rect; };
 const TouchButton kTouchButtons[6] =
 {
@@ -158,9 +167,12 @@ protected:
 
 	practice::PracticeSession m_session;  // the Practice Mode rules: enemy, HP, score, combo, accuracy, difficulty
 	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
+	bool m_showTouchControls = false;     // touch device (web media query) or any finger touch seen; PC keeps it off
 
-	vector<pair<int, int>> elementPos = { {50, 150}, {100, 150}, {150, 150} };
-	vector<pair<int, int>> skillPos = { {150,250},{250,250} };
+	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
+	// top-left corners (64 x 64). Both groups are symmetric around SCREEN_WIDTH / 2 = 464.
+	vector<pair<int, int>> elementPos = { {412, 170}, {464, 170}, {516, 170} };
+	vector<pair<int, int>> skillPos = { {382,250},{482,250} };
 
 public:
 	static GameManager* getInstace()
@@ -197,7 +209,7 @@ private:
 	void SaveTopScores();
 	bool SubmitScore(int score);  // true if it entered the top 10
 
-	Keyboard* KeyIcon(invoker::Orb orb);
+	void RenderOrb(invoker::Orb orb, int centerX, int centerY);
 	void RenderEnemy();
 	void RenderTornadoes();
 	void RenderGhostWalk();

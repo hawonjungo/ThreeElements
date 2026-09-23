@@ -33,7 +33,6 @@
   }
   #status { font-size: 13px; color: #8a93a8; min-height: 18px; }
   #hint { font-size: 12px; color: #6b7285; max-width: 928px; text-align: center; }
-  #rotate-hint { display: none; font-size: 12px; color: #f2c14e; text-align: center; }
   progress { width: 260px; height: 10px; }
   .spinner {
     height: 22px; width: 22px; display: inline-block; vertical-align: middle; margin-right: 8px;
@@ -45,20 +44,16 @@
 
   /* Touch devices (phones/tablets), detected by input type rather than width: large phones are wider than
      900px in landscape (iPhone Pro Max 932px, many Androids ~915px), so a width breakpoint missed them.
-     In portrait, nudge the player to rotate (game is a fixed 928x544 landscape shape, so portrait always
-     letterboxes badly). In landscape, drop the title/hint chrome and scale the canvas to the largest size that
-     fits the screen at the game's aspect ratio (black bars on the long side, never stretched), keeping clear
-     of notches via the safe-area insets. */
-  @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-    #rotate-hint { display: block; }
-  }
+     In landscape, drop the title/hint chrome and scale the canvas to the largest size that fits the screen at
+     the game's aspect ratio (black bars on the long side, never stretched), keeping clear of notches via the
+     safe-area insets. */
   @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
     body {
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       gap: 0;
       background: #000;
     }
-    h1, .subtitle, #hint, #rotate-hint { display: none; }
+    h1, .subtitle, #hint { display: none; }
     #canvas-wrap { max-width: none; width: auto; }
     canvas.emscripten {
       border: none;
@@ -88,7 +83,6 @@
 <body>
   <h1>Three Elements</h1>
   <div class="subtitle">Invoker-style practice prototype</div>
-  <div id="rotate-hint">Xoay ngang màn hình để chơi thoải mái hơn &middot; Rotate your phone to landscape for a bigger screen</div>
   <div id="canvas-wrap">
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
   </div>

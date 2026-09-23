@@ -129,6 +129,12 @@ void GameManager::LoopGame()
         m_player.SetPos(10, 385);
     }
 
+#ifdef __EMSCRIPTEN__
+    // Phones/tablets show the on-screen Q/W/E/R/D/F cluster from the start; a PC browser keeps it hidden
+    // (same media query the web shell uses). Any finger touch later turns it on too (see SDL_FINGERDOWN).
+    m_showTouchControls = EM_ASM_INT({ return window.matchMedia('(hover: none) and (pointer: coarse)').matches ? 1 : 0; }) != 0;
+#endif
+
     printf("Three Elements - Practice Mode. Press Enter to start.\n");
 
     Uint32 lastTick = SDL_GetTicks();
@@ -157,6 +163,7 @@ void GameManager::LoopGame()
             }
             else if (m_event.type == SDL_FINGERDOWN)  // phone/tablet touch (normalised 0..1 coordinates)
             {
+                m_showTouchControls = true;  // a touch screen is in use, whatever the media query said
                 HandlePointerDown(static_cast<int>(m_event.tfinger.x * SCREEN_WIDTH),
                     static_cast<int>(m_event.tfinger.y * SCREEN_HEIGHT), bStop);
             }
@@ -289,7 +296,7 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
             PressEscapeAction(quit);
             return;
         }
-        for (int i = 0; i < 6; ++i)
+        for (int i = 0; i < 6 && m_showTouchControls; ++i)  // hidden buttons are not clickable either
         {
             if (hit(kTouchButtons[i].rect))
             {
@@ -352,7 +359,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
 // no-ops in Ready/Game Over too). Reuses the already-loaded keyboard icons at a larger size - no new art.
 void GameManager::RenderTouchControls()
 {
-    if (m_session.State() != practice::GameState::Playing)
+    if (m_session.State() != practice::GameState::Playing || !m_showTouchControls)
         return;
 
     Keyboard* icons[6] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyR, &m_keyD, &m_keyF };
@@ -362,6 +369,13 @@ void GameManager::RenderTouchControls()
         const SDL_Rect& r = kTouchButtons[i].rect;
         SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 150);
         SDL_RenderFillRect(m_screen, &r);
+        if (i < 3)  // Q/W/E: a band of their element colour along the bottom, matching the HUD orbs
+        {
+            SDL_Color c = kOrbColors[i];
+            SDL_Rect band = { r.x + 1, r.y + r.h - 8, r.w - 2, 7 };
+            SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 220);
+            SDL_RenderFillRect(m_screen, &band);
+        }
         SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 90);
         SDL_RenderDrawRect(m_screen, &r);
 
@@ -425,14 +439,34 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
 
 // ------------------------------------------------------------------ drawing
 
-Keyboard* GameManager::KeyIcon(invoker::Orb orb)
+// Filled disc, one horizontal line per row (SDL2 has no circle primitive).
+static void FillCircle(SDL_Renderer* renderer, int cx, int cy, int radius)
 {
-    switch (orb)
+    for (int dy = -radius; dy <= radius; ++dy)
     {
-    case invoker::Orb::Quas: return &m_keyQ;
-    case invoker::Orb::Wex:  return &m_keyW;
-    default:                 return &m_keyE;
+        int dx = static_cast<int>(std::sqrt(static_cast<float>(radius * radius - dy * dy)));
+        SDL_RenderDrawLine(renderer, cx - dx, cy + dy, cx + dx, cy + dy);
     }
+}
+
+// One active orb: a disc in its element colour (ice / lightning / fire) with a light core and its key letter.
+void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
+{
+    SDL_Color c = kOrbColors[static_cast<int>(orb)];
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 70);   // soft glow
+    FillCircle(m_screen, centerX, centerY, 26);
+    SDL_SetRenderDrawColor(m_screen, 10, 12, 18, 255);     // dark rim
+    FillCircle(m_screen, centerX, centerY, 20);
+    SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 255);
+    FillCircle(m_screen, centerX, centerY, 18);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);  // highlight, top-left
+    FillCircle(m_screen, centerX - 6, centerY - 6, 6);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const char* letter = orb == invoker::Orb::Quas ? "Q" : orb == invoker::Orb::Wex ? "W" : "E";
+    const SDL_Color white = { 255, 255, 255, 255 };
+    pixeltext::DrawShadowed(m_screen, letter, centerX - pixeltext::Width(letter, 2) / 2, centerY - 7, 2, white);
 }
 
 // The single active enemy, drawn where the Practice session says it is.
@@ -721,16 +755,26 @@ void GameManager::RenderPlaceholderVfx()
 }
 
 // Current Q/W/E orbs and the two invoked spells (D = newest, F = previous). Never shows recipes or targets.
+// Only while Playing: centred, it would otherwise sit under the Ready / Game Over text.
 void GameManager::RenderInvokerHud()
 {
+    if (m_session.State() != practice::GameState::Playing)
+        return;
+
     const invoker::InvokerState& inv = m_session.Invoker();
 
-    for (int i = 0; i < inv.OrbCount(); ++i)
+    // three orb sockets: empty ones are a faint ring, so the player sees how many orbs are loaded
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    for (int i = inv.OrbCount(); i < 3; ++i)
     {
-        Keyboard* key = KeyIcon(inv.GetOrb(i));
-        key->SetPos(elementPos[i].first, elementPos[i].second);
-        key->Render(m_screen);
+        SDL_SetRenderDrawColor(m_screen, 200, 200, 210, 90);
+        FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 20);
+        SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 140);
+        FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 17);
     }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    for (int i = 0; i < inv.OrbCount(); ++i)
+        RenderOrb(inv.GetOrb(i), elementPos[i].first, elementPos[i].second);
 
     // frames for the two slots, so an empty slot is visible too
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
