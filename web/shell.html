@@ -76,6 +76,20 @@
     }, false);
     canvasElement.addEventListener('click', () => canvasElement.focus());
 
+    // Real fullscreen on phones: browsers only allow requestFullscreen() from inside a user gesture, so we
+    // piggyback on the player's first tap/click on the canvas (which is also how they hit Start). Desktop is
+    // untouched. Known limitation: iOS Safari does not support the Fullscreen API for non-video elements
+    // (nothing we can fix from here short of a home-screen/PWA install, which is out of scope for this build).
+    var requestedFullscreen = false;
+    var tryEnterFullscreen = () => {
+      if (requestedFullscreen || !window.matchMedia('(max-width: 900px)').matches) return;
+      requestedFullscreen = true;
+      var el = document.documentElement;
+      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (req) { try { req.call(el).catch(() => {}); } catch (e) {} }
+    };
+    canvasElement.addEventListener('pointerdown', tryEnterFullscreen, { once: true });
+
     var setStatus = (text) => {
       if (!setStatus.last) setStatus.last = { time: Date.now(), text: '' };
       if (text === setStatus.last.text) return;
