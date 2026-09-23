@@ -1,10 +1,18 @@
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS  // plain fopen/fscanf (LoadTopScores/SaveTopScores) instead of the MSVC-only *_s variants,
+#endif                            // so the same code compiles unchanged under Emscripten's clang for the web build
 #include "GameManager.h"
 #include "MainPlayer.h"
 #include "Skill.h"
 #include "ImpTimer.h"
 #include "PixelText.h"
+#include <cmath>
+#include <cstdio>
 #include <ctime>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 
 GameManager* GameManager::instance_ = NULL;
@@ -81,12 +89,13 @@ void GameManager::LoopGame()
 
     bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
-    // key icons: the orbs (Q/W/E) and the slot labels (D/F)
-    Keyboard* keyIcons[] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyD, &m_keyF };
+    // key icons: the orbs (Q/W/E), invoke (R: touch button only, the keyboard has no on-screen R icon),
+    // and the slot labels (D/F)
+    Keyboard* keyIcons[] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyR, &m_keyD, &m_keyF };
     const char* keyPaths[] = {
         "assets/keyboard/keyQ.png", "assets/keyboard/keyW.png", "assets/keyboard/keyE.png",
-        "assets/keyboard/keyD.png", "assets/keyboard/keyF.png" };
-    for (int i = 0; i < 5; ++i)
+        "assets/keyboard/keyR.png", "assets/keyboard/keyD.png", "assets/keyboard/keyF.png" };
+    for (int i = 0; i < 6; ++i)
     {
         keyIcons[i]->LoadImg(keyPaths[i], m_screen);
         keyIcons[i]->set_clips();
@@ -110,6 +119,9 @@ void GameManager::LoopGame()
     }
 
     LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
+    LoadGhostWalkSheet();  // same for the Ghost Walk aura
+    LoadPlaceholderVfxSheets();  // TEST placeholders for the 8 skills without a real effect yet
+    LoadTopScores();
 
     if (bPlayer)
     {
@@ -143,10 +155,24 @@ void GameManager::LoopGame()
             {
                 HandleKeyDown(m_event, bStop);
             }
+            else if (m_event.type == SDL_FINGERDOWN)  // phone/tablet touch (normalised 0..1 coordinates)
+            {
+                HandlePointerDown(static_cast<int>(m_event.tfinger.x * SCREEN_WIDTH),
+                    static_cast<int>(m_event.tfinger.y * SCREEN_HEIGHT), bStop);
+            }
+            else if (m_event.type == SDL_MOUSEBUTTONDOWN && m_event.button.which != SDL_TOUCH_MOUSEID)
+            {
+                // which == SDL_TOUCH_MOUSEID would be a synthetic mouse event for a tap SDL_FINGERDOWN
+                // already handled above; a real mouse click (desktop testing) is not, and still works.
+                HandlePointerDown(m_event.button.x, m_event.button.y, bStop);
+            }
         }
 
         // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied)
         LogUpdate(m_session.Update(dt));
+        m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
+        for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
+            m_placeholderVfxLeft[vi] = m_placeholderVfxLeft[vi] > dt ? m_placeholderVfxLeft[vi] - dt : 0.0f;
 
         //Clear screen
         SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -156,12 +182,15 @@ void GameManager::LoopGame()
         updateBackgroundLayers();
         renderBackgroundLayers();
 
+        RenderGhostWalk();  // behind the player: the player is never covered
         if (bPlayer)
         {
             m_player.Render(m_screen);
         }
         RenderEnemy();
         RenderTornadoes();  // above the background, player and enemy, below the HUD
+        RenderPlaceholderVfx();  // TEST placeholders, drawn above everything else in the scene
+        RenderTouchControls();  // on top of the scene, only while Playing
         RenderInvokerHud();
         RenderStatsHud();
         RenderTargetHint();
@@ -197,31 +226,88 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
 
     SDL_Keycode sym = e.key.keysym.sym;
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
-    if (sym == SDLK_ESCAPE)
-    {
-        // Ready: quit the application. Playing / Game Over: step back to Ready, never quit.
-        if (m_session.PressEscape())
-            quit = true;
-        else
-            printf("[practice] back to Ready\n");
-        return;
-    }
-    if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
-    {
-        unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
-        if (m_session.PressEnter(seed))  // Ready / Game Over: new session (ignored while Playing)
-            printf("[practice] session started (seed %u)\n", seed);
-        return;
-    }
+    if (sym == SDLK_ESCAPE) { PressEscapeAction(quit); return; }
+    if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) { PressEnterAction(); return; }
 
     invoker::InputAction action;
     if (MainPlayer::TranslateKey(e, action))
         ProcessAction(action);
 }
 
+// Ready / Game Over -> new session (ignored while Playing, per PracticeSession::PressEnter itself).
+// Shared by the Enter key and every touch "start/restart" tap zone: one place, one rule.
+void GameManager::PressEnterAction()
+{
+    unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
+    if (m_session.PressEnter(seed))
+    {
+        ResetVisualEffects();
+        printf("[practice] session started (seed %u)\n", seed);
+    }
+}
+
+// Ready -> quit the application. Playing / Game Over -> step back to Ready, never quit. Shared by the
+// Esc key and every touch "back/quit" tap zone.
+void GameManager::PressEscapeAction(bool& quit)
+{
+    ResetVisualEffects();
+    if (m_session.PressEscape())
+        quit = true;
+    else
+        printf("[practice] back to Ready\n");
+}
+
+// Touch (SDL_FINGERDOWN) and mouse (SDL_MOUSEBUTTONDOWN) input, already converted to window-pixel
+// coordinates by the caller. Hit-tests exactly the regions drawn by RenderTouchControls() and the
+// Ready/Game Over/HUD text, then reuses the very same calls the keyboard uses - no separate rules.
+void GameManager::HandlePointerDown(int x, int y, bool& quit)
+{
+    auto hit = [x, y](const SDL_Rect& r)
+    {
+        return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+    };
+
+    switch (m_session.State())
+    {
+    case practice::GameState::Ready:
+        if (hit(TOUCH_READY_START_RECT))
+            PressEnterAction();
+        else if (hit(TOUCH_READY_QUIT_RECT))
+            PressEscapeAction(quit);
+        break;
+
+    case practice::GameState::GameOver:
+        if (hit(TOUCH_GAMEOVER_RESTART_RECT))
+            PressEnterAction();
+        else if (hit(TOUCH_GAMEOVER_MENU_RECT))
+            PressEscapeAction(quit);
+        break;
+
+    case practice::GameState::Playing:
+        if (hit(TOUCH_PLAYING_MENU_RECT))
+        {
+            PressEscapeAction(quit);
+            return;
+        }
+        for (int i = 0; i < 6; ++i)
+        {
+            if (hit(kTouchButtons[i].rect))
+            {
+                ProcessAction(kTouchButtons[i].action);
+                break;
+            }
+        }
+        break;
+    }
+}
+
 // Feeds one logical key to the session and prints the development log.
 void GameManager::ProcessAction(invoker::InputAction action)
 {
+    // A correct cast removes the enemy inside Input() itself, so its position has to be read before that call.
+    bool hadEnemy = m_session.Enemy().active;
+    practice::Bounds enemyBody = hadEnemy ? practice::EnemyBounds(m_session.Enemy()) : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+
     practice::InputResult r = m_session.Input(action);
     if (!r.accepted)  // Ready / Game Over: the gameplay keys do nothing
         return;
@@ -252,9 +338,43 @@ void GameManager::ProcessAction(invoker::InputAction action)
         printf("Cast %s: (empty)\n", slotName);
     }
 
+    if (r.invoker.event == invoker::InvokerEvent::Cast && r.invoker.skill == invoker::SkillId::GhostWalk)
+        m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
+    if (r.invoker.event == invoker::InvokerEvent::Cast)
+        StartPlaceholderVfx(r.invoker.skill, hadEnemy, enemyBody);  // no-op for skills with no placeholder
+
     if (r.tornadoLaunched)
         printf("[practice] Tornado launched (judged when it hits the enemy)\n");
     LogOutcome(r.cast);
+}
+
+// The six touch buttons (Q/W/E/R/D/F), drawn only while Playing (matches the keyboard: those keys are
+// no-ops in Ready/Game Over too). Reuses the already-loaded keyboard icons at a larger size - no new art.
+void GameManager::RenderTouchControls()
+{
+    if (m_session.State() != practice::GameState::Playing)
+        return;
+
+    Keyboard* icons[6] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyR, &m_keyD, &m_keyF };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < 6; ++i)
+    {
+        const SDL_Rect& r = kTouchButtons[i].rect;
+        SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 150);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 90);
+        SDL_RenderDrawRect(m_screen, &r);
+
+        SDL_Texture* tex = icons[i]->p_object_;
+        if (tex != NULL)
+        {
+            SDL_Rect src = { 0, 0, 32, 32 };  // the first (unpressed) frame of the 64x32, 2-frame sheet
+            const int pad = 10;
+            SDL_Rect dst = { r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2 };
+            SDL_RenderCopy(m_screen, tex, &src, &dst);
+        }
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 }
 
 // One log line per judged cast; shared by casts that are judged at once and by Tornado hits.
@@ -298,6 +418,8 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
     {
         printf("[practice] GAME OVER: score %d, best combo %d, accuracy %.1f%% (%d/%d), survived %.1f s\n",
             st.score, st.bestCombo, st.Accuracy() * 100.0, st.correctCasts, st.TotalCasts(), st.survivalTime);
+        if (SubmitScore(st.score))
+            printf("[practice] new top-10 score!\n");
     }
 }
 
@@ -368,6 +490,233 @@ void GameManager::RenderTornadoes()
             TORNADO_FRAME_SIZE, TORNADO_FRAME_SIZE };
         SDL_Rect dst = { static_cast<int>(t.x) - size / 2, static_cast<int>(t.y) - size / 2, size, size };
         SDL_RenderCopy(m_screen, m_tornadoSheet, &src, &dst);
+    }
+}
+
+// One shared reset for every temporary visual effect: called on Esc (back to Ready) and on Enter (new session),
+// exactly where m_ghostWalkLeft used to be cleared by itself.
+void GameManager::ResetVisualEffects()
+{
+    m_ghostWalkLeft = 0.0f;
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+        m_placeholderVfxLeft[i] = 0.0f;
+}
+
+// Loads the saved top-10 list: a small text file next to the exe on native, the browser's localStorage on
+// the web build (a native file write there would only live in Emscripten's in-memory FS and vanish on
+// reload). Simplest practical persistence for a prototype: no database, no server, no new file format.
+void GameManager::LoadTopScores()
+{
+    for (int i = 0; i < 10; ++i)
+        m_topScores[i] = 0;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        var raw = localStorage.getItem('threeElements_topScores');
+        var values = raw ? raw.split(',').map(Number) : [];
+        for (var i = 0; i < 10; ++i)
+            HEAP32[($0 >> 2) + i] = values[i] | 0;
+    }, m_topScores);
+#else
+    FILE* f = fopen("highscores.txt", "r");
+    if (f != NULL)
+    {
+        for (int i = 0; i < 10 && fscanf(f, "%d", &m_topScores[i]) == 1; ++i) {}
+        fclose(f);
+    }
+#endif
+}
+
+// Writes the top-10 list back out to the same place LoadTopScores() reads from.
+void GameManager::SaveTopScores()
+{
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        var values = [];
+        for (var i = 0; i < 10; ++i)
+            values.push(HEAP32[($0 >> 2) + i]);
+        localStorage.setItem('threeElements_topScores', values.join(','));
+    }, m_topScores);
+#else
+    FILE* f = fopen("highscores.txt", "w");
+    if (f != NULL)
+    {
+        for (int i = 0; i < 10; ++i)
+            fprintf(f, "%d\n", m_topScores[i]);
+        fclose(f);
+    }
+#endif
+}
+
+// Inserts `score` into the sorted top-10 list if it belongs there (a plain insertion sort over 10 slots -
+// there is no need for anything fancier), and saves immediately. Returns whether it made the list.
+bool GameManager::SubmitScore(int score)
+{
+    if (score <= m_topScores[9])
+        return false;
+    int i = 9;
+    while (i > 0 && m_topScores[i - 1] < score)
+    {
+        m_topScores[i] = m_topScores[i - 1];
+        --i;
+    }
+    m_topScores[i] = score;
+    SaveTopScores();
+    return true;
+}
+
+// Loads the 8 TEST placeholder sheets the same way LoadTornadoSheet() loads Tornado's: no colour key, exact
+// 4 x 4 / 128 px size check. A missing or wrong-sized sheet just means that one skill draws nothing; the others
+// and the rest of the game are unaffected.
+bool GameManager::LoadPlaceholderVfxSheets()
+{
+    bool allOk = true;
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    {
+        const char* path = kPlaceholderVfxPath[i];
+        if (path == NULL)
+            continue;
+
+        SDL_Surface* surface = IMG_Load(path);
+        if (surface == NULL)
+        {
+            printf("Failed to load placeholder VFX %s: %s\n", path, IMG_GetError());
+            allOk = false;
+            continue;
+        }
+        const int size = PLACEHOLDER_VFX_SHEET_COLUMNS * PLACEHOLDER_VFX_FRAME_SIZE;
+        if (surface->w == size && surface->h == size)
+            m_placeholderVfxSheet[i] = SDL_CreateTextureFromSurface(m_screen, surface);
+        else
+            printf("Placeholder VFX %s is %dx%d, expected %dx%d: not used\n", path, surface->w, surface->h, size, size);
+        SDL_FreeSurface(surface);
+
+        if (m_placeholderVfxSheet[i] == NULL)
+            allOk = false;
+        else
+        {
+            SDL_SetTextureBlendMode(m_placeholderVfxSheet[i], SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(m_placeholderVfxSheet[i], SDL_ScaleModeNearest);
+        }
+    }
+    return allOk;
+}
+
+// Starts (or restarts) the placeholder for `skill`, if it has one. Enemy-targeted placeholders, and any that
+// travel (speed > 0, so they need a direction to travel in), need an enemy to aim at (`hadEnemy`); with none,
+// nothing is shown or started, same convention as casting into an empty encounter.
+void GameManager::StartPlaceholderVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody)
+{
+    int i = static_cast<int>(skill);
+    if (i < 0 || i >= invoker::SKILL_COUNT || m_placeholderVfxSheet[i] == NULL)
+        return;
+    bool needsEnemy = !kPlaceholderVfxAtPlayer[i] || kPlaceholderVfxSpeed[i] > 0.0f;
+    if (needsEnemy && !hadEnemy)
+        return;
+
+    m_placeholderVfxLeft[i] = kPlaceholderVfxDuration[i];
+    if (kPlaceholderVfxAtPlayer[i])
+    {
+        m_placeholderVfxX[i] = PLAYER_BODY_CENTER_X;
+        m_placeholderVfxY[i] = PLAYER_BODY_CENTER_Y;
+    }
+    else
+    {
+        m_placeholderVfxX[i] = static_cast<int>(enemyBody.x + enemyBody.w * 0.5f);
+        m_placeholderVfxY[i] = static_cast<int>(enemyBody.y + enemyBody.h * 0.5f);
+    }
+
+    // Direction from the origin toward the enemy, captured once here: fixed for the life of the effect (no homing).
+    m_placeholderVfxDirX[i] = 1.0f;
+    m_placeholderVfxDirY[i] = 0.0f;
+    if (hadEnemy)
+    {
+        float dx = (enemyBody.x + enemyBody.w * 0.5f) - m_placeholderVfxX[i];
+        float dy = (enemyBody.y + enemyBody.h * 0.5f) - m_placeholderVfxY[i];
+        float len = std::sqrt(dx * dx + dy * dy);
+        if (len > 1.0f)
+        {
+            m_placeholderVfxDirX[i] = dx / len;
+            m_placeholderVfxDirY[i] = dy / len;
+        }
+    }
+}
+
+bool GameManager::LoadGhostWalkSheet()
+{
+    SDL_Surface* surface = IMG_Load(GHOST_WALK_SHEET_PATH);
+    if (surface == NULL)
+    {
+        printf("Failed to load Ghost Walk sheet %s: %s\n", GHOST_WALK_SHEET_PATH, IMG_GetError());
+        return false;
+    }
+    const int size = GHOST_WALK_SHEET_COLUMNS * GHOST_WALK_FRAME_SIZE;
+    if (surface->w == size && surface->h == size)
+        m_ghostWalkSheet = SDL_CreateTextureFromSurface(m_screen, surface);
+    else
+        printf("Ghost Walk sheet %s is %dx%d, expected %dx%d: not used\n", GHOST_WALK_SHEET_PATH, surface->w, surface->h, size, size);
+    SDL_FreeSurface(surface);
+    if (m_ghostWalkSheet == NULL)
+        return false;
+
+    SDL_SetTextureBlendMode(m_ghostWalkSheet, SDL_BLENDMODE_BLEND);  // transparent background
+    SDL_SetTextureAlphaMod(m_ghostWalkSheet, GHOST_WALK_ALPHA);
+    return true;
+}
+
+// The Ghost Walk aura: one ring animation looping while m_ghostWalkLeft runs down. Nothing to draw otherwise.
+void GameManager::RenderGhostWalk()
+{
+    if (m_ghostWalkSheet == NULL || m_ghostWalkLeft <= 0.0f)
+        return;
+
+    float age = GHOST_WALK_DURATION - m_ghostWalkLeft;
+    int frame = GHOST_WALK_FIRST_FRAME + static_cast<int>(age * GHOST_WALK_FPS) % GHOST_WALK_FRAME_COUNT;
+    SDL_Rect src = { (frame % GHOST_WALK_SHEET_COLUMNS) * GHOST_WALK_FRAME_SIZE, (frame / GHOST_WALK_SHEET_COLUMNS) * GHOST_WALK_FRAME_SIZE,
+        GHOST_WALK_FRAME_SIZE, GHOST_WALK_FRAME_SIZE };
+    SDL_Rect dst = { PLAYER_BODY_CENTER_X - GHOST_WALK_DRAW_SIZE / 2, PLAYER_BODY_CENTER_Y - GHOST_WALK_DRAW_SIZE / 2,
+        GHOST_WALK_DRAW_SIZE, GHOST_WALK_DRAW_SIZE };
+    SDL_RenderCopy(m_screen, m_ghostWalkSheet, &src, &dst);
+}
+
+// The 8 TEST placeholders: one non-looping (or looping, for Alacrity) animation each, drawn at the position and
+// for the duration StartPlaceholderVfx() set. Nothing is drawn once its time runs out.
+void GameManager::RenderPlaceholderVfx()
+{
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    {
+        if (m_placeholderVfxSheet[i] == NULL || m_placeholderVfxLeft[i] <= 0.0f)
+            continue;
+
+        float age = kPlaceholderVfxDuration[i] - m_placeholderVfxLeft[i];
+        int frame = static_cast<int>(age * PLACEHOLDER_VFX_FPS);
+        if (kPlaceholderVfxLoop[i])
+            frame %= PLACEHOLDER_VFX_FRAME_COUNT;
+        else if (frame >= PLACEHOLDER_VFX_FRAME_COUNT)
+            frame = PLACEHOLDER_VFX_FRAME_COUNT - 1;  // hold the last frame instead of disappearing early
+
+        SDL_Rect src = { (frame % PLACEHOLDER_VFX_SHEET_COLUMNS) * PLACEHOLDER_VFX_FRAME_SIZE,
+            (frame / PLACEHOLDER_VFX_SHEET_COLUMNS) * PLACEHOLDER_VFX_FRAME_SIZE,
+            PLACEHOLDER_VFX_FRAME_SIZE, PLACEHOLDER_VFX_FRAME_SIZE };
+
+        // Travels in a straight line from where it was cast, at a fixed speed: 0 for every placeholder except
+        // Deafening Blast, so this is a no-op (px/py == the cast position) for the other seven.
+        float travelled = kPlaceholderVfxSpeed[i] * age;
+        int px = m_placeholderVfxX[i] + static_cast<int>(m_placeholderVfxDirX[i] * travelled);
+        int py = m_placeholderVfxY[i] + static_cast<int>(m_placeholderVfxDirY[i] * travelled);
+        SDL_Rect dst = { px - PLACEHOLDER_VFX_DRAW_SIZE / 2, py - PLACEHOLDER_VFX_DRAW_SIZE / 2,
+            PLACEHOLDER_VFX_DRAW_SIZE, PLACEHOLDER_VFX_DRAW_SIZE };
+
+        if (kPlaceholderVfxRotates[i])
+        {
+            // The art is authored facing local +x ("forward"); rotating it to (dirX, dirY) points it at the enemy.
+            // SDL's angle is degrees, clockwise, which is exactly atan2(dy, dx) in screen space (y grows downward).
+            double angle = std::atan2(m_placeholderVfxDirY[i], m_placeholderVfxDirX[i]) * (180.0 / 3.14159265358979323846);
+            SDL_RenderCopyEx(m_screen, m_placeholderVfxSheet[i], &src, &dst, angle, NULL, SDL_FLIP_NONE);
+        }
+        else
+        {
+            SDL_RenderCopy(m_screen, m_placeholderVfxSheet[i], &src, &dst);
+        }
     }
 }
 
@@ -517,6 +866,12 @@ void GameManager::RenderGameOverScreen()
     snprintf(buf, sizeof(buf), "SURVIVED %s", value);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 275, 3, white);
 
+    char topBuf[128];
+    int pos = snprintf(topBuf, sizeof(topBuf), "TOP 10");
+    for (int i = 0; i < 10 && pos < static_cast<int>(sizeof(topBuf)); ++i)
+        pos += snprintf(topBuf + pos, sizeof(topBuf) - pos, " %d", m_topScores[i]);
+    pixeltext::DrawCentered(m_screen, topBuf, SCREEN_WIDTH, 312, 2, white);
+
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
 }
@@ -600,6 +955,19 @@ void GameManager::Close()
     {
         SDL_DestroyTexture(m_tornadoSheet);
         m_tornadoSheet = NULL;
+    }
+    if (m_ghostWalkSheet != NULL)
+    {
+        SDL_DestroyTexture(m_ghostWalkSheet);
+        m_ghostWalkSheet = NULL;
+    }
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    {
+        if (m_placeholderVfxSheet[i] != NULL)
+        {
+            SDL_DestroyTexture(m_placeholderVfxSheet[i]);
+            m_placeholderVfxSheet[i] = NULL;
+        }
     }
 
     SDL_DestroyRenderer(m_screen);
