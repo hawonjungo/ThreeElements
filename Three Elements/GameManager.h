@@ -94,7 +94,7 @@ private:
 	void RenderStatsHud();
 	void RenderReadyScreen();
 	void RenderGameOverScreen();
-	void RenderDebugOverlay();
+	void RenderTargetHint();
 	void DimScreen(Uint8 alpha);
 };
 

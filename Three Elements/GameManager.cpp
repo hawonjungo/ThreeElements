@@ -164,7 +164,7 @@ void GameManager::LoopGame()
         RenderTornadoes();  // above the background, player and enemy, below the HUD
         RenderInvokerHud();
         RenderStatsHud();
-        RenderDebugOverlay();
+        RenderTargetHint();
 
         if (m_session.State() == practice::GameState::Ready)
             RenderReadyScreen();
@@ -521,16 +521,17 @@ void GameManager::RenderGameOverScreen()
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
 }
 
-// Development only (--debug): shows which skill the active enemy requires. Off in normal play.
-void GameManager::RenderDebugOverlay()
+// Shows which skill the active enemy requires. Owner decision (2026-09-23): always on for every player,
+// not just --debug builds; see GAMEPLAY_SPEC.md E-8 and the "Target-skill hint" rule in §17.
+void GameManager::RenderTargetHint()
 {
     const practice::ActiveEnemy& e = m_session.Enemy();
-    if (!m_debug || !e.active)
+    if (!e.active)
         return;
 
     const SDL_Color yellow = { 255, 235, 60, 255 };
     char buf[64];
-    snprintf(buf, sizeof(buf), "DEBUG TARGET: %s", invoker::GetSkillDefinition(e.target).name);
+    snprintf(buf, sizeof(buf), "TARGET: %s", invoker::GetSkillDefinition(e.target).name);
     pixeltext::DrawShadowed(m_screen, buf, SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16, 78, 2, yellow);
 }
 
