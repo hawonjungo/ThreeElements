@@ -136,6 +136,18 @@ const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENT
 const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
 
+// Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
+const float FEEDBACK_TEXT_TIME = 0.7f;    // "+1" / "MISS" rise and vanish
+const float FEEDBACK_TEXT_RISE = 40.0f;   // px travelled upward over that time
+const float FEEDBACK_BURST_TIME = 0.4f;   // expanding gold ring where an enemy was defeated
+const float FEEDBACK_ENEMY_FLASH = 0.3f;  // enemy tinted red after a wrong cast
+const float FEEDBACK_LEAK_FLASH = 0.5f;   // red frame around the screen after a leak
+const float FEEDBACK_SHAKE_TIME = 0.3f;   // screen shake after a leak
+const int   FEEDBACK_SHAKE_PX = 4;        // shake amplitude
+const float FEEDBACK_HP_BLINK = 0.8f;     // the HP square that was just lost blinks
+const int   FEEDBACK_MAX_TEXTS = 8;
+const int   FEEDBACK_MAX_BURSTS = 4;
+
 class GameManager
 {
 private:
@@ -170,6 +182,19 @@ protected:
 	float m_placeholderVfxDirY[invoker::SKILL_COUNT] = {};
 
 	int m_topScores[10] = {};  // highest scores this browser/machine has seen, highest first
+	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topScores
+	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
+
+	// feedback effects (see FEEDBACK_* above); a slot with left <= 0 is free
+	struct FloatText { float left; int x; int y; const char* text; SDL_Color color; };
+	struct Burst { float left; int x; int y; };
+	FloatText m_floatTexts[FEEDBACK_MAX_TEXTS] = {};
+	Burst m_bursts[FEEDBACK_MAX_BURSTS] = {};
+	float m_enemyFlashLeft = 0.0f;
+	float m_leakFlashLeft = 0.0f;
+	float m_shakeLeft = 0.0f;
+	float m_hpBlinkLeft = 0.0f;
+	int m_hpBlinkIndex = -1;  // which HP square blinks (the one just lost)
 
 	practice::PracticeSession m_session;  // the Practice Mode rules: enemy, HP, score, combo, accuracy, difficulty
 	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
@@ -218,6 +243,15 @@ private:
 	void LoadTopScores();
 	void SaveTopScores();
 	bool SubmitScore(int score);  // true if it entered the top 10
+	void LoadBests();
+	void SaveBests();
+	void EndSession();            // a session ended (Game Over or Esc while Playing): update and save the records
+
+	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy);  // "+1" / "MISS" feedback
+	void OnLeak();
+	void UpdateFeedback(float dt);
+	void RenderFeedback();        // rings and floating text, in the scene
+	void RenderLeakFlash();       // red frame, over everything but the HUD text
 
 	void RenderOrb(invoker::Orb orb, int centerX, int centerY);
 	void RenderEnemy();

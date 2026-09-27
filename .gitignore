@@ -76,6 +76,7 @@ $RECYCLE.BIN/
 
 # End of Visual Studio.gitignore
 
-# Local Top-10 high scores save file (native build; written next to the exe at runtime, not source)
+# Local save files (native build; written next to the exe at runtime, not source): Top-10 scores, records
 Three Elements/highscores.txt
+Three Elements/bests.txt
 

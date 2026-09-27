@@ -147,6 +147,8 @@ void GameManager::LoadAssets()
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
     LoadPlaceholderVfxSheets();  // TEST placeholders for the 8 skills without a real effect yet
     LoadTopScores();
+    LoadBests();
+    m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
     if (m_hasPlayer)
     {
@@ -202,17 +204,40 @@ bool GameManager::RunFrame()
         }
     }
 
-    // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied)
-    LogUpdate(m_session.Update(dt));
+    // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied).
+    // The enemy's position is read first: a Tornado hit removes it inside Update(), and the "+1" goes where it was.
+    practice::Bounds enemyBefore = m_session.Enemy().active ? practice::EnemyBounds(m_session.Enemy())
+                                                            : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+    practice::UpdateResult update = m_session.Update(dt);
+    LogUpdate(update);
+    if (update.cast != practice::CastOutcome::None)
+        OnCastJudged(update.cast, enemyBefore);
+    if (update.leaked)
+        OnLeak();
+    if (update.gameOver)
+        EndSession();
+    UpdateFeedback(dt);
     m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
     for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
         m_placeholderVfxLeft[vi] = m_placeholderVfxLeft[vi] > dt ? m_placeholderVfxLeft[vi] - dt : 0.0f;
     for (int ei = 0; ei < practice::ENEMY_TYPE_COUNT; ++ei)
         m_enemySprites[ei].Update(dt);
 
-    //Clear screen
-    SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
+    //Clear screen (black: the strip a screen shake uncovers at the edge stays dark)
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 0xFF);
     SDL_RenderClear(m_screen);
+
+    // The scene shakes briefly after a leak: it is drawn into a viewport nudged by a few pixels. The HUD and
+    // touch buttons are drawn afterwards at the normal position, so they never move under the player's thumb.
+    if (m_shakeLeft > 0.0f)
+    {
+        float strength = m_shakeLeft / FEEDBACK_SHAKE_TIME;
+        float t = static_cast<float>(now) / 1000.0f;
+        SDL_Rect shaken = { static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::sin(t * 90.0f))),
+            static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::cos(t * 70.0f))),
+            SCREEN_WIDTH, SCREEN_HEIGHT };
+        SDL_RenderSetViewport(m_screen, &shaken);
+    }
 
     // Update and render background layers
     updateBackgroundLayers(dt);
@@ -226,6 +251,10 @@ bool GameManager::RunFrame()
     RenderEnemy();
     RenderTornadoes();  // above the background, player and enemy, below the HUD
     RenderPlaceholderVfx();  // TEST placeholders, drawn above everything else in the scene
+    RenderFeedback();   // "+1" / "MISS" and the defeat ring, part of the scene
+    SDL_RenderSetViewport(m_screen, NULL);  // end of the (possibly shaken) scene
+
+    RenderLeakFlash();
     RenderTouchControls();  // on top of the scene, only while Playing
     RenderInvokerHud();
     RenderStatsHud();
@@ -266,6 +295,7 @@ void GameManager::PressEnterAction()
     if (m_session.PressEnter(seed))
     {
         ResetVisualEffects();
+        m_lastBestUpdate = { false, false, false };
         printf("[practice] session started (seed %u)\n", seed);
     }
 }
@@ -276,6 +306,8 @@ void GameManager::PressEnterAction()
 void GameManager::PressEscapeAction(bool& quit)
 {
     ResetVisualEffects();
+    if (m_session.State() == practice::GameState::Playing)
+        EndSession();  // leaving mid-session still counts towards the records (read before the reset)
     if (m_session.PressEscape())
     {
 #ifndef __EMSCRIPTEN__
@@ -375,6 +407,8 @@ void GameManager::ProcessAction(invoker::InputAction action)
     if (r.tornadoLaunched)
         printf("[practice] Tornado launched (judged when it hits the enemy)\n");
     LogOutcome(r.cast);
+    if (r.cast != practice::CastOutcome::None)
+        OnCastJudged(r.cast, enemyBody);
 }
 
 // The six touch buttons (Q/W/E/R/D/F), drawn only while Playing (matches the keyboard: those keys are
@@ -502,7 +536,12 @@ void GameManager::RenderEnemy()
     EnemyObject& sprite = m_enemySprites[e.definition];
     // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
     sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow);
+    bool flash = m_enemyFlashLeft > 0.0f && sprite.p_object_ != NULL;  // red tint after a wrong cast
+    if (flash)
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
     sprite.Render(m_screen);
+    if (flash)
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
 }
 
 // Loads the Tornado sprite sheet as a plain texture: no colour key (BaseObject::LoadImg would make grey pixels
@@ -556,6 +595,133 @@ void GameManager::ResetVisualEffects()
     m_ghostWalkLeft = 0.0f;
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
         m_placeholderVfxLeft[i] = 0.0f;
+    for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+        m_floatTexts[i].left = 0.0f;
+    for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
+        m_bursts[i].left = 0.0f;
+    m_enemyFlashLeft = m_leakFlashLeft = m_shakeLeft = m_hpBlinkLeft = 0.0f;
+}
+
+// ------------------------------------------------------------------ feedback (presentation only)
+
+// Correct: a gold ring where the enemy was and a rising "+1". Wrong: the enemy flashes red and "MISS" rises
+// above it. `enemy` is where the enemy was when the cast (or the Tornado hit) was judged.
+void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy)
+{
+    int cx = static_cast<int>(enemy.x + enemy.w * 0.5f);
+    int cy = static_cast<int>(enemy.y + enemy.h * 0.5f);
+    // an enemy that is still entering from the right edge would put the text off screen: keep it readable
+    const int margin = 60;
+    int textX = cx < margin ? margin : (cx > SCREEN_WIDTH - margin ? SCREEN_WIDTH - margin : cx);
+    bool correct = outcome == practice::CastOutcome::Correct;
+    if (correct)
+    {
+        for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
+        {
+            if (m_bursts[i].left <= 0.0f)
+            {
+                m_bursts[i] = { FEEDBACK_BURST_TIME, cx, cy };
+                break;
+            }
+        }
+    }
+    else
+    {
+        m_enemyFlashLeft = FEEDBACK_ENEMY_FLASH;
+    }
+
+    const SDL_Color gold = { 255, 215, 80, 255 };
+    const SDL_Color red = { 255, 90, 90, 255 };
+    for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+    {
+        if (m_floatTexts[i].left <= 0.0f)
+        {
+            m_floatTexts[i] = { FEEDBACK_TEXT_TIME, textX, static_cast<int>(enemy.y) - 10,
+                correct ? "+1" : "MISS", correct ? gold : red };
+            break;
+        }
+    }
+}
+
+// An enemy reached the player: a red frame, a short light shake, and the lost HP square blinks.
+void GameManager::OnLeak()
+{
+    m_leakFlashLeft = FEEDBACK_LEAK_FLASH;
+    m_shakeLeft = FEEDBACK_SHAKE_TIME;
+    m_hpBlinkLeft = FEEDBACK_HP_BLINK;
+    m_hpBlinkIndex = m_session.GetStats().hp;  // HP was already reduced: the square at this index was just lost
+}
+
+void GameManager::UpdateFeedback(float dt)
+{
+    for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+        m_floatTexts[i].left -= dt;
+    for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
+        m_bursts[i].left -= dt;
+    m_enemyFlashLeft -= dt;
+    m_leakFlashLeft -= dt;
+    m_shakeLeft -= dt;
+    m_hpBlinkLeft -= dt;
+}
+
+// Ring outline (three 1 px circles), as a closed polyline.
+static void DrawRing(SDL_Renderer* renderer, int cx, int cy, int radius)
+{
+    const int SEGMENTS = 40;
+    SDL_Point points[SEGMENTS + 1];
+    for (int w = 0; w < 3; ++w)
+    {
+        for (int i = 0; i <= SEGMENTS; ++i)
+        {
+            float a = 6.2831853f * i / SEGMENTS;
+            points[i] = { cx + static_cast<int>((radius + w) * std::cos(a)), cy + static_cast<int>((radius + w) * std::sin(a)) };
+        }
+        SDL_RenderDrawLines(renderer, points, SEGMENTS + 1);
+    }
+}
+
+void GameManager::RenderFeedback()
+{
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
+    {
+        const Burst& b = m_bursts[i];
+        if (b.left <= 0.0f)
+            continue;
+        float progress = 1.0f - b.left / FEEDBACK_BURST_TIME;  // 0 -> 1
+        SDL_SetRenderDrawColor(m_screen, 255, 215, 80, static_cast<Uint8>(220 * (1.0f - progress)));
+        DrawRing(m_screen, b.x, b.y, 12 + static_cast<int>(44 * progress));
+        DrawRing(m_screen, b.x, b.y, 6 + static_cast<int>(24 * progress));
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+    {
+        const FloatText& t = m_floatTexts[i];
+        if (t.left <= 0.0f)
+            continue;
+        float progress = 1.0f - t.left / FEEDBACK_TEXT_TIME;
+        int y = t.y - static_cast<int>(FEEDBACK_TEXT_RISE * progress);
+        pixeltext::DrawShadowed(m_screen, t.text, t.x - pixeltext::Width(t.text, 3) / 2, y, 3, t.color);
+    }
+}
+
+// Red frame around the screen after a leak, fading out.
+void GameManager::RenderLeakFlash()
+{
+    if (m_leakFlashLeft <= 0.0f)
+        return;
+    const int thickness = 24;
+    Uint8 alpha = static_cast<Uint8>(110 * (m_leakFlashLeft / FEEDBACK_LEAK_FLASH));
+    SDL_Rect edges[4] = {
+        { 0, 0, SCREEN_WIDTH, thickness },
+        { 0, SCREEN_HEIGHT - thickness, SCREEN_WIDTH, thickness },
+        { 0, thickness, thickness, SCREEN_HEIGHT - 2 * thickness },
+        { SCREEN_WIDTH - thickness, thickness, thickness, SCREEN_HEIGHT - 2 * thickness } };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 230, 30, 30, alpha);
+    SDL_RenderFillRects(m_screen, edges, 4);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 }
 
 // Loads the saved top-10 list: a small text file next to the exe on native, the browser's localStorage on
@@ -618,6 +784,66 @@ bool GameManager::SubmitScore(int score)
     m_topScores[i] = score;
     SaveTopScores();
     return true;
+}
+
+// Best Score / Best Combo / Best Survival Time (spec §13), stored the same way as the top-10 list: bests.txt
+// next to the exe on desktop, localStorage on the web. Anything missing or unreadable counts as "no record"
+// (EC-17); a browser that blocks storage (private mode) just keeps the records for this visit.
+void GameManager::LoadBests()
+{
+    int raw[3] = { 0, 0, 0 };  // score, combo, survival time in milliseconds
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var values = String(localStorage.getItem('threeElements_bests')).split(',').map(Number);  // null -> NaN -> 0
+            for (var i = 0; i < 3; ++i)
+                HEAP32[($0 >> 2) + i] = values[i] | 0;
+        } catch (e) {}
+    }, raw);
+#else
+    FILE* f = fopen("bests.txt", "r");
+    if (f != NULL)
+    {
+        if (fscanf(f, "%d %d %d", &raw[0], &raw[1], &raw[2]) != 3)
+            raw[0] = raw[1] = raw[2] = 0;
+        fclose(f);
+    }
+#endif
+    m_bests.score = raw[0] > 0 ? raw[0] : 0;
+    m_bests.combo = raw[1] > 0 ? raw[1] : 0;
+    m_bests.survivalTime = raw[2] > 0 ? raw[2] / 1000.0f : 0.0f;
+}
+
+void GameManager::SaveBests()
+{
+    int raw[3] = { m_bests.score, m_bests.combo, static_cast<int>(m_bests.survivalTime * 1000.0f) };
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            localStorage.setItem('threeElements_bests',
+                [HEAP32[$0 >> 2], HEAP32[($0 >> 2) + 1], HEAP32[($0 >> 2) + 2]].join(','));
+        } catch (e) {}
+    }, raw);
+#else
+    FILE* f = fopen("bests.txt", "w");
+    if (f != NULL)
+    {
+        fprintf(f, "%d %d %d\n", raw[0], raw[1], raw[2]);
+        fclose(f);
+    }
+#endif
+}
+
+// A session is over, by Game Over or by Esc while Playing: its score, combo and survival time can set records.
+void GameManager::EndSession()
+{
+    m_lastBestUpdate = practice::MergeBests(m_bests, m_session.GetStats());
+    if (m_lastBestUpdate.Any())
+    {
+        SaveBests();
+        printf("[practice] new record(s):%s%s%s\n", m_lastBestUpdate.score ? " score" : "",
+            m_lastBestUpdate.combo ? " combo" : "", m_lastBestUpdate.survivalTime ? " survival time" : "");
+    }
 }
 
 // Loads the 8 TEST placeholder sheets the same way LoadTornadoSheet() loads Tornado's: no colour key, exact
@@ -856,7 +1082,11 @@ void GameManager::RenderStatsHud()
     for (int i = 0; i < st.maxHp; ++i)
     {
         SDL_Rect box = { 56 + i * 24, 10, 18, 18 };
-        if (i < st.hp)
+        // the square just lost by a leak blinks white for a moment (8 blinks per second)
+        bool blinkOn = i == m_hpBlinkIndex && m_hpBlinkLeft > 0.0f && static_cast<int>(m_hpBlinkLeft * 16.0f) % 2 == 0;
+        if (blinkOn)
+            SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+        else if (i < st.hp)
             SDL_SetRenderDrawColor(m_screen, 220, 50, 50, 255);
         else
             SDL_SetRenderDrawColor(m_screen, 40, 20, 24, 255);
@@ -904,6 +1134,14 @@ void GameManager::RenderReadyScreen()
     DimScreen(150);
     pixeltext::DrawCentered(m_screen, "THREE ELEMENTS", SCREEN_WIDTH, 120, 6, gold);
     pixeltext::DrawCentered(m_screen, "PRACTICE MODE", SCREEN_WIDTH, 190, 3, white);
+
+    // the persistent records (spec §13)
+    char time[16];
+    char buf[96];
+    FormatTime(time, sizeof(time), m_bests.survivalTime);
+    snprintf(buf, sizeof(buf), "BEST  SCORE %d   COMBO %d   TIME %s", m_bests.score, m_bests.combo, time);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 230, 2, gold);
+
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO START", SCREEN_WIDTH, 270, 3, white);
     pixeltext::DrawCentered(m_screen, "Q W E  ORBS     R  INVOKE     D F  CAST", SCREEN_WIDTH, 350, 2, grey);
 #ifndef __EMSCRIPTEN__
@@ -919,20 +1157,26 @@ void GameManager::RenderGameOverScreen()
     const SDL_Color grey = { 200, 200, 210, 255 };
     char buf[64];
 
+    const SDL_Color gold = { 255, 210, 90, 255 };
     DimScreen(170);
-    pixeltext::DrawCentered(m_screen, "GAME OVER", SCREEN_WIDTH, 80, 8, red);
+    pixeltext::DrawCentered(m_screen, "GAME OVER", SCREEN_WIDTH, 64, 8, red);
 
-    snprintf(buf, sizeof(buf), "SCORE %d", st.score);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 170, 3, white);
-    snprintf(buf, sizeof(buf), "BEST COMBO %d", st.bestCombo);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 205, 3, white);
+    // this session's numbers; a line that set a new record turns gold and says so
+    snprintf(buf, sizeof(buf), m_lastBestUpdate.score ? "SCORE %d  NEW BEST!" : "SCORE %d", st.score);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 145, 3, m_lastBestUpdate.score ? gold : white);
+    snprintf(buf, sizeof(buf), m_lastBestUpdate.combo ? "BEST COMBO %d  NEW BEST!" : "BEST COMBO %d", st.bestCombo);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 178, 3, m_lastBestUpdate.combo ? gold : white);
     char value[16];
     FormatAccuracy(value, sizeof(value), st);
     snprintf(buf, sizeof(buf), "ACCURACY %s", value);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 240, 3, white);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 211, 3, white);
     FormatTime(value, sizeof(value), st.survivalTime);
-    snprintf(buf, sizeof(buf), "SURVIVED %s", value);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 275, 3, white);
+    snprintf(buf, sizeof(buf), m_lastBestUpdate.survivalTime ? "SURVIVED %s  NEW BEST!" : "SURVIVED %s", value);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 244, 3, m_lastBestUpdate.survivalTime ? gold : white);
+
+    FormatTime(value, sizeof(value), m_bests.survivalTime);
+    snprintf(buf, sizeof(buf), "RECORDS  SCORE %d   COMBO %d   TIME %s", m_bests.score, m_bests.combo, value);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 282, 2, grey);
 
     char topBuf[128];
     int pos = snprintf(topBuf, sizeof(topBuf), "TOP 10");

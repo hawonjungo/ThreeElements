@@ -123,6 +123,17 @@ namespace practice
 		return p;
 	}
 
+	// ------------------------------------------------------------------ records
+
+	BestUpdate MergeBests(BestStats& bests, const Stats& session)
+	{
+		BestUpdate changed = { false, false, false };
+		if (session.score > bests.score)               { bests.score = session.score;               changed.score = true; }
+		if (session.bestCombo > bests.combo)           { bests.combo = session.bestCombo;           changed.combo = true; }
+		if (session.survivalTime > bests.survivalTime) { bests.survivalTime = session.survivalTime; changed.survivalTime = true; }
+		return changed;
+	}
+
 	// ------------------------------------------------------------------ PracticeSession
 
 	PracticeSession::PracticeSession()

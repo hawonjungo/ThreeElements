@@ -83,7 +83,7 @@ namespace practice
 		int maxHp;
 		int score;
 		int combo;          // current combo, reset by every new session
-		int bestCombo;      // record: kept across restarts while the application runs (not saved to disk yet)
+		int bestCombo;      // record: kept across restarts; seeded from saved data with RestoreBestCombo()
 		int correctCasts;
 		int incorrectCasts;
 		float survivalTime; // seconds spent Playing
@@ -95,6 +95,24 @@ namespace practice
 			return total > 0 ? static_cast<double>(correctCasts) / static_cast<double>(total) : 0.0;
 		}
 	};
+
+	// Persistent records (spec §13, P-7). Practice only compares; loading and saving them is the presentation
+	// layer's job (a file on desktop, localStorage on the web).
+	struct BestStats
+	{
+		int score;
+		int combo;
+		float survivalTime;  // seconds
+	};
+	struct BestUpdate  // which records a finished session beat (strictly greater; a tie is not a new record)
+	{
+		bool score;
+		bool combo;
+		bool survivalTime;
+		bool Any() const { return score || combo || survivalTime; }
+	};
+	// Raises each record in `bests` that `session` beat and reports which ones changed.
+	BestUpdate MergeBests(BestStats& bests, const Stats& session);
 
 	struct ActiveEnemy
 	{
@@ -186,6 +204,8 @@ namespace practice
 		const ActiveEnemy& Enemy() const { return m_enemy; }
 		const invoker::InvokerState& Invoker() const { return m_invoker; }
 		int SpawnCount() const { return m_spawnCount; }  // enemies spawned this session
+		// Seeds the best combo record from saved data (never lowers it). Used once at start-up.
+		void RestoreBestCombo(int record) { if (record > m_stats.bestCombo) m_stats.bestCombo = record; }
 
 		// Launches a Tornado from the player along (dx, dy) at the current enemy. Input() calls it with the direction
 		// toward the enemy; it is public so a test can aim somewhere else. false = no enemy (or not Playing).

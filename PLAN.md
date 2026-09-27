@@ -14,7 +14,7 @@ Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code b
 | 3 | Practice Gameplay | **Committed (`a76802e`) + review round (`fix: refine practice session lifecycle`); awaiting owner review** |
 | 4 | Game Loop / Input / State readiness | **Mostly done** (frame step, dt-based animation; asset-path helper and ownership clean-up left) |
 | 5 | Web MVP (GitHub Pages) | **Mostly done** (live at http://3elements.relifes.net, `web/build.sh`; no CMake yet, HTTPS cert pending) |
-| 6 | UX / Audio / Game Feel | placeholder |
+| 6 | UX / Audio / Game Feel | **In progress** (persistent records + hit/miss/leak feedback done; audio, real VFX, tuning left) |
 | 7 | Android | placeholder |
 | 8 | Future Combat / Story | placeholder, not started |
 | 9 | PC / Steam | placeholder, conditional |
@@ -102,8 +102,13 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 - [ ] HTTPS for the custom domain (GitHub has not issued the certificate yet; owner action in Settings → Pages).
 - [ ] Optional: `CMakeLists.txt` beside the VS project (the build script is enough for now).
 
-### Phase 6 — UX / Audio / Game Feel
-Text rendering and real HUD, start and Game Over screens, **persistent local best stats** (browser local storage on web, file on desktop), success/fail/leak feedback, SDL_mixer audio (web audio unlock), pixel-art polish (integer scaling, background aspect). No hints in normal play.
+### Phase 6 — UX / Audio / Game Feel  *(in progress)*
+- [x] **Persistent local best stats** (Best Score / Best Combo / Best Survival Time): `practice::MergeBests` + `RestoreBestCombo` (tested), saved to `bests.txt` / `localStorage`, shown on Ready and Game Over with "NEW BEST!".
+- [x] **Success / fail / leak feedback** (light): gold ring + "+1", red tint + "MISS", red frame + short shake + blinking HP square.
+- [ ] SDL_mixer audio (web audio unlock), mute option.
+- [ ] Real effects for the 8 skills that still use placeholders.
+- [ ] Difficulty tuning from playtesting.
+- [ ] Text rendering / HUD polish, pixel-art polish (integer scaling, background aspect). No recipe hints in normal play.
 
 ### Phase 7 — Android
 SDL Android project, six keyboard-like touch buttons Q/W/E/R/D/F firing on touch-down through `InputAction`, landscape/safe-area layout, lifecycle and renderer-reset handling, latency check on a real device. iOS is out of scope.
@@ -125,3 +130,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-22 — **Tornado spell effect** (commit `430b5ba`, requested after the Phase 3 review): first projectile spell. Practice: `Tornado` projectile (fixed-direction straight flight by `dt`, circle-vs-box hit, judged through the existing `JudgeCast` when it hits, misses change nothing); SDL: 16-frame 4×4 sheet `assets/Skills/Tornado/tornado_vfx_16f.png` drawn with nearest-neighbour above the enemy and below the HUD, looping animation. Owner-confirmed rules: a wrong-target hit is one wrong cast (enemy stays), no enemy = no projectile and no counted cast, no limit on projectiles in flight. Practice tests now 864 checks. Not Phase 4.
 - 2026-09-23 — **Web build and mobile** (branch `phase-2-invoker-core`, now merged into `main`): Emscripten web build on GitHub Pages, touch controls, Top-10 scores, placeholder VFX for 8 skills, always-on target-skill hint (owner decision), phone landscape/fullscreen layout, centred colour-coded orb HUD.
 - 2026-09-28 — **Phase 4/5 clean-up:** frame step `RunFrame()` + browser-driven main loop (ASYNCIFY dropped), dt-based enemy animation and parallax, desktop cap 25 → 60 FPS, `web/build.sh` (build + verified deploy), docs updated, work consolidated on `main`.
+- 2026-09-28 — **Phase 6 (part 1):** persistent records (Best Score / Combo / Survival Time, `MergeBests`, 12 new checks → Practice tests 876) and light hit/miss/leak feedback; pixel font gains `!` and `+`.

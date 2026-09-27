@@ -89,7 +89,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
 | `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
-| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (864 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (876 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame); dùng cho nhãn D/F và cụm phím cảm ứng (orb được vẽ thành hình tròn màu, không dùng icon phím nữa) |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation theo thời gian (`Update(dt)`, `ENEMY_ANIM_FPS`); vị trí do Practice quyết định |
 | `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định cho bản PC (chỉ `start()` và `get_ticks()`) |
@@ -115,13 +115,13 @@ Tài nguyên trong `assets/`:
 - **Hiệu ứng skill:** Tornado và Ghost Walk có hiệu ứng riêng; 8 skill còn lại dùng hiệu ứng tạm (`kPlaceholderVfx*` trong `GameManager.h`, chỉ để trình bày). Mọi projectile bay 700 px/s.
 - **HUD (2026-09-23, quyết định chủ project):** orb Q/W/E vẽ thành hình tròn màu (Quas xanh băng, Wex tím điện, Exort cam lửa, `kOrbColors`), ô trống là vòng mờ; orb và ô D/F nằm giữa màn hình và chỉ hiện khi đang chơi.
 - **Điện thoại (web):** cụm phím cảm ứng Q/W/E/R (một hàng) + D/F (hàng dưới, lệch như bàn phím) ở góc dưới trái, 88 px, **chỉ hiện trên thiết bị cảm ứng** (media query lúc khởi động hoặc khi có chạm), ẩn trên PC. Chạm vào chữ Enter/Esc trên màn hình để bắt đầu/về menu. Nằm ngang thì canvas giãn tối đa, giữ tỉ lệ; nút "Full" bật toàn màn hình (Android) hoặc hướng dẫn "Thêm vào MH chính" (iPhone, vì iOS không cho web toàn màn hình). Trên web, Esc ở Ready không làm gì (không có app để thoát).
-- **Top-10 điểm:** lưu ở `highscores.txt` (PC) hoặc `localStorage` (web), hiện ở màn Game Over.
+- **Kỷ lục (2026-09-28):** Best Score / Best Combo / Best Survival Time lưu ở `bests.txt` (PC) hoặc `localStorage` (web), cập nhật khi phiên kết thúc (Game Over hoặc Esc khi đang chơi), hiện ở màn Ready và Game Over ("NEW BEST!"). Practice chỉ so sánh (`MergeBests`, có test); `GameManager` lưu/đọc. **Top-10 điểm** vẫn giữ, lưu ở `highscores.txt` / `localStorage`.
+- **Phản hồi khi chơi (2026-09-28, mức nhẹ):** cast đúng → vòng vàng + "+1"; cast sai → quái nháy đỏ + "MISS"; quái chạm người chơi → viền đỏ, rung nhẹ (chỉ phần cảnh, HUD và phím cảm ứng đứng yên), ô HP vừa mất nhấp nháy. Hằng số `FEEDBACK_*` trong `GameManager.h`.
 - **Background:** 12 lớp parallax.
 
 ## 6. Chưa có (phần việc còn lại)
 
-- **Lưu trữ:** chỉ Top-10 điểm được lưu. Best Combo hiện là kỷ lục **trong một lần chạy app**; chưa lưu Best Combo / Best Survival Time như spec §13 yêu cầu (Phase 6).
-- **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, hiệu ứng khi diệt quái/mất máu, animation người chơi, âm thanh, cài đặt.
+- **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, animation người chơi, âm thanh, cài đặt, hiệu ứng thật cho 8 skill còn dùng bản tạm, cân bằng độ khó.
 - **Nền tảng:** bản web đã chạy (chưa có CMake); app Android riêng, PC/Steam.
 - **Sau MVP:** chiến đấu, cốt truyện Threne, nhiều mục tiêu, chế độ người mới có gợi ý.
 

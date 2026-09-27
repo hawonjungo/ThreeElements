@@ -615,6 +615,43 @@ static void TestBestComboAcrossRestarts()
 	CHECK(other.GetStats().bestCombo == 0);
 }
 
+// Persistent records: MergeBests only ever raises a record (ties are not new records), and a saved best combo
+// seeds the in-session record without ever lowering it (spec §13, P-7, EC-13).
+static void TestPersistentBests()
+{
+	BestStats bests = { 0, 0, 0.0f };
+	Stats st = { 0, 3, 5, 0, 4, 5, 1, 30.0f };      // score 5, best combo 4, survived 30 s
+	BestUpdate u = MergeBests(bests, st);
+	CHECK(u.score && u.combo && u.survivalTime && u.Any());
+	CHECK(bests.score == 5 && bests.combo == 4 && NearF(bests.survivalTime, 30.0f, 1e-6f));
+
+	u = MergeBests(bests, st);                      // the same session again: a tie is not a new record
+	CHECK(!u.score && !u.combo && !u.survivalTime && !u.Any());
+
+	Stats worse = { 0, 3, 2, 0, 1, 2, 0, 10.0f };
+	u = MergeBests(bests, worse);                   // lower values never lower a record
+	CHECK(!u.Any());
+	CHECK(bests.score == 5 && bests.combo == 4 && NearF(bests.survivalTime, 30.0f, 1e-6f));
+
+	Stats longer = { 0, 3, 3, 0, 2, 3, 0, 45.5f };  // only the survival time is better
+	u = MergeBests(bests, longer);
+	CHECK(!u.score && !u.combo && u.survivalTime);
+	CHECK(bests.score == 5 && bests.combo == 4 && NearF(bests.survivalTime, 45.5f, 1e-6f));
+
+	// RestoreBestCombo seeds the record, never lowers it, and a new session keeps it
+	PracticeSession s;
+	s.RestoreBestCombo(7);
+	CHECK(s.GetStats().bestCombo == 7);
+	s.RestoreBestCombo(3);
+	CHECK(s.GetStats().bestCombo == 7);
+	s.Start(1);
+	CHECK(s.GetStats().combo == 0 && s.GetStats().bestCombo == 7);
+	Kill(s);
+	CHECK(s.GetStats().combo == 1 && s.GetStats().bestCombo == 7);
+	s.ReturnToReady();
+	CHECK(s.GetStats().bestCombo == 7);
+}
+
 // State transitions and the Enter / Esc rules.
 static void TestStateTransitions()
 {
@@ -1498,6 +1535,7 @@ int main()
 	RunTest("time step (dt)", TestTimeStep);
 	RunTest("input outside Playing", TestInputOutsidePlaying);
 	RunTest("invoker through the session", TestInvokerThroughSession);
+	RunTest("persistent bests", TestPersistentBests);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;
