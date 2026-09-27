@@ -82,12 +82,37 @@ bool GameManager::InitSDL()
     return success;
 }
 
+// Loads everything once, then runs frames until the player quits. Native: a plain loop capped at
+// FRAME_PER_SECOND. Web: the browser calls RunFrame() once per display refresh (requestAnimationFrame)
+// through emscripten_set_main_loop_arg, so there is no blocking loop and no ASYNCIFY in the web build.
+// Every motion and animation runs on real time (dt), so the frame rate does not change the game speed.
 void GameManager::LoopGame()
 {
-    // frame fps
-    ImpTimer fps_timer;
+    LoadAssets();
+    m_lastTick = SDL_GetTicks();
 
-    bool bPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg([](void* self) { static_cast<GameManager*>(self)->RunFrame(); }, this, 0, 1);
+#else
+    ImpTimer fps_timer;
+    bool running = true;
+    while (running)
+    {
+        fps_timer.start();
+        running = RunFrame();
+
+        int real_imp_time = fps_timer.get_ticks();
+        int time_one_frame = 1000 / FRAME_PER_SECOND;// ms
+        if (real_imp_time < time_one_frame)
+            SDL_Delay(time_one_frame - real_imp_time);
+    }
+    Close();
+#endif
+}
+
+void GameManager::LoadAssets()
+{
+    m_hasPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
 
     // key icons: the orbs (Q/W/E), invoke (R: touch button only, the keyboard has no on-screen R icon),
     // and the slot labels (D/F)
@@ -123,7 +148,7 @@ void GameManager::LoopGame()
     LoadPlaceholderVfxSheets();  // TEST placeholders for the 8 skills without a real effect yet
     LoadTopScores();
 
-    if (bPlayer)
+    if (m_hasPlayer)
     {
         m_player.set_clips();
         m_player.SetPos(10, 385);
@@ -137,91 +162,83 @@ void GameManager::LoopGame()
 
     printf("Three Elements - Practice Mode. Press Enter to start.\n");
 
-    Uint32 lastTick = SDL_GetTicks();
-    bool bStop = false;
-    // ====================== render here !!!
-    while (!bStop)
+}
+
+// One frame: input, rules, drawing. Returns false once the player has asked to quit (native only).
+bool GameManager::RunFrame()
+{
+    // Real time since the previous frame; everything that moves or animates runs on this, not on the frame
+    // count. Capped so a long stall (tab in the background, debugger pause) does not jump the scene.
+    Uint32 now = SDL_GetTicks();
+    float dt = static_cast<float>(now - m_lastTick) / 1000.0f;
+    m_lastTick = now;
+    if (dt > MAX_FRAME_DT)
+        dt = MAX_FRAME_DT;
+
+    bool quit = false;
+    //Handle events on queue
+    while (SDL_PollEvent(&m_event) != 0)
     {
-        fps_timer.start();
-
-        // Real time since the previous frame. The Practice rules run on this, not on the frame count.
-        Uint32 now = SDL_GetTicks();
-        float dt = static_cast<float>(now - lastTick) / 1000.0f;
-        lastTick = now;
-
-        //Handle events on queue
-        while (SDL_PollEvent(&m_event) != 0)
+        //User requests quit
+        if (m_event.type == SDL_QUIT)
         {
-            //User requests quit
-            if (m_event.type == SDL_QUIT)
-            {
-                bStop = true;
-            }
-            else if (m_event.type == SDL_KEYDOWN)
-            {
-                HandleKeyDown(m_event, bStop);
-            }
-            else if (m_event.type == SDL_FINGERDOWN)  // phone/tablet touch (normalised 0..1 coordinates)
-            {
-                m_showTouchControls = true;  // a touch screen is in use, whatever the media query said
-                HandlePointerDown(static_cast<int>(m_event.tfinger.x * SCREEN_WIDTH),
-                    static_cast<int>(m_event.tfinger.y * SCREEN_HEIGHT), bStop);
-            }
-            else if (m_event.type == SDL_MOUSEBUTTONDOWN && m_event.button.which != SDL_TOUCH_MOUSEID)
-            {
-                // which == SDL_TOUCH_MOUSEID would be a synthetic mouse event for a tap SDL_FINGERDOWN
-                // already handled above; a real mouse click (desktop testing) is not, and still works.
-                HandlePointerDown(m_event.button.x, m_event.button.y, bStop);
-            }
+            quit = true;
         }
-
-        // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied)
-        LogUpdate(m_session.Update(dt));
-        m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
-        for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
-            m_placeholderVfxLeft[vi] = m_placeholderVfxLeft[vi] > dt ? m_placeholderVfxLeft[vi] - dt : 0.0f;
-
-        //Clear screen
-        SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
-        SDL_RenderClear(m_screen);
-
-        // Update and render background layers
-        updateBackgroundLayers();
-        renderBackgroundLayers();
-
-        RenderGhostWalk();  // behind the player: the player is never covered
-        if (bPlayer)
+        else if (m_event.type == SDL_KEYDOWN)
         {
-            m_player.Render(m_screen);
+            HandleKeyDown(m_event, quit);
         }
-        RenderEnemy();
-        RenderTornadoes();  // above the background, player and enemy, below the HUD
-        RenderPlaceholderVfx();  // TEST placeholders, drawn above everything else in the scene
-        RenderTouchControls();  // on top of the scene, only while Playing
-        RenderInvokerHud();
-        RenderStatsHud();
-        RenderTargetHint();
-
-        if (m_session.State() == practice::GameState::Ready)
-            RenderReadyScreen();
-        else if (m_session.State() == practice::GameState::GameOver)
-            RenderGameOverScreen();
-
-        //Update screen
-        SDL_RenderPresent(m_screen);
-
-        int real_imp_time = fps_timer.get_ticks();
-        int time_one_frame = 1000 / FRAME_PER_SECOND;// ms
-
-        if (real_imp_time < time_one_frame)
+        else if (m_event.type == SDL_FINGERDOWN)  // phone/tablet touch (normalised 0..1 coordinates)
         {
-            int delay_time = time_one_frame - real_imp_time;
-            if (delay_time >= 0)
-                SDL_Delay(delay_time);
+            m_showTouchControls = true;  // a touch screen is in use, whatever the media query said
+            HandlePointerDown(static_cast<int>(m_event.tfinger.x * SCREEN_WIDTH),
+                static_cast<int>(m_event.tfinger.y * SCREEN_HEIGHT), quit);
+        }
+        else if (m_event.type == SDL_MOUSEBUTTONDOWN && m_event.button.which != SDL_TOUCH_MOUSEID)
+        {
+            // which == SDL_TOUCH_MOUSEID would be a synthetic mouse event for a tap SDL_FINGERDOWN
+            // already handled above; a real mouse click (desktop testing) is not, and still works.
+            HandlePointerDown(m_event.button.x, m_event.button.y, quit);
         }
     }
 
-    Close();
+    // Practice rules: enemy movement, spawning, leaks, Game Over (input of this frame is already applied)
+    LogUpdate(m_session.Update(dt));
+    m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
+    for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
+        m_placeholderVfxLeft[vi] = m_placeholderVfxLeft[vi] > dt ? m_placeholderVfxLeft[vi] - dt : 0.0f;
+    for (int ei = 0; ei < practice::ENEMY_TYPE_COUNT; ++ei)
+        m_enemySprites[ei].Update(dt);
+
+    //Clear screen
+    SDL_SetRenderDrawColor(m_screen, 0xFF, 0xFF, 0xFF, 0xFF);
+    SDL_RenderClear(m_screen);
+
+    // Update and render background layers
+    updateBackgroundLayers(dt);
+    renderBackgroundLayers();
+
+    RenderGhostWalk();  // behind the player: the player is never covered
+    if (m_hasPlayer)
+    {
+        m_player.Render(m_screen);
+    }
+    RenderEnemy();
+    RenderTornadoes();  // above the background, player and enemy, below the HUD
+    RenderPlaceholderVfx();  // TEST placeholders, drawn above everything else in the scene
+    RenderTouchControls();  // on top of the scene, only while Playing
+    RenderInvokerHud();
+    RenderStatsHud();
+    RenderTargetHint();
+
+    if (m_session.State() == practice::GameState::Ready)
+        RenderReadyScreen();
+    else if (m_session.State() == practice::GameState::GameOver)
+        RenderGameOverScreen();
+
+    //Update screen
+    SDL_RenderPresent(m_screen);
+    return !quit;
 }
 
 // ------------------------------------------------------------------ input and session
@@ -254,12 +271,17 @@ void GameManager::PressEnterAction()
 }
 
 // Ready -> quit the application. Playing / Game Over -> step back to Ready, never quit. Shared by the
-// Esc key and every touch "back/quit" tap zone.
+// Esc key and every touch "back/quit" tap zone. A web page has no application to quit (stopping the
+// main loop would only freeze the canvas), so there Esc on Ready does nothing.
 void GameManager::PressEscapeAction(bool& quit)
 {
     ResetVisualEffects();
     if (m_session.PressEscape())
+    {
+#ifndef __EMSCRIPTEN__
         quit = true;
+#endif
+    }
     else
         printf("[practice] back to Ready\n");
 }
@@ -884,7 +906,9 @@ void GameManager::RenderReadyScreen()
     pixeltext::DrawCentered(m_screen, "PRACTICE MODE", SCREEN_WIDTH, 190, 3, white);
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO START", SCREEN_WIDTH, 270, 3, white);
     pixeltext::DrawCentered(m_screen, "Q W E  ORBS     R  INVOKE     D F  CAST", SCREEN_WIDTH, 350, 2, grey);
-    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);
+#ifndef __EMSCRIPTEN__
+    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);  // nothing to quit on the web
+#endif
 }
 
 void GameManager::RenderGameOverScreen()
@@ -963,7 +987,7 @@ bool GameManager::loadBackgroundLayers() {
             return false;
         }
         backgroundPositions[i] = 0.0f;
-        backgroundSpeeds[i] = 0.1f * (i + 1); // Adjust speed as needed
+        backgroundSpeeds[i] = BACKGROUND_LAYER_SPEED * (i + 1); // px/s, deeper layers slower
     }
     return true;
 }
@@ -985,9 +1009,9 @@ void GameManager::renderBackgroundLayers() {
     }
 }
 
-void GameManager::updateBackgroundLayers() {
+void GameManager::updateBackgroundLayers(float dt) {
     for (int i = 0; i < 12; ++i) {
-        backgroundPositions[i] -= backgroundSpeeds[i];
+        backgroundPositions[i] -= backgroundSpeeds[i] * dt;
         if (backgroundPositions[i] <= -SCREEN_WIDTH) {
             backgroundPositions[i] += SCREEN_WIDTH;
         }

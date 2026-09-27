@@ -2,7 +2,7 @@
 #include "Enemy.h"
 
 
-EnemyObject::EnemyObject() : currentFrame_(0), frame_num_(0), width_frame_(0), height_frame_(0) {}
+EnemyObject::EnemyObject() : currentFrame_(0), animTime_(0.0f), frame_num_(0), width_frame_(0), height_frame_(0) {}
 
 EnemyObject::~EnemyObject()
 {
@@ -38,13 +38,23 @@ void EnemyObject::set_clips()
     }
 }
 
+void EnemyObject::Update(float dt)
+{
+	if (frame_num_ <= 0)
+		return;
+	const float frameTime = 1.0f / ENEMY_ANIM_FPS;
+	animTime_ += dt;
+	while (animTime_ >= frameTime)
+	{
+		animTime_ -= frameTime;
+		currentFrame_ = (currentFrame_ + 1) % frame_num_;
+	}
+}
+
 void EnemyObject::Render(SDL_Renderer* screen)
 {
-	currentFrame_++;
-	if (currentFrame_ == frame_num_)
-	{
-		currentFrame_ = 0;
-	}
+	if (frame_num_ <= 0)
+		return;
 
 	SDL_Rect* current_clip = &frame_clip_[currentFrame_];
 	SDL_Rect renderQuad = { rect_.x, rect_.y, width_frame_, height_frame_ };

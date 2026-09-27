@@ -12,8 +12,8 @@ Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code b
 | 1 | Stabilization | **Done** (branch `phase-1-stabilization`) |
 | 2 | Invoker Core Extraction | **Done** (branch `phase-2-invoker-core`) |
 | 3 | Practice Gameplay | **Committed (`a76802e`) + review round (`fix: refine practice session lifecycle`); awaiting owner review** |
-| 4 | Game Loop / Input / State readiness | placeholder |
-| 5 | Web MVP (GitHub Pages) | placeholder |
+| 4 | Game Loop / Input / State readiness | **Mostly done** (frame step, dt-based animation; asset-path helper and ownership clean-up left) |
+| 5 | Web MVP (GitHub Pages) | **Mostly done** (live at http://3elements.relifes.net, `web/build.sh`; no CMake yet, HTTPS cert pending) |
 | 6 | UX / Audio / Game Feel | placeholder |
 | 7 | Android | placeholder |
 | 8 | Future Combat / Story | placeholder, not started |
@@ -87,11 +87,20 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 
 ## Future phases (high-level placeholders — detail them when they become "next")
 
-### Phase 4 — Game Loop / Input / State readiness
-Finish what Web and mobile need beyond Phase 3: central asset-path helper, logical resolution/scaling decision, remaining ownership clean-up (`Keyboard`s, `Close()`), input mapping kept behind the logical `InputAction` seam so touch can plug in. *Gate:* the frame step can be driven by an external loop.
+### Phase 4 — Game Loop / Input / State readiness  *(mostly done)*
+- [x] Frame step: `GameManager::RunFrame()` (input, rules, drawing for one frame); `LoopGame()` drives it with a capped `while` loop on desktop (60 FPS) and `emscripten_set_main_loop_arg` on the web. *Gate met.*
+- [x] Everything that moves or animates runs on real `dt` (enemy walk cycle `ENEMY_ANIM_FPS`, parallax `BACKGROUND_LAYER_SPEED`, same speeds as the old 25 FPS per-frame code); `dt` capped at 0.1 s.
+- [x] Touch input through the same `InputAction` path (`HandlePointerDown`).
+- [x] Logical resolution: fixed 928×544 canvas, letterboxed by CSS on the web.
+- [ ] Central asset-path helper; remaining ownership clean-up (`Keyboard`s, `Close()`).
 
-### Phase 5 — Web MVP (GitHub Pages)
-Minimal `CMakeLists.txt` (desktop + Emscripten) beside the VS project, Emscripten build with the SDL2/SDL2_image ports (single-threaded, preloaded assets, `emscripten_set_main_loop`), canvas scaling with nearest filtering, publish static output to GitHub Pages with a documented build command. *Gate:* public URL plays start → game over → restart in current Chrome/Firefox.
+### Phase 5 — Web MVP (GitHub Pages)  *(mostly done)*
+- [x] Emscripten build with the SDL2/SDL2_image ports, preloaded assets, browser-driven main loop (no ASYNCIFY): `web/build.sh`.
+- [x] `web/shell.html`: canvas scaled with `image-rendering: pixelated`, phone landscape layout, fullscreen button (Android) / Add-to-Home-Screen help (iPhone), `manifest.webmanifest`.
+- [x] Published to GitHub Pages from the `gh-pages` branch (`web/build.sh --deploy`, which also verifies the live files). *Gate met:* start → game over → restart plays in current Chrome, desktop and phone.
+- [x] Mobile touch controls (six keyboard-style buttons, touch devices only) — pulled forward from Phase 7 for the web build.
+- [ ] HTTPS for the custom domain (GitHub has not issued the certificate yet; owner action in Settings → Pages).
+- [ ] Optional: `CMakeLists.txt` beside the VS project (the build script is enough for now).
 
 ### Phase 6 — UX / Audio / Game Feel
 Text rendering and real HUD, start and Game Over screens, **persistent local best stats** (browser local storage on web, file on desktop), success/fail/leak feedback, SDL_mixer audio (web audio unlock), pixel-art polish (integer scaling, background aspect). No hints in normal play.
@@ -114,3 +123,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-21 — **Phase 3** implemented (branch `phase-2-invoker-core`, commit `a76802e`): Practice layer + tests, SDL integration, HUD, Ready/Game Over screens, `--debug` switch.
 - 2026-09-21 — **Phase 3 review round** (commit `fix: refine practice session lifecycle`): Best Combo kept across restarts, Esc behaviour by state, Enter/Esc rules moved into `PracticeSession`, tests 328 checks, duplicate HUD formatting removed. Awaiting owner review. Next: Phase 4 (only after approval).
 - 2026-09-22 — **Tornado spell effect** (commit `430b5ba`, requested after the Phase 3 review): first projectile spell. Practice: `Tornado` projectile (fixed-direction straight flight by `dt`, circle-vs-box hit, judged through the existing `JudgeCast` when it hits, misses change nothing); SDL: 16-frame 4×4 sheet `assets/Skills/Tornado/tornado_vfx_16f.png` drawn with nearest-neighbour above the enemy and below the HUD, looping animation. Owner-confirmed rules: a wrong-target hit is one wrong cast (enemy stays), no enemy = no projectile and no counted cast, no limit on projectiles in flight. Practice tests now 864 checks. Not Phase 4.
+- 2026-09-23 — **Web build and mobile** (branch `phase-2-invoker-core`, now merged into `main`): Emscripten web build on GitHub Pages, touch controls, Top-10 scores, placeholder VFX for 8 skills, always-on target-skill hint (owner decision), phone landscape/fullscreen layout, centred colour-coded orb HUD.
+- 2026-09-28 — **Phase 4/5 clean-up:** frame step `RunFrame()` + browser-driven main loop (ASYNCIFY dropped), dt-based enemy animation and parallax, desktop cap 25 → 60 FPS, `web/build.sh` (build + verified deploy), docs updated, work consolidated on `main`.

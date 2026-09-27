@@ -18,7 +18,13 @@ using namespace std;
 const int SCREEN_WIDTH = 928;
 const int SCREEN_HEIGHT = 544;
 
-const int FRAME_PER_SECOND = 25;  // fps
+const int FRAME_PER_SECOND = 60;  // native frame cap; the web build follows the display (requestAnimationFrame).
+                                  // Was 25 while animation and scrolling counted frames; all of it runs on dt now.
+const float MAX_FRAME_DT = 0.1f;  // s; a longer gap (tab hidden, debugger pause) is treated as 0.1 s
+
+// Parallax scrolling in real time; reproduces the old per-frame speed at 25 FPS (layer i moved 0.1 * (i + 1) px
+// per frame). The enemy walk-cycle speed is ENEMY_ANIM_FPS in Enemy.h.
+const float BACKGROUND_LAYER_SPEED = 2.5f;  // px/s for layer 0; layer i scrolls at (i + 1) times this
 
 const int RENDER_DRAW_COLOR = 0Xff;
 
@@ -167,6 +173,8 @@ protected:
 
 	practice::PracticeSession m_session;  // the Practice Mode rules: enemy, HP, score, combo, accuracy, difficulty
 	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
+	Uint32 m_lastTick = 0;                // SDL_GetTicks() at the previous frame, for dt
+	bool m_hasPlayer = false;             // player sprite loaded
 	bool m_showTouchControls = false;     // touch device (web media query) or any finger touch seen; PC keeps it off
 
 	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
@@ -183,7 +191,7 @@ public:
 	}
 	bool loadBackgroundLayers();
 	void renderBackgroundLayers();
-	void updateBackgroundLayers();
+	void updateBackgroundLayers(float dt);
 
 	void SetDebug(bool on) { m_debug = on; }
 
@@ -192,6 +200,8 @@ public:
 	void Close();
 
 private:
+	void LoadAssets();
+	bool RunFrame();  // one frame of input, rules and drawing; false once quit was requested
 	void HandleKeyDown(const SDL_Event& e, bool& quit);
 	void HandlePointerDown(int x, int y, bool& quit);  // touch (SDL_FINGERDOWN) and mouse (SDL_MOUSEBUTTONDOWN)
 	void PressEnterAction();          // shared by the Enter key and its touch tap zones
