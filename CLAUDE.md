@@ -1,11 +1,11 @@
 # Three Elements — tài liệu bàn giao cho agent
 
-> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái được ghi nhận ngày 2026-09-21 (nhánh `main`, commit `1c81f62`). Phần "chạy được" được suy ra từ đọc code, chưa build hay chạy game.
+> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-28: Phase 3 xong và đã có **bản web chạy trên điện thoại** (http://3elements.relifes.net). Mọi việc làm trên nhánh **`main`**; nhánh `gh-pages` chỉ chứa bản web đã build. Debug và Release x64 lẫn bản web đều đã được build và chạy thử.
 
 **Đọc theo thứ tự này trước khi sửa code:**
 
 1. [GAMEPLAY_SPEC.md](GAMEPLAY_SPEC.md) — luật chơi MVP (Practice Mode), **nguồn sự thật duy nhất**, mỗi luật gắn nhãn CONFIRMED / RECOMMENDED / FUTURE. Hiện **không có mục nào đang chặn**. Quy tắc phá thế bí: đây là game luyện Invoker, **Dota 2 Invoker là mô hình tham chiếu**; nếu spec không nói về một cơ chế Invoker thì làm theo Invoker, không tự phát minh luật mới.
-2. [PLAN.md](PLAN.md) — lộ trình theo giai đoạn (Phase 0–8), phạm vi, điều không được làm, tiêu chí hoàn thành.
+2. [PLAN.md](PLAN.md) — lộ trình theo giai đoạn (Phase 0–9), phạm vi, điều không được làm, tiêu chí hoàn thành.
 3. [PROJECT_AUDIT.md](PROJECT_AUDIT.md) — kiến trúc code hiện tại, lỗi đã biết (B1–B17), rủi ro Web/Android, phần không nên viết lại.
 
 Nếu tài liệu này mâu thuẫn với GAMEPLAY_SPEC.md về luật chơi, **GAMEPLAY_SPEC.md thắng**.
@@ -22,7 +22,7 @@ Cách chơi (MVP):
 - Bảng recipe: QQQ Cold Snap · QQW Ghost Walk · QQE Ice Wall · QWW Tornado · QWE Deafening Blast · QEE Forge Spirit · WWW EMP · WWE Alacrity · WEE Chaos Meteor · EEE Sun Strike.
 - **R** = Invoke: đủ đúng 3 orb thì ra skill và đưa vào ô D/F; **chưa đủ 3 orb thì R không làm gì** (không phạt, không reset orb). Invoke không tiêu orb.
 - **D / F** = hai ô skill kiểu Invoker (skill mới vào D, D cũ sang F, F cũ bị bỏ; invoke lại skill đang ở F thì hai ô đổi chỗ) và là phím **cast**. Cast xong skill **vẫn nằm trong ô** tới khi lần invoke sau đổi ô. Không cooldown.
-- Mỗi lượt chỉ có **một quái mục tiêu** mang `TargetSkillId` (không hard-code "loại quái = skill"). Quái **không hiện recipe** và **không có gợi ý** trong bản thường: người chơi phải nhớ quái nào cần skill nào.
+- Mỗi lượt chỉ có **một quái mục tiêu** mang `TargetSkillId` (không hard-code "loại quái = skill"). Quái **không hiện recipe**, nhưng từ 2026-09-23 HUD **có hiện tên skill mục tiêu** ("TARGET: <tên skill>") cho mọi người chơi — người chơi vẫn phải tự nhớ/suy ra recipe Q/W/E của skill đó.
 - **Cast đúng:** quái biến mất ngay, điểm +1, combo +1, tính là cast đúng. **Cast sai:** quái không bị thương và vẫn tiến tới, người chơi được thử lại, tính là cast sai, **không** ngắt combo. **Quái chạm người chơi:** HP −1, quái biến mất, **combo về 0**, lượt sau bắt đầu.
 - Cast được tính (cho độ chính xác) chỉ khi bấm D/F với ô có skill **và** đang có quái. Bấm R khi chưa đủ 3 orb, bấm D/F khi ô trống, hoặc cast khi không có quái **không phải cast sai** và không ảnh hưởng độ chính xác.
 - **HP ban đầu = 3.** Phiên chơi vô hạn, độ khó tăng theo thời gian (chỉ chỉnh tốc độ quái và độ trễ giữa các lượt bằng một hàm xác định đơn giản), Game Over khi HP ≤ 0.
@@ -45,14 +45,14 @@ Cách chơi (MVP):
 | Kiến trúc | Ba lớp, phụ thuộc một chiều **Presentation → Practice → Core**. **Core** = InputAction, Quas/Wex/Exort, chuẩn hóa recipe, SkillDefinition, SkillCatalog, InvokerState, Invoke, ô D/F (không biết SDL, quái, HP, điểm, vẽ, vòng lặp). **Practice** = EnemyDefinition, TargetSkillId, PracticeSession, HP, điểm, combo, độ chính xác, thời gian, độ khó, quái đang hoạt động, kết quả thử thách. **Presentation** = input SDL/cảm ứng, vẽ, sprite, âm thanh, HUD, parallax. Xem GAMEPLAY_SPEC.md §20 |
 | Giữ code hiện có | Logic recipe và ô D/F hiện tại **đã đúng**: giữ nguyên hành vi, chỉ chuyển vào Core khi cần. Không viết lại chỉ vì phong cách |
 | Không được thêm | Game engine, event bus, dependency injection, ECS, kế thừa/template không cần thiết. Giữ kiến trúc nhỏ, dễ hiểu |
-| Loại trừ khỏi MVP | Cốt truyện, chiến đấu, AI quái phức tạp, cooldown, mở khóa skill, **gợi ý (hints)**, nhiều mục tiêu, boss, kiếm tiền, Steam, UX mobile nâng cao, thành tựu, công thức điểm phức tạp |
+| Loại trừ khỏi MVP | Cốt truyện, chiến đấu, AI quái phức tạp, cooldown, mở khóa skill, **gợi ý recipe** (không hiện phím cần bấm), nhiều mục tiêu, boss, kiếm tiền, Steam, UX mobile nâng cao, thành tựu, công thức điểm phức tạp. Gợi ý **tên skill mục tiêu** thì có (GAMEPLAY_SPEC.md E-8) |
 | Tùy chọn debug | Chỉ cho phát triển: hiển thị `TargetSkillId` của quái đang hoạt động; mặc định tắt, không có trong bản web phát hành |
 
 Chi tiết từng luật, bảng phân loại input, ví dụ và các trường hợp biên nằm trong [GAMEPLAY_SPEC.md](GAMEPLAY_SPEC.md). Mục "Open decisions" của spec hiện **không có mục chặn**.
 
 ## 2b. Ý tưởng thiết kế Figma (tham khảo cho giai đoạn sau, KHÔNG thuộc MVP)
 
-Figma mô tả một hướng khác (thẻ bài, cốt truyện). Phần này được **hoãn** tới Phase 7 trong PLAN.md; không đầu tư vào nó trong MVP. So sánh với code hiện tại:
+Figma mô tả một hướng khác (thẻ bài, cốt truyện). Phần này được **hoãn** tới Phase 8 trong PLAN.md; không đầu tư vào nó trong MVP. So sánh với code hiện tại:
 
 | | Thiết kế (Figma) | Code thực tế |
 |---|---|---|
@@ -70,80 +70,78 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 
 - Visual Studio 2022 (toolset v143), x64. Mở `Three Elements.sln`.
 - Thư viện SDL2, SDL2_image nằm sẵn trong `Dependencies/` (kèm DLL trong `Dependencies/lib/x64`). SDL2_ttf có header và lib nhưng phần dùng đang bị comment. Chưa có SDL_mixer (âm thanh mới ở dạng comment chuẩn bị).
-- **Cảnh báo về khả năng build:** `Three Elements.vcxproj` chứa đường dẫn tuyệt đối cứng. Include trỏ tới `D:\Dev\Code\3Elements\ThreeElements\Dependencies\include`, còn thư mục lib trỏ tới `C:\Users\hawon\source\repos\ThreeElements\Dependencies\lib\x64`. Đường dẫn lib có vẻ là của một máy/vị trí cũ. Nếu link lỗi, đổi sang đường dẫn tương đối (`$(SolutionDir)Dependencies\...`). Chưa kiểm chứng.
-- Đường dẫn asset trong code là tương đối (`assets/...`), nên **thư mục làm việc khi chạy phải chứa thư mục `assets`** (thư mục gốc project là `Three Elements/`). `.vcxproj.user` chưa đặt working directory.
-- Cửa sổ 928×544, 25 FPS.
+- **Build (đã ổn định ở Phase 1):** đường dẫn include/lib trong `Three Elements.vcxproj` đều tương đối so với file project, cả 4 cấu hình (Debug/Release × x64/Win32) build được; sau build, các DLL SDL được tự copy cạnh exe. Bản Win32 mới chỉ build, chưa chạy thử.
+- Đường dẫn asset trong code là tương đối (`assets/...`), nên **thư mục làm việc khi chạy phải chứa thư mục `assets`** (thư mục `Three Elements/`). Debugger của Visual Studio đã được đặt đúng thư mục này; khi chạy exe từ dòng lệnh phải tự `cd` vào đó.
+- Cửa sổ 928×544. Bản PC giới hạn 60 FPS; bản web chạy theo tần số màn hình. Mọi chuyển động/animation tính theo thời gian thật (`dt`), nên FPS không đổi tốc độ game.
+- **Bản web (Emscripten):** `web/build.sh` build vào **một** thư mục duy nhất `D:\Dev\web-build` (emsdk ở `D:\Dev	ools\emsdk`; đổi được bằng biến `EMSDK_DIR`, `WEB_BUILD_DIR`). `web/build.sh --deploy` build rồi commit bản build vào nhánh `gh-pages`, push, và **chờ GitHub Pages phát hành xong rồi so file trên trang thật** (GitHub đôi khi bỏ qua một lần push; script báo lại, chạy lại là được). Chạy từ Git Bash. `web/shell.html` là trang HTML bao quanh canvas (bố cục điện thoại, nút toàn màn hình, thẻ meta iOS), `web/manifest.webmanifest` cho "Thêm vào màn hình chính". Tên miền `3elements.relifes.net` (file `CNAME` trong `gh-pages`); HTTPS của tên miền chưa được GitHub cấp chứng chỉ (chủ project xử lý trong Settings → Pages).
+- **Không tạo thêm nhánh hay thư mục build mới** khi build/deploy (yêu cầu của chủ project).
 
-## 4. Cấu trúc code (`Three Elements/`, khoảng 1.500 dòng)
+## 4. Cấu trúc code (`Three Elements/`)
 
 | File | Vai trò |
 |---|---|
-| `main.cpp` | Tạo singleton `GameManager`, gọi `InitSDL()` rồi `LoopGame()`. Có khối `#if 0` là code cũ |
-| `GameManager.h/.cpp` | Singleton: khởi tạo SDL, vòng lặp game, vẽ/cuộn background 12 lớp, spawn quái, hiển thị phím và skill |
+| `main.cpp` | Tạo singleton `GameManager`, đọc tùy chọn `--debug` (chỉ dev), gọi `InitSDL()` rồi `LoopGame()`; trả 1 nếu khởi tạo lỗi |
+| `../web/` | `build.sh` (build/deploy web), `shell.html`, `manifest.webmanifest` |
+| `GameManager.h/.cpp` | **Presentation**: khởi tạo SDL, `LoadAssets()` + `RunFrame()` (một khung hình: input, `PracticeSession::Update(dt)`, vẽ). `LoopGame()` gọi `RunFrame()` trong vòng `while` (PC) hoặc qua `emscripten_set_main_loop_arg` (web). Vẽ background, quái, hiệu ứng skill, HUD (orb màu, ô D/F ở giữa), cụm phím cảm ứng, màn Ready/Game Over, Top-10 điểm, log phát triển |
+| `Practice/Practice.h/.cpp` | **Practice** (không SDL, không đồng hồ, không biến toàn cục): `EnemyDefinition` (10 quái, `targetSkill`), `DifficultyAt(elapsed)`, `PracticeSession` (Ready/Playing/GameOver, HP, điểm, combo, độ chính xác, thời gian sống sót, một quái đang hoạt động, sở hữu `InvokerState`) |
+| `PixelText.h/.cpp` | Chữ pixel 5×7 vẽ bằng `SDL_RenderFillRect` cho HUD (không cần font hay SDL2_ttf) |
 | `BaseObject.h/.cpp` | Lớp gốc: texture, rect, clip animation, `LoadImg`, `Render` |
-| `MainPlayer.h/.cpp` | Xử lý phím Q/W/E/R, giữ danh sách nguyên tố, ô skill D và F |
-| `Skill.h/.cpp` | Enum `Spell` và `Element`, bảng tra tổ hợp → tên skill (`spellMap`) |
-| `Keyboard.h/.cpp` | Icon phím (2 frame, có enum `KeyType`) |
-| `Enemy.h/.cpp` | `EnemyObject`: sprite animation, di chuyển sang trái, lưu đường dẫn ảnh để phân loại |
-| `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định |
+| `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
+| `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
+| `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (864 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `Keyboard.h/.cpp` | Icon phím (2 frame); dùng cho nhãn D/F và cụm phím cảm ứng (orb được vẽ thành hình tròn màu, không dùng icon phím nữa) |
+| `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation theo thời gian (`Update(dt)`, `ENEMY_ANIM_FPS`); vị trí do Practice quyết định |
+| `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định cho bản PC (chỉ `start()` và `get_ticks()`) |
 | `Define.h` | Include chung (SDL, SDL_image, stdio, string) |
-| `ThreatObject.h/.cpp`, `IKeyHandler.h` | **Chưa dùng / đã comment** — có thể xóa |
 
 Kế thừa: `MainPlayer`, `EnemyObject`, `Keyboard`, `Skill` đều kế thừa `BaseObject`.
 
 Tài nguyên trong `assets/`:
 - `background/`: 12 lớp parallax
-- `enemies/`: 13 sprite (7 đang dùng: mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run; 6 chưa dùng: bat_fly, dark_wiz, kitsune_run, knight_run, mush, nec_walk_bg)
+- `enemies/`: 13 sprite, **10 đang dùng** (mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run + dark_wiz, kitsune_run, knight_run thêm ở Phase 3); chưa dùng: bat_fly, mush (trùng nấm), nec_walk_bg (trùng nec_walk)
 - `keyboard/`: icon Q W E R D F
-- `skill/`: 10 icon skill
+- `skill/`: 10 icon skill (`Tornado.png` là icon) + thư mục `Skills/Tornado/` (cạnh `skill/`, đã được code dùng) chứa `tornado_vfx_16f.png`, sheet hiệu ứng Tornado 512×512 (4×4 frame 128×128, nền trong suốt) và `tornado_icon.png` (chưa dùng)
 - `main.bmp`: sprite người chơi
 
 ## 5. Đã làm được
 
-- **Nhập nguyên tố:** Q/W/E được đẩy vào danh sách và chỉ giữ 3 phần tử mới nhất (giống 3 orb của Invoker). Icon 3 phím hiển thị ở góc trên trái theo thứ tự bấm.
-- **Invoke bằng R:** tổ hợp được sắp xếp nên thứ tự bấm không ảnh hưởng kết quả. Tra ra đúng 10 skill Invoker:
-
-  | Tổ hợp | Skill | Tổ hợp | Skill |
-  |---|---|---|---|
-  | QQQ | Cold Snap | EWW | Alacrity |
-  | QQW | Ghost Walk | EEE | Sun Strike |
-  | EQQ | Ice Wall | EEQ | Forge Spirit |
-  | WWW | EMP | EEW | Chaos Meteor |
-  | QWW | Tornado | EQW | Deafening Blast |
-
-- **Ô D/F:** skill mới vào ô D, skill cũ đẩy sang F. Cả hai được vẽ trên màn hình.
-- **Background:** 12 lớp parallax cuộn liên tục với tốc độ khác nhau.
-- **Quái:** 7 loại có animation, spawn ngẫu nhiên mỗi 5 giây từ mép phải (x=800, y=400), chạy sang trái với tốc độ 5 px/frame. Mỗi loại chỉ có một con trên màn hình cùng lúc.
+- **Core (Phase 2):** nhập Q/W/E (3 orb, thứ tự không quan trọng), R invoke khi đủ 3 orb, ô D/F đúng kiểu Invoker, catalog 10 skill. Có test (`Tests/InvokerCoreTests`).
+- **Practice Mode (Phase 3):** `Practice/Practice.*` (không SDL) — 10 loại quái, mỗi loại mang `targetSkill` (bảng dữ liệu, tự do đổi); đúng **một quái** mỗi lượt; cast D/F đúng thì quái biến mất (+1 điểm, +1 combo), cast sai thì chỉ tính vào độ chính xác, quái chạm người chơi thì HP −1 và combo về 0, HP 0 thì Game Over; độ khó tăng theo thời gian (tốc độ quái 125→380 px/s, độ trễ giữa các lượt 1,5→0,5 s: **giá trị tuning ban đầu của MVP, chưa cân bằng**); chơi lại bằng Enter. Có test (`Tests/PracticeTests`).
+- **Trình bày (SDL):** vòng lặp dùng `dt` thật cho mọi thứ (luật chơi, animation quái, cuộn nền); quái vẽ theo vị trí Practice (10 sprite nạp một lần, đặt đúng mặt đất); HUD gồm HP, điểm, combo, best combo, độ chính xác, thời gian, orb, ô D/F; màn hình Ready và Game Over; bộ chữ pixel tự vẽ (`PixelText.*`) vì SDL2_ttf chưa được tích hợp và repo chưa có file font.
+- **Điều khiển:** Q/W/E/R/D/F chơi. **Ready:** Enter bắt đầu, Esc thoát app. **Playing:** Esc về Ready (phiên bị dừng và reset, kỷ lục best combo giữ nguyên), Enter bị bỏ qua. **Game Over:** Enter bắt đầu phiên mới, Esc về Ready. Không có pause. Luật Enter/Esc nằm trong `PracticeSession::PressEnter/PressEscape` (có test). Phím giữ (auto-repeat) không còn tạo nhiều lần bấm.
+- **Tornado (hiệu ứng thật đầu tiên):** cast Tornado từ D hoặc F (nhận theo `SkillId` trong ô) bắn ra một quả cầu lốc từ người chơi về phía quái, hướng chốt một lần lúc bắn (không tự dẫn), bay thẳng theo `dt` (700 px/s). **Chỉ được chấm khi trúng con quái đã bị nhắm tới**, qua đúng đường chấm điểm cũ (`PracticeSession::JudgeCast`): trúng quái cần Tornado thì quái biến mất, điểm và combo +1 đúng một lần; trúng quái cần skill khác thì là **1 cast sai** (quái vẫn sống, HP không đổi, combo/điểm/độ chính xác theo luật cast sai thường); **trượt thì không đổi gì** (không combo, điểm, độ chính xác, HP). Không có quái thì không bắn và không tính cast. **Không giới hạn số projectile cùng lúc** (mỗi cast hợp lệ tạo đúng một quả). Animation lặp 0→15→0 khi projectile còn sống. Logic ở `Practice/Practice.*` (hàm thuần, có test), vẽ ở `GameManager::RenderTornadoes` (16 frame, 10 fps, nearest-neighbour, dưới HUD). Giá trị là tuning ban đầu.
+- **Gợi ý tên skill (2026-09-23, quyết định chủ project):** HUD luôn hiện "TARGET: <tên skill>" ở góc trên phải cho mọi người chơi, mọi bản build (native lẫn web), không cần `--debug` (`GameManager::RenderTargetHint`). Vẫn **không** hiện recipe/phím cần bấm. Chạy `"Three Elements.exe" --debug` (chỉ để phát triển) vẫn thêm dòng log `[debug] ... target ... recipe ...` ra console, không ảnh hưởng HUD.
+- **Hiệu ứng skill:** Tornado và Ghost Walk có hiệu ứng riêng; 8 skill còn lại dùng hiệu ứng tạm (`kPlaceholderVfx*` trong `GameManager.h`, chỉ để trình bày). Mọi projectile bay 700 px/s.
+- **HUD (2026-09-23, quyết định chủ project):** orb Q/W/E vẽ thành hình tròn màu (Quas xanh băng, Wex tím điện, Exort cam lửa, `kOrbColors`), ô trống là vòng mờ; orb và ô D/F nằm giữa màn hình và chỉ hiện khi đang chơi.
+- **Điện thoại (web):** cụm phím cảm ứng Q/W/E/R (một hàng) + D/F (hàng dưới, lệch như bàn phím) ở góc dưới trái, 88 px, **chỉ hiện trên thiết bị cảm ứng** (media query lúc khởi động hoặc khi có chạm), ẩn trên PC. Chạm vào chữ Enter/Esc trên màn hình để bắt đầu/về menu. Nằm ngang thì canvas giãn tối đa, giữ tỉ lệ; nút "Full" bật toàn màn hình (Android) hoặc hướng dẫn "Thêm vào MH chính" (iPhone, vì iOS không cho web toàn màn hình). Trên web, Esc ở Ready không làm gì (không có app để thoát).
+- **Top-10 điểm:** lưu ở `highscores.txt` (PC) hoặc `localStorage` (web), hiện ở màn Game Over.
+- **Background:** 12 lớp parallax.
 
 ## 6. Chưa có (phần việc còn lại)
 
-- **Chiến đấu:** skill chỉ hiện icon, không có hiệu ứng, sát thương hay đạn. Chưa có luật "skill nào diệt quái nào" (10 skill so với 7 quái, chưa ghép cặp). Va chạm quái–người chơi đang bị comment.
-- **Luật chơi:** không có máu, điểm, game over, độ khó tăng dần, quái không bị xóa.
-- **Người chơi:** đứng yên, không có animation hành động hay ra chiêu.
-- **Phím D/F:** icon đã load nhưng chưa vẽ, chưa có cơ chế cast skill từ ô D/F.
-- **UI:** không có menu, chọn/gán thẻ, option, màn hình kết thúc.
-- **Khác:** âm thanh, font/text, lưu trạng thái, cốt truyện Threne.
+- **Lưu trữ:** chỉ Top-10 điểm được lưu. Best Combo hiện là kỷ lục **trong một lần chạy app**; chưa lưu Best Combo / Best Survival Time như spec §13 yêu cầu (Phase 6).
+- **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, hiệu ứng khi diệt quái/mất máu, animation người chơi, âm thanh, cài đặt.
+- **Nền tảng:** bản web đã chạy (chưa có CMake); app Android riêng, PC/Steam.
+- **Sau MVP:** chiến đấu, cốt truyện Threne, nhiều mục tiêu, chế độ người mới có gợi ý.
 
-Mức hoàn thành: README ghi "70% code đã xong", nhưng đúng chủ yếu cho phần nhập liệu và tra cứu skill. Vòng lặp gameplay cốt lõi còn thiếu gần hết; ước lượng khoảng 35–45% của một game chơi được.
+## 7. Nợ kỹ thuật còn lại
 
-## 7. Vấn đề kỹ thuật biết trước
-
-1. **Rò rỉ bộ nhớ:** `LoopGame` tạo 11 đối tượng Skill lẻ (`sNO_SPELL`, `sCOLD_SNAP`, …) không dùng và không giải phóng. Quái không bao giờ bị xóa. Phần dọn dẹp trong `Close()` gần như bị comment hết.
-2. **Quái không biến mất:** ra khỏi mép trái thì bị đặt lại về x=800 rồi chạy tiếp. Khi cả 7 loại đã ở trên màn hình thì không spawn thêm. Cơ chế "khoảng cách tối thiểu" trong `respawnEnemy` thực tế vô hiệu vì x luôn là 800 và y luôn là 400.
-3. **Biến bị che khuất/không khởi tạo:** trong `LoopGame`, `lastRespawnTime` và `respawnInterval` cục bộ che biến cùng tên của class. Biến thành viên `lastRespawnTime` không được khởi tạo nhưng `respawnEnemy` lại đọc nó, nên lần spawn đầu có thể bị chặn ngẫu nhiên.
-4. **Cờ R không reset:** sau lần bấm R đầu tiên, phần hiển thị skill bật vĩnh viễn. `ResetRKey()` tồn tại nhưng không ai gọi.
-5. **Thiết kế lộn xộn:** `MainPlayer` giữ hai đối tượng Skill (`skill_` và `skill`). Mỗi Skill tự dựng lại toàn bộ `spellMap` trong constructor. `m_Keylist` luôn rỗng nên vòng lặp tìm phím D/F không làm gì. Có biến không dùng (`activeEnemies`, `availableEnemy`, `rect_D`, `rect_F`).
-6. **Lỗi trong thay đổi chưa commit:** trong `GameManager.cpp` có dòng `printf("Enemt path: %s\n", enemy->GetPath())`. `GetPath()` trả về `std::string` còn `%s` cần chuỗi C, nên là hành vi không xác định. Cần sửa (`.c_str()`) hoặc bỏ. Cùng chỗ có một lỗi gõ trong comment ("neededGGG").
-7. **File build bị theo dõi trong git:** `.gitignore` đã liệt kê `x64/` và `Debug/` nhưng các file `.exe`, `.pdb`, `.obj`, `.ilk`, `.idb` vẫn nằm trong git và luôn hiện "modified" sau mỗi lần build. Nên gỡ khỏi index (`git rm --cached`) khi chủ project đồng ý.
+1. `Close()` vẫn gần như chỉ hủy renderer/window; các texture tải trong `LoopGame` (background, icon, sprite) không được giải phóng tường minh (thoát process là hết). `BaseObject` chưa có copy-control (double free nếu bị copy).
+2. `EnemyObject` vẫn có vài biến che biến của lớp cha (`currentFrame_`, `frame_clip_`, `width_frame_`, `height_frame_`) và 3 sprite quái chưa dùng (`bat_fly`, `mush`, `nec_walk_bg`).
+3. Màu trong suốt cố định (175,175,175) áp cho mọi ảnh; nền bị squash (928×793 → 928×544); `SDL_HINT_RENDER_SCALE_QUALITY "1"` làm mờ pixel art khi scale.
+4. Đường dẫn asset là chuỗi rải rác (chưa có chỗ chung cho Web/Android).
 
 ## 8. Hướng đi
 
 Hướng thiết kế đã chốt (mục 2). Lộ trình chi tiết nằm trong [PLAN.md](PLAN.md); tóm tắt thứ tự:
 
-1. **Ổn định hóa** (Phase 1): build di động, gỡ file build khỏi git, sửa các lỗi ở mục 7, giữ nguyên hành vi game.
-2. **Tách Core** (bảng skill/recipe dùng chung, trạng thái orb và ô D/F, hành động input logic), rồi **Practice Mode** (Phase 2–3): quái có `TargetSkillId`, cast D/F, HP, điểm/combo/độ chính xác, độ khó theo thời gian, tách vòng lặp và dùng delta-time.
-3. **Bản Web** (Phase 4), rồi UX/âm thanh (Phase 5), Android (Phase 6).
-4. Chiến đấu/cốt truyện (Phase 7) và PC/Steam (Phase 8) chỉ sau khi MVP đã được chơi thử.
+0. **Phase 0 — Audit & Gameplay Specification:** xong.
+1. **Phase 1 — Stabilization:** xong (build di động, gỡ file build khỏi git, sửa UB/biến spawn, xóa code chết).
+2. **Phase 2 — Invoker Core Extraction:** xong (`Core/Invoker.*`, test trong `Tests/`).
+3. **Phase 3 — Practice Gameplay:** đã cài đặt (chờ chủ project duyệt).
+4. **Phase 4–5 — vòng lặp theo khung hình + bản web:** phần lớn đã xong (xem PLAN.md); còn thiếu CMake và đường dẫn asset tập trung.
+5. Tiếp theo: 6 UX/Audio (gồm lưu Best stats), 7 Android, 8 Chiến đấu/Cốt truyện, 9 PC/Steam (chỉ làm khi MVP đã được chơi thử).
 
 **Trước khi viết code luật chơi:** đọc GAMEPLAY_SPEC.md. Không còn câu hỏi nào chặn việc triển khai; các giá trị chỉnh được (tốc độ và độ trễ ban đầu, vị trí đường chạm, bảng ánh xạ sprite ↔ skill, phím restart) là hằng số/dữ liệu do người triển khai chọn, ghi ở một chỗ để chỉnh khi chơi thử.
 
@@ -151,5 +149,7 @@ Hướng thiết kế đã chốt (mục 2). Lộ trình chi tiết nằm trong 
 
 - Style hiện có: tab để thụt lề, tên hàm lẫn lộn giữa `PascalCase` (`LoadImg`, `SetPos`) và `camelCase` (`handleKeyPress`), biến thành viên có hậu tố `_` hoặc tiền tố `m_`. Code mới nên theo style của file đang sửa.
 - Comment trong code trộn tiếng Anh và tiếng Việt; commit message bằng tiếng Anh.
-- Không có test, không có CI.
+- **Test:** logic Core và Practice có bộ test riêng trong `Tests/` (không dùng framework, không dính SDL). Chạy `Tests\run_tests.cmd` (build + chạy cả hai chương trình, mã thoát 0 = đạt); xem `Tests/README.md`. Phải chạy trước khi sửa Core/Practice. Không có CI. Phần SDL (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) chưa có test tự động; kiểm bằng cách chạy game (`--debug` in mục tiêu ra console để lái phiên chơi).
+- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready, chỉ bản PC), Q/W/E/R/D/F = chơi.
+- **Kiểm tra bản web:** sau khi `web/build.sh`, có thể phục vụ `D:\Dev\web-build` bằng một HTTP server tĩnh và mở bằng Chrome (giả lập điện thoại trong DevTools) để thử.
 - Lịch sử commit: bắt đầu từ game nền (background + nhân vật), rồi refactor OOP, sau đó thêm Keyboard/Skill, gộp combo skill, và gần đây nhất là respawn quái ngẫu nhiên và chỉnh thời gian respawn.

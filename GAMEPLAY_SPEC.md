@@ -97,7 +97,7 @@ Glossary: **Orb** = one Q/W/E element entered. **Recipe** = the set of 3 orbs (o
 - **E-5 [RECOMMENDED]** A spawned enemy instance carries its **own** `targetSkillId` copied from the definition; all correctness checks compare **skill ids** only.
 - **E-6 [RECOMMENDED]** Enemy logical state (position, speed, alive flag) lives in **Practice**; presentation draws the sprite at that position. Movement is time-based (`dt`).
 - **E-7 [RECOMMENDED]** The initial sprite↔skill assignment is a single data table chosen by the implementer from the 13 existing sheets (7 in use: mushroom_run 8f, goblin_run 8f, eyes_fly 8f, skeleton 4f, fire_wiz 8f, nec_walk 10f, worm_run 9f; unused: bat_fly, dark_wiz, kitsune_run, knight_run, mush, nec_walk_bg — verify their frame counts by looking at the sheets). Any one-to-one assignment is acceptable; the owner can change the table later without code changes.
-- **E-8 [RECOMMENDED]** **Development-only debug option** that displays the active enemy's `TargetSkillId` for testing. It must be off by default, unreachable from normal play, and absent from the web release build (e.g. a compile-time flag).
+- **E-8 [CONFIRMED, owner decision 2026-09-23 — supersedes the original "development-only" rule below]** The active enemy's required skill (`TargetSkillId`) is shown on screen to every player, in every build (native and web), not only with `--debug`. Label: `TARGET: <skill name>`, top-right HUD. This makes the game a "look up the recipe" trainer rather than a pure-recall one; see the reversed non-goal in §17.
 - **E-9 [FUTURE]** Enemy AI, variants, bosses, per-spawn target reassignment, beginner-mode hints.
 
 ## 8. Practice challenge flow
@@ -137,6 +137,9 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 - **X-3 [CONFIRMED]** Accuracy counts a **correct** cast.
 - **X-4 [CONFIRMED]** The next challenge begins (§8). The cast spell stays in its slot (S-5).
 - **X-5 [FUTURE]** Death/hit effect, sound.
+- **X-6 [CONFIRMED, owner request after Phase 3]** **Tornado is the first spell with a real effect: a projectile.** Casting Tornado from D or F (recognised by the `SkillId` in the slot, never by the slot) launches a projectile from the player toward the current enemy instead of resolving at once. The direction is fixed at launch (no homing); it flies straight, moved by `dt`. **It is judged only when it hits the enemy it was launched at**, through the same scoring path as every other cast (`JudgeCast`): a hit on an enemy that needs Tornado is a correct cast (enemy removed, score +1, combo +1, exactly once); the projectile is then removed. A **miss** (it leaves the play area or reaches its maximum range, or its enemy is already gone) changes nothing: no score, combo, accuracy, HP or enemy change. With no active enemy there is nothing to aim at: no projectile is created and the cast is not counted (no accuracy, combo, score or HP change). Other spells still resolve at once as before.
+- **X-7 [CONFIRMED, owner]** A Tornado that **hits an enemy that needs another spell** is a **wrong cast**: the enemy stays alive, HP is unchanged, combo / score / accuracy follow the normal wrong-cast rules (§11: it counts as one incorrect cast and does not break the combo) and the projectile is removed. The enemy is never killed by a wrong-target Tornado. "Correct" keeps its single definition (spell = the enemy's target). Only a projectile that hits nothing is free.
+- **X-8 [CONFIRMED, owner]** There is **no gameplay limit** on projectiles: every valid Tornado cast (an active enemy exists) creates exactly one projectile, however many are already in flight; each is judged on its own when it hits. Each one is removed when it hits, leaves the play area or reaches its maximum range, so the count is bounded by how fast keys can be pressed and the code has no technical cap either. The animation loops (frames 0 → 15 → 0 …) for as long as the projectile lives; a projectile that is removed before frame 15 simply never completes a cycle. Values (speed 700 px/s, hit radius 20 px, range 1200 px, animation 16 frames at 10 fps) are **initial MVP tuning values**. Non-goals unchanged: no damage numbers, mana, cooldowns, stun, knockback, penetration, multi-target, homing or upgrades.
 
 ## 11. Wrong cast
 
@@ -164,6 +167,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 **Statistics to track and display in the MVP [CONFIRMED]:** Score, Current Combo, Best Combo, Accuracy, Survival Time (HP and the D/F slots/orbs are also shown as part of the play UI). Survival Time counts only while Playing.
 
 **Persistent local statistics [CONFIRMED]:** **Best Score, Best Combo, Best Survival Time** persist locally and are **not reset by Restart**.
+- **Current state (Phase 3 review, owner decision):** only **Best Combo** exists so far. It is a record kept for as long as the application runs: a new session or a return to Ready resets the *current* combo but not the record, and it only changes when a new record is reached. Nothing is written to disk yet and every application run starts at 0. Best Score and Best Survival Time are not implemented yet.
 - **P-7 [RECOMMENDED]** Practice exposes a plain result struct at Game Over; comparing/saving lives in presentation/platform (browser local storage on web, a small file on desktop). A failed load/save must never break the game (treat as "no saved data"). Implement after the session logic works; until then bests may live in memory only.
 
 ## 14. Difficulty model
@@ -172,6 +176,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 - **D-2 [CONFIRMED]** MVP tunes only **enemy movement speed** and the **delay between challenges**, via **one simple deterministic function of elapsed time**. No difficulty tiers.
 - **D-3 [RECOMMENDED]** `difficulty(elapsedSeconds) → { enemySpeed, challengeDelay }`, a pure function; continuous and monotonic (never easier over time); **clamped** to a playable min/max; all constants in one place. The struct may gain fields later.
 - **D-4 [RECOMMENDED]** Starting values = the current code's behaviour (≈125 px/s, 5 s between spawns) as placeholders, to be tuned by playtesting. Effective speed = `enemySpeed × EnemyDefinition.speedMultiplier`, sampled when the enemy spawns.
+- **D-4b [CONFIRMED]** The values in Practice.h — enemy speed 125 → 380 px/s (+2.5 px/s per second survived), challenge delay 1.5 → 0.5 s (−0.01 s per second) — are **initial MVP tuning values**, not final and not balanced. The bounds (max speed, min delay, `dt` clamp) are part of the design; the numbers are for playtesting.
 - **D-5 [RECOMMENDED]** Elapsed time = survival time accumulated from `dt` while Playing (not wall-clock), with `dt` clamped per frame.
 - **D-6 [FUTURE]** More pressure variables; harder modes with several enemies (not MVP).
 
@@ -180,8 +185,9 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 `Loading → Ready → Playing → GameOver → (Restart) → Playing`
 
 - **Z-1 [CONFIRMED]** **New Game / Restart resets:** active orbs, D/F slots, HP, score, current combo, accuracy, survival timer, active enemy, difficulty timer. It does **not** reset Best Score / Best Combo / Best Survival Time (§13).
-- **Z-2 [RECOMMENDED]** A `PracticeSession` owns all resettable Practice state; restart creates a fresh one; assets are **not** reloaded.
+- **Z-2 [RECOMMENDED]** A `PracticeSession` owns all resettable Practice state; a restart (or a return to Ready) resets it in place and keeps only the best combo record; assets are **not** reloaded.
 - **Z-3 [RECOMMENDED]** Restart is a UI command separate from the six gameplay actions (never Q/W/E/R/D/F): e.g. Enter/Space on keyboard, a button on mobile. Starting on a key press (rather than immediately) is preferred for web focus and future audio unlock.
+- **Z-3b [CONFIRMED]** Controls (owner decision, Phase 3 review): **Ready** — Enter starts a session, Esc quits the application. **Playing** — Esc returns to Ready (the session is stopped and reset, the best combo record is kept), Enter is ignored, so nothing can restart or quit by accident. **Game Over** — Enter starts a new session, Esc returns to Ready. There is no pause.
 - **Z-4 [RECOMMENDED]** Focus loss/hidden tab: clamp `dt`; never spawn several enemies to "catch up".
 
 ## 16. MVP scope (in)
@@ -200,7 +206,9 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 
 **[CONFIRMED]** Not in the MVP: story mode, narrative, combat system, complex enemy AI, cooldowns, skill unlocks, multi-target mode, bosses, monetisation, Steam integration, advanced mobile UX, achievements, complicated score formulas, difficulty tiers.
 
-**No gameplay hints [CONFIRMED].** In normal play, never display: the Q/W/E recipe above the enemy, the required key sequence, recipe text, "press QQW"-style prompts, or spell-recipe overlays. Showing the *icons* of the currently invoked spells in D/F and the current orbs is normal UI, not a hint. (Only the development-only debug option of E-8 may reveal `TargetSkillId`.)
+**No *recipe* hints [CONFIRMED].** In normal play, never display: the Q/W/E recipe above the enemy, the required key sequence, recipe text, "press QQW"-style prompts, or spell-recipe overlays. Showing the *icons* of the currently invoked spells in D/F and the current orbs is normal UI, not a hint.
+
+**Target-skill hint [CONFIRMED, owner decision 2026-09-23 — reverses the previous "no hints" stance on `TargetSkillId`].** The enemy's required *skill name* (not its recipe) is now shown to every player at all times, per E-8. The player still has to know or work out the Q/W/E recipe for that skill themselves — only "which skill" is given, not "which keys".
 
 **[FUTURE]** A beginner mode may add hints. *Observation (not blocking):* with no hints and no reference in the game, the enemy↔spell mapping can only be learnt by trial and error; a beginner mode or an out-of-game reference would address this later.
 
@@ -262,7 +270,7 @@ Dependencies point one way: **Presentation → Practice → Core.** Keep it smal
 **None blocking.** Anything else the implementer needs (start values for speed/delay, hit-line position, initial sprite↔skill table, restart key) is a tunable/data choice covered by the RECOMMENDED rules above.
 
 ## 22. Former open decisions (v1) — how they were resolved
-R with <3 orbs (OD-3) → no-op, §4 · slot kept after cast (OD-6) → kept, S-5 · reset scope (OD-7) → Z-1 · how to know the target (OD-1) → by enemy appearance only, no hints, §2/§17 · one enemy at a time (OD-2) → yes, C-1 · enemy roster (OD-8) → E-3/E-7 · HP (OD-13) → 3, 1 per leak · accuracy (OD-14) → §13 · combo break (OD-12) → leak only · score (OD-11) → +1 · empty-slot/no-enemy casts (OD-4/5) → not counted, §9 · spawn timing (OD-9) → delay between challenges, §14 · selection (OD-10) → C-3 · difficulty (OD-15) → D-2..D-4 · start/restart (OD-16) → Z-3 · stats display (OD-17) → MVP displays the five stats; text-rendering method is an implementation choice · best combo persistence (OD-18) → persistent, §13 · key layouts (OD-19) → EC-18 · pause/focus (OD-20) → Z-4.
+R with <3 orbs (OD-3) → no-op, §4 · slot kept after cast (OD-6) → kept, S-5 · reset scope (OD-7) → Z-1 · how to know the target (OD-1) → by enemy appearance, plus an on-screen skill-name hint (not a recipe), §7 E-8/§17 · one enemy at a time (OD-2) → yes, C-1 · enemy roster (OD-8) → E-3/E-7 · HP (OD-13) → 3, 1 per leak · accuracy (OD-14) → §13 · combo break (OD-12) → leak only · score (OD-11) → +1 · empty-slot/no-enemy casts (OD-4/5) → not counted, §9 · spawn timing (OD-9) → delay between challenges, §14 · selection (OD-10) → C-3 · difficulty (OD-15) → D-2..D-4 · start/restart (OD-16) → Z-3 · stats display (OD-17) → MVP displays the five stats; text-rendering method is an implementation choice · best combo persistence (OD-18) → persistent, §13 · key layouts (OD-19) → EC-18 · pause/focus (OD-20) → Z-4.
 
 ## 23. Traceability to the current code
 
