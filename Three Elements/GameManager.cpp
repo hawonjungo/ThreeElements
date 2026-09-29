@@ -238,6 +238,12 @@ bool GameManager::RunFrame()
         {
             SaveRecordsSoFar();
         }
+        else if (m_event.type == SDL_WINDOWEVENT && m_event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+        {
+            // The drawable area changed (a phone rotating to landscape at start-up, the navigation bar hiding):
+            // centre the 928 x 544 game in the new size again instead of relying on the old letterbox.
+            SDL_RenderSetLogicalSize(m_screen, SCREEN_WIDTH, SCREEN_HEIGHT);
+        }
         else if (m_event.type == SDL_KEYDOWN)
         {
             HandleKeyDown(m_event, quit);
