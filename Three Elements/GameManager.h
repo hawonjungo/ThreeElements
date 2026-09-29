@@ -10,6 +10,7 @@
 #include "Enemy.h"
 #include "Keyboard.h"
 #include "Skill.h"
+#include "SkillVfx.h"
 #include "Core/Invoker.h"
 #include "Practice/Practice.h"
 #include <vector>
@@ -57,43 +58,7 @@ const Uint8 GHOST_WALK_ALPHA = 150;      // the ring's centre is a solid swirl: 
 const int PLAYER_BODY_CENTER_X = 121;
 const int PLAYER_BODY_CENTER_Y = 476;
 
-// TEST placeholders for the 8 skills that have no real effect yet (Practice judges every cast as it always
-// has; these are presentation only, same loading/animation approach as Tornado and Ghost Walk: one 4 x 4, 128 px,
-// 16-frame sheet per skill). One entry per invoker::SkillId; NULL for the two skills that already have their own
-// dedicated effect (Tornado, Ghost Walk). Not a new system: same struct-free table style as kEnemies/keyPaths.
-const char* const kPlaceholderVfxPath[invoker::SKILL_COUNT] =
-{
-	"assets/Skills/ColdSnap/coldsnap_vfx_16f.png",              // ColdSnap
-	NULL,                                                        // GhostWalk (own dedicated aura)
-	"assets/Skills/IceWall/icewall_vfx_16f.png",                // IceWall
-	"assets/Skills/EMP/emp_vfx_16f.png",                        // EMP
-	NULL,                                                        // Tornado (own dedicated projectile)
-	"assets/Skills/Alacrity/alacrity_vfx_16f.png",              // Alacrity
-	"assets/Skills/SunStrike/sunstrike_vfx_16f.png",            // SunStrike
-	"assets/Skills/ForgeSpirit/forgespirit_vfx_16f.png",        // ForgeSpirit
-	"assets/Skills/ChaosMeteor/chaosmeteor_vfx_16f.png",        // ChaosMeteor
-	"assets/Skills/DeafeningBlast/deafeningblast_vfx_16f.png",  // DeafeningBlast
-};
-// How long each placeholder stays on screen. 1.6 s plays the 16 frames once at 10 fps; longer durations hold the
-// last frame afterwards (Ice Wall keeps standing, the impact glow lingers a moment). Alacrity loops for 3 s.
-const float kPlaceholderVfxDuration[invoker::SKILL_COUNT] = { 1.6f, 0.0f, 3.0f, 1.8f, 0.0f, 3.0f, 1.8f, 1.6f, 2.0f, 1.4f };
-const bool  kPlaceholderVfxLoop[invoker::SKILL_COUNT]     = { false, false, false, false, false, true, false, false, false, false };
-// true = drawn on the player (self-cast effects); false = drawn where the enemy was when the skill was cast.
-// Forge Spirit joins Deafening Blast here now that it travels (a projectile has to start at the player).
-const bool  kPlaceholderVfxAtPlayer[invoker::SKILL_COUNT] = { false, false, false, false, false, true, false, true, false, true };
-// px/s a placeholder travels away from where it started, along the direction captured at cast time; 0 = stays
-// put. Standardized (2026-09-24) to Tornado's own TORNADO_SPEED (Practice.h): every projectile-style effect
-// in the game now travels at the same 700 px/s, instead of each placeholder guessing its own number.
-// Forge Spirit ('simple fire projectile') now actually travels, matching its description; it did not before.
-const float kPlaceholderVfxSpeed[invoker::SKILL_COUNT]    = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 700.0f, 0.0f, 700.0f };
-// true = the sprite is rotated (SDL_RenderCopyEx) to face its travel direction instead of drawn upright.
-const bool  kPlaceholderVfxRotates[invoker::SKILL_COUNT]  = { false, false, false, false, false, false, false, true, false, true };
-
-const int PLACEHOLDER_VFX_SHEET_COLUMNS = 4;
-const int PLACEHOLDER_VFX_FRAME_SIZE = 128;
-const int PLACEHOLDER_VFX_FRAME_COUNT = 16;
-const float PLACEHOLDER_VFX_FPS = 10.0f;
-const int PLACEHOLDER_VFX_DRAW_SIZE = 140;  // px on screen
+// The other 8 skills are drawn in code by SkillVfx.* (owner 2026-09-29; they replaced the TEST placeholder sheets).
 
 // Touch controls (mobile web): six buttons for Q/W/E/R/D/F, drawn with the six existing keyboard icons
 // (Keyboard class, assets/keyboard/*.png, already-loaded 2-frame 32x32 sheets) at a larger on-screen size.
@@ -134,6 +99,8 @@ const SDL_Rect TOUCH_READY_START_RECT    = { 264, 250, 400, 45 };  // "PRESS ENT
 const SDL_Rect TOUCH_READY_QUIT_RECT     = { 364, 375, 200, 30 };  // "ESC  QUIT"
 const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENTER TO RESTART"
 const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
+// Sound on/off button (all states), drawn under ACC on the left of the HUD; M toggles it on a keyboard.
+const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
@@ -173,13 +140,8 @@ protected:
 	SDL_Texture* m_ghostWalkSheet = NULL;                    // Ghost Walk aura, loaded once (NULL = not available)
 	float m_ghostWalkLeft = 0.0f;                            // seconds of aura left; 0 = no aura
 
-	// TEST placeholders (see kPlaceholderVfxPath above), one slot per SkillId; NULL / 0 = nothing to draw.
-	SDL_Texture* m_placeholderVfxSheet[invoker::SKILL_COUNT] = {};
-	float m_placeholderVfxLeft[invoker::SKILL_COUNT] = {};
-	int m_placeholderVfxX[invoker::SKILL_COUNT] = {};   // origin (where it was cast from)
-	int m_placeholderVfxY[invoker::SKILL_COUNT] = {};
-	float m_placeholderVfxDirX[invoker::SKILL_COUNT] = {};  // unit vector, captured once at cast time (no homing)
-	float m_placeholderVfxDirY[invoker::SKILL_COUNT] = {};
+	skillvfx::Effect m_skillVfx[invoker::SKILL_COUNT] = {};  // code-drawn skill effects, one per SkillId (left <= 0 = off)
+	int m_skillVfxCount = 0;                                   // casts so far, seeds each effect's particles
 
 	int m_topScores[10] = {};  // highest scores this browser/machine has seen, highest first
 	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topScores
@@ -200,7 +162,8 @@ protected:
 	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
 	Uint32 m_lastTick = 0;                // SDL_GetTicks() at the previous frame, for dt
 	bool m_hasPlayer = false;             // player sprite loaded
-	bool m_showTouchControls = false;     // touch device (web media query) or any finger touch seen; PC keeps it off
+	bool m_showTouchControls = false;
+	bool m_audioReady = false;            // an audio device was opened     // touch device (web media query) or any finger touch seen; PC keeps it off
 
 	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
 	// top-left corners (64 x 64). Both groups are symmetric around SCREEN_WIDTH / 2 = 464.
@@ -237,14 +200,16 @@ private:
 	void LogOutcome(practice::CastOutcome outcome);
 	bool LoadTornadoSheet();
 	bool LoadGhostWalkSheet();
-	bool LoadPlaceholderVfxSheets();
-	void StartPlaceholderVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody);
+	void StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody);
 	void ResetVisualEffects();
 	void LoadTopScores();
 	void SaveTopScores();
 	bool SubmitScore(int score);  // true if it entered the top 10
 	void LoadBests();
 	void SaveBests();
+	void LoadSettings();          // sound on/off, saved like the records
+	void SaveSettings();
+	void ToggleMute();
 	void EndSession();            // a session ended (Game Over or Esc while Playing): update and save the records
 
 	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy);  // "+1" / "MISS" feedback
@@ -257,13 +222,14 @@ private:
 	void RenderEnemy();
 	void RenderTornadoes();
 	void RenderGhostWalk();
-	void RenderPlaceholderVfx();
+	void RenderSkillVfx();
 	void RenderTouchControls();
 	void RenderInvokerHud();
 	void RenderStatsHud();
 	void RenderReadyScreen();
 	void RenderGameOverScreen();
 	void RenderTargetHint();
+	void RenderSoundButton();
 	void DimScreen(Uint8 alpha);
 };
 

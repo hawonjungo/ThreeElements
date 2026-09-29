@@ -73,6 +73,16 @@
     padding: 6px 8px; font: inherit; font-size: 11px; line-height: 1.2; text-align: center;
     color: #f2c14e; background: rgba(17, 20, 28, .85); border: 2px solid #f2c14e; border-radius: 8px;
   }
+  /* Visitor counter: a line under the canvas on desktop; on a phone in landscape a small badge in the top-right
+     letterbox bar (the title/hint lines are hidden there). Stays hidden until a number has arrived. */
+  #visitors { font-size: 12px; color: #8a93a8; }
+  @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+    #visitors {
+      position: fixed; z-index: 5; font-size: 11px; text-align: center; line-height: 1.3;
+      right: calc(6px + env(safe-area-inset-right)); top: calc(6px + env(safe-area-inset-top));
+    }
+    #visitors .label { display: block; font-size: 9px; }
+  }
   #fs-tip {
     position: fixed; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(360px, 90vw); padding: 14px; box-sizing: border-box; font-size: 13px; line-height: 1.5;
@@ -88,7 +98,8 @@
   </div>
   <div id="status"><span class="spinner" id="spinner"></span>Loading&hellip;</div>
   <progress hidden id="progress" max="100" value="0"></progress>
-  <div id="hint">Keyboard: Q/W/E orbs &middot; R invoke &middot; D/F cast &middot; Enter start &middot; Esc back/quit. On touch: use the on-screen buttons.</div>
+  <div id="hint">Keyboard: Q/W/E orbs &middot; R invoke &middot; D/F cast &middot; Enter start &middot; Esc back/quit &middot; M sound. On touch: use the on-screen buttons.</div>
+  <div id="visitors" hidden><span class="label">Visitors </span><span id="visitor-count"></span></div>
   <button id="fs-btn" type="button" hidden aria-label="Fullscreen"><span style="font-size:22px">&#x26F6;</span><br>Full</button>
   <div id="fs-tip" hidden>
     iPhone không cho web tự mở toàn màn hình. Hãy bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên) &rarr;
@@ -138,6 +149,37 @@
     document.addEventListener('fullscreenchange', updateFsButton);
     document.addEventListener('webkitfullscreenchange', updateFsButton);
     updateFsButton();
+
+    // Sound: browsers start Web Audio suspended until the first user gesture. SDL creates its AudioContext at
+    // start-up; resume it on the first tap / click / key (Enter to start is one), so the first sounds are heard.
+    var resumeAudio = () => {
+      try {
+        var ctx = Module.SDL2 && Module.SDL2.audioContext;
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+      } catch (e) {}
+    };
+    ['keydown', 'pointerdown', 'touchend'].forEach((type) => document.addEventListener(type, resumeAudio, true));
+
+    // Visitor counter through Abacus (abacus.jasoncameron.dev, a free counter API; GitHub Pages cannot count by
+    // itself). Each browser adds one, once: a localStorage flag marks it as counted, later visits only read the
+    // total. Only the published site counts; a local test build just reads the number. Nothing is sent but the
+    // request itself, and any failure simply leaves the counter hidden.
+    (() => {
+      var COUNTER = 'https://abacus.jasoncameron.dev/%s/threeelements-relifes/visitors';
+      var published = /(^|\.)relifes\.net$|github\.io$/.test(location.hostname);
+      var counted = false;
+      try { counted = localStorage.getItem('threeElements_counted') === '1'; } catch (e) {}
+      var action = published && !counted ? 'hit' : 'get';
+      fetch(COUNTER.replace('%s', action))
+        .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+        .then((data) => {
+          if (typeof data.value !== 'number') return;
+          if (action === 'hit') { try { localStorage.setItem('threeElements_counted', '1'); } catch (e) {} }
+          document.getElementById('visitor-count').textContent = data.value.toLocaleString();
+          document.getElementById('visitors').hidden = false;
+        })
+        .catch(() => {});
+    })();
 
     var setStatus = (text) => {
       if (!setStatus.last) setStatus.last = { time: Date.now(), text: '' };

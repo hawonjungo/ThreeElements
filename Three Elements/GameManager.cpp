@@ -7,6 +7,8 @@
 #include "Skill.h"
 #include "ImpTimer.h"
 #include "PixelText.h"
+#include "Draw.h"
+#include "Audio.h"
 #include <cmath>
 #include <cstdio>
 #include <ctime>
@@ -38,6 +40,11 @@ bool GameManager::InitSDL()
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
+    // Sound is optional: without an audio device the game runs silent instead of failing to start.
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
+        m_audioReady = audio::Init();
+    else
+        printf("SDL audio unavailable (%s): running without sound\n", SDL_GetError());
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
@@ -145,9 +152,9 @@ void GameManager::LoadAssets()
 
     LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
-    LoadPlaceholderVfxSheets();  // TEST placeholders for the 8 skills without a real effect yet
     LoadTopScores();
     LoadBests();
+    LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
     if (m_hasPlayer)
@@ -215,11 +222,14 @@ bool GameManager::RunFrame()
     if (update.leaked)
         OnLeak();
     if (update.gameOver)
+    {
         EndSession();
+        audio::Play(audio::Sfx::GameOver);
+    }
     UpdateFeedback(dt);
     m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
     for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
-        m_placeholderVfxLeft[vi] = m_placeholderVfxLeft[vi] > dt ? m_placeholderVfxLeft[vi] - dt : 0.0f;
+        m_skillVfx[vi].left = m_skillVfx[vi].left > dt ? m_skillVfx[vi].left - dt : 0.0f;
     for (int ei = 0; ei < practice::ENEMY_TYPE_COUNT; ++ei)
         m_enemySprites[ei].Update(dt);
 
@@ -250,7 +260,7 @@ bool GameManager::RunFrame()
     }
     RenderEnemy();
     RenderTornadoes();  // above the background, player and enemy, below the HUD
-    RenderPlaceholderVfx();  // TEST placeholders, drawn above everything else in the scene
+    RenderSkillVfx();   // code-drawn skill effects, above everything else in the scene
     RenderFeedback();   // "+1" / "MISS" and the defeat ring, part of the scene
     SDL_RenderSetViewport(m_screen, NULL);  // end of the (possibly shaken) scene
 
@@ -264,6 +274,7 @@ bool GameManager::RunFrame()
         RenderReadyScreen();
     else if (m_session.State() == practice::GameState::GameOver)
         RenderGameOverScreen();
+    RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
     SDL_RenderPresent(m_screen);
@@ -280,6 +291,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     SDL_Keycode sym = e.key.keysym.sym;
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE) { PressEscapeAction(quit); return; }
+    if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
     if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) { PressEnterAction(); return; }
 
     invoker::InputAction action;
@@ -297,6 +309,7 @@ void GameManager::PressEnterAction()
         ResetVisualEffects();
         m_lastBestUpdate = { false, false, false };
         printf("[practice] session started (seed %u)\n", seed);
+        audio::Play(audio::Sfx::Start);
     }
 }
 
@@ -327,6 +340,12 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     {
         return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
     };
+
+    if (hit(SOUND_BUTTON_RECT))  // sound on/off, in every state
+    {
+        ToggleMute();
+        return;
+    }
 
     switch (m_session.State())
     {
@@ -381,6 +400,16 @@ void GameManager::ProcessAction(invoker::InputAction action)
     default: break;
     }
 
+    // sounds: each orb has its element's sound, R only sounds when it really invoked, a judged cast sounds right /
+    // wrong (OnCastJudged), and a cast that is not judged at once (Tornado launch, no enemy) just whooshes
+    if (r.invoker.event == invoker::InvokerEvent::OrbAdded)
+        audio::Play(action == invoker::InputAction::Q ? audio::Sfx::OrbQuas
+            : action == invoker::InputAction::W ? audio::Sfx::OrbWex : audio::Sfx::OrbExort);
+    else if (r.invoker.event == invoker::InvokerEvent::Invoked)
+        audio::Play(audio::Sfx::Invoke);
+    else if (r.invoker.event == invoker::InvokerEvent::Cast && r.cast == practice::CastOutcome::None)
+        audio::Play(audio::Sfx::Cast);
+
     const invoker::InvokerState& inv = m_session.Invoker();
     const char* slotName = action == invoker::InputAction::D ? "D" : "F";
     if (r.invoker.event == invoker::InvokerEvent::Invoked)
@@ -402,7 +431,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
     if (r.invoker.event == invoker::InvokerEvent::Cast && r.invoker.skill == invoker::SkillId::GhostWalk)
         m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
     if (r.invoker.event == invoker::InvokerEvent::Cast)
-        StartPlaceholderVfx(r.invoker.skill, hadEnemy, enemyBody);  // no-op for skills with no placeholder
+        StartSkillVfx(r.invoker.skill, hadEnemy, enemyBody);  // no-op for Tornado / Ghost Walk (own effects)
 
     if (r.tornadoLaunched)
         printf("[practice] Tornado launched (judged when it hits the enemy)\n");
@@ -495,15 +524,6 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
 
 // ------------------------------------------------------------------ drawing
 
-// Filled disc, one horizontal line per row (SDL2 has no circle primitive).
-static void FillCircle(SDL_Renderer* renderer, int cx, int cy, int radius)
-{
-    for (int dy = -radius; dy <= radius; ++dy)
-    {
-        int dx = static_cast<int>(std::sqrt(static_cast<float>(radius * radius - dy * dy)));
-        SDL_RenderDrawLine(renderer, cx - dx, cy + dy, cx + dx, cy + dy);
-    }
-}
 
 // One active orb: a disc in its element colour (ice / lightning / fire) with a light core and its key letter.
 void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
@@ -511,13 +531,13 @@ void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
     SDL_Color c = kOrbColors[static_cast<int>(orb)];
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 70);   // soft glow
-    FillCircle(m_screen, centerX, centerY, 26);
+    draw::FillCircle(m_screen, centerX, centerY, 26);
     SDL_SetRenderDrawColor(m_screen, 10, 12, 18, 255);     // dark rim
-    FillCircle(m_screen, centerX, centerY, 20);
+    draw::FillCircle(m_screen, centerX, centerY, 20);
     SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 255);
-    FillCircle(m_screen, centerX, centerY, 18);
+    draw::FillCircle(m_screen, centerX, centerY, 18);
     SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);  // highlight, top-left
-    FillCircle(m_screen, centerX - 6, centerY - 6, 6);
+    draw::FillCircle(m_screen, centerX - 6, centerY - 6, 6);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
     const char* letter = orb == invoker::Orb::Quas ? "Q" : orb == invoker::Orb::Wex ? "W" : "E";
@@ -594,7 +614,7 @@ void GameManager::ResetVisualEffects()
 {
     m_ghostWalkLeft = 0.0f;
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-        m_placeholderVfxLeft[i] = 0.0f;
+        m_skillVfx[i].left = 0.0f;
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
         m_floatTexts[i].left = 0.0f;
     for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
@@ -614,6 +634,7 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
     const int margin = 60;
     int textX = cx < margin ? margin : (cx > SCREEN_WIDTH - margin ? SCREEN_WIDTH - margin : cx);
     bool correct = outcome == practice::CastOutcome::Correct;
+    audio::Play(correct ? audio::Sfx::CastCorrect : audio::Sfx::CastWrong);
     if (correct)
     {
         for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
@@ -646,6 +667,7 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
 // An enemy reached the player: a red frame, a short light shake, and the lost HP square blinks.
 void GameManager::OnLeak()
 {
+    audio::Play(audio::Sfx::Leak);
     m_leakFlashLeft = FEEDBACK_LEAK_FLASH;
     m_shakeLeft = FEEDBACK_SHAKE_TIME;
     m_hpBlinkLeft = FEEDBACK_HP_BLINK;
@@ -664,21 +686,6 @@ void GameManager::UpdateFeedback(float dt)
     m_hpBlinkLeft -= dt;
 }
 
-// Ring outline (three 1 px circles), as a closed polyline.
-static void DrawRing(SDL_Renderer* renderer, int cx, int cy, int radius)
-{
-    const int SEGMENTS = 40;
-    SDL_Point points[SEGMENTS + 1];
-    for (int w = 0; w < 3; ++w)
-    {
-        for (int i = 0; i <= SEGMENTS; ++i)
-        {
-            float a = 6.2831853f * i / SEGMENTS;
-            points[i] = { cx + static_cast<int>((radius + w) * std::cos(a)), cy + static_cast<int>((radius + w) * std::sin(a)) };
-        }
-        SDL_RenderDrawLines(renderer, points, SEGMENTS + 1);
-    }
-}
 
 void GameManager::RenderFeedback()
 {
@@ -690,8 +697,8 @@ void GameManager::RenderFeedback()
             continue;
         float progress = 1.0f - b.left / FEEDBACK_BURST_TIME;  // 0 -> 1
         SDL_SetRenderDrawColor(m_screen, 255, 215, 80, static_cast<Uint8>(220 * (1.0f - progress)));
-        DrawRing(m_screen, b.x, b.y, 12 + static_cast<int>(44 * progress));
-        DrawRing(m_screen, b.x, b.y, 6 + static_cast<int>(24 * progress));
+        draw::Ring(m_screen, b.x, b.y, 12 + static_cast<int>(44 * progress), 3);
+        draw::Ring(m_screen, b.x, b.y, 6 + static_cast<int>(24 * progress), 3);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
@@ -846,79 +853,97 @@ void GameManager::EndSession()
     }
 }
 
-// Loads the 8 TEST placeholder sheets the same way LoadTornadoSheet() loads Tornado's: no colour key, exact
-// 4 x 4 / 128 px size check. A missing or wrong-sized sheet just means that one skill draws nothing; the others
-// and the rest of the game are unaffected.
-bool GameManager::LoadPlaceholderVfxSheets()
+// Sound on/off, remembered like the records: settings.txt next to the exe on desktop, localStorage on the web.
+void GameManager::LoadSettings()
 {
-    bool allOk = true;
-    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    int muted = 0;
+#ifdef __EMSCRIPTEN__
+    muted = EM_ASM_INT({
+        try { return localStorage.getItem('threeElements_muted') === '1' ? 1 : 0; } catch (e) { return 0; }
+    });
+#else
+    FILE* f = fopen("settings.txt", "r");
+    if (f != NULL)
     {
-        const char* path = kPlaceholderVfxPath[i];
-        if (path == NULL)
-            continue;
-
-        SDL_Surface* surface = IMG_Load(path);
-        if (surface == NULL)
-        {
-            printf("Failed to load placeholder VFX %s: %s\n", path, IMG_GetError());
-            allOk = false;
-            continue;
-        }
-        const int size = PLACEHOLDER_VFX_SHEET_COLUMNS * PLACEHOLDER_VFX_FRAME_SIZE;
-        if (surface->w == size && surface->h == size)
-            m_placeholderVfxSheet[i] = SDL_CreateTextureFromSurface(m_screen, surface);
-        else
-            printf("Placeholder VFX %s is %dx%d, expected %dx%d: not used\n", path, surface->w, surface->h, size, size);
-        SDL_FreeSurface(surface);
-
-        if (m_placeholderVfxSheet[i] == NULL)
-            allOk = false;
-        else
-        {
-            SDL_SetTextureBlendMode(m_placeholderVfxSheet[i], SDL_BLENDMODE_BLEND);
-            SDL_SetTextureScaleMode(m_placeholderVfxSheet[i], SDL_ScaleModeNearest);
-        }
+        if (fscanf(f, "muted %d", &muted) != 1)
+            muted = 0;
+        fclose(f);
     }
-    return allOk;
+#endif
+    audio::SetMuted(muted != 0);
 }
 
-// Starts (or restarts) the placeholder for `skill`, if it has one. Enemy-targeted placeholders, and any that
-// travel (speed > 0, so they need a direction to travel in), need an enemy to aim at (`hadEnemy`); with none,
-// nothing is shown or started, same convention as casting into an empty encounter.
-void GameManager::StartPlaceholderVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody)
+void GameManager::SaveSettings()
+{
+    int muted = audio::IsMuted() ? 1 : 0;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try { localStorage.setItem('threeElements_muted', $0 ? '1' : '0'); } catch (e) {}
+    }, muted);
+#else
+    FILE* f = fopen("settings.txt", "w");
+    if (f != NULL)
+    {
+        fprintf(f, "muted %d\n", muted);
+        fclose(f);
+    }
+#endif
+}
+
+void GameManager::ToggleMute()
+{
+    audio::SetMuted(!audio::IsMuted());
+    SaveSettings();
+    printf("[audio] sound %s\n", audio::IsMuted() ? "off" : "on");
+}
+
+// "SOUND ON" / "SOUND OFF" under ACC (tap or click it, or press M). Hidden when there is no audio device at all.
+void GameManager::RenderSoundButton()
+{
+    if (!m_audioReady)
+        return;
+    const SDL_Rect& r = SOUND_BUTTON_RECT;
+    bool muted = audio::IsMuted();
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 160);
+    SDL_RenderFillRect(m_screen, &r);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);
+    SDL_RenderDrawRect(m_screen, &r);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const char* label = muted ? "SOUND OFF" : "SOUND ON";
+    const SDL_Color on = { 200, 235, 200, 255 };
+    const SDL_Color off = { 170, 170, 180, 255 };
+    pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 1)) / 2, r.y + (r.h - 7) / 2, 1,
+        muted ? off : on);
+}
+
+// Starts (or restarts) the code-drawn effect of `skill`, if it has one (see SkillVfx.h). An effect placed on the
+// enemy or aimed at it needs an enemy: with none, nothing is shown, same convention as casting into an empty
+// encounter. The direction toward the enemy is captured once here (no homing).
+void GameManager::StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody)
 {
     int i = static_cast<int>(skill);
-    if (i < 0 || i >= invoker::SKILL_COUNT || m_placeholderVfxSheet[i] == NULL)
-        return;
-    bool needsEnemy = !kPlaceholderVfxAtPlayer[i] || kPlaceholderVfxSpeed[i] > 0.0f;
-    if (needsEnemy && !hadEnemy)
+    if (!skillvfx::HasEffect(skill) || (skillvfx::NeedsEnemy(skill) && !hadEnemy))
         return;
 
-    m_placeholderVfxLeft[i] = kPlaceholderVfxDuration[i];
-    if (kPlaceholderVfxAtPlayer[i])
-    {
-        m_placeholderVfxX[i] = PLAYER_BODY_CENTER_X;
-        m_placeholderVfxY[i] = PLAYER_BODY_CENTER_Y;
-    }
-    else
-    {
-        m_placeholderVfxX[i] = static_cast<int>(enemyBody.x + enemyBody.w * 0.5f);
-        m_placeholderVfxY[i] = static_cast<int>(enemyBody.y + enemyBody.h * 0.5f);
-    }
-
-    // Direction from the origin toward the enemy, captured once here: fixed for the life of the effect (no homing).
-    m_placeholderVfxDirX[i] = 1.0f;
-    m_placeholderVfxDirY[i] = 0.0f;
+    skillvfx::Effect& e = m_skillVfx[i];
+    int enemyX = static_cast<int>(enemyBody.x + enemyBody.w * 0.5f);
+    int enemyY = static_cast<int>(enemyBody.y + enemyBody.h * 0.5f);
+    e.left = skillvfx::Duration(skill);
+    e.x = skillvfx::StartsAtPlayer(skill) ? PLAYER_BODY_CENTER_X : enemyX;
+    e.y = skillvfx::StartsAtPlayer(skill) ? PLAYER_BODY_CENTER_Y : enemyY;
+    e.seed = ++m_skillVfxCount;
+    e.dirX = 1.0f;
+    e.dirY = 0.0f;
     if (hadEnemy)
     {
-        float dx = (enemyBody.x + enemyBody.w * 0.5f) - m_placeholderVfxX[i];
-        float dy = (enemyBody.y + enemyBody.h * 0.5f) - m_placeholderVfxY[i];
+        float dx = static_cast<float>(enemyX - e.x);
+        float dy = static_cast<float>(enemyY - e.y);
         float len = std::sqrt(dx * dx + dy * dy);
         if (len > 1.0f)
         {
-            m_placeholderVfxDirX[i] = dx / len;
-            m_placeholderVfxDirY[i] = dy / len;
+            e.dirX = dx / len;
+            e.dirY = dy / len;
         }
     }
 }
@@ -960,46 +985,11 @@ void GameManager::RenderGhostWalk()
     SDL_RenderCopy(m_screen, m_ghostWalkSheet, &src, &dst);
 }
 
-// The 8 TEST placeholders: one non-looping (or looping, for Alacrity) animation each, drawn at the position and
-// for the duration StartPlaceholderVfx() set. Nothing is drawn once its time runs out.
-void GameManager::RenderPlaceholderVfx()
+// The code-drawn skill effects, each for as long as StartSkillVfx() set.
+void GameManager::RenderSkillVfx()
 {
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-    {
-        if (m_placeholderVfxSheet[i] == NULL || m_placeholderVfxLeft[i] <= 0.0f)
-            continue;
-
-        float age = kPlaceholderVfxDuration[i] - m_placeholderVfxLeft[i];
-        int frame = static_cast<int>(age * PLACEHOLDER_VFX_FPS);
-        if (kPlaceholderVfxLoop[i])
-            frame %= PLACEHOLDER_VFX_FRAME_COUNT;
-        else if (frame >= PLACEHOLDER_VFX_FRAME_COUNT)
-            frame = PLACEHOLDER_VFX_FRAME_COUNT - 1;  // hold the last frame instead of disappearing early
-
-        SDL_Rect src = { (frame % PLACEHOLDER_VFX_SHEET_COLUMNS) * PLACEHOLDER_VFX_FRAME_SIZE,
-            (frame / PLACEHOLDER_VFX_SHEET_COLUMNS) * PLACEHOLDER_VFX_FRAME_SIZE,
-            PLACEHOLDER_VFX_FRAME_SIZE, PLACEHOLDER_VFX_FRAME_SIZE };
-
-        // Travels in a straight line from where it was cast, at a fixed speed: 0 for every placeholder except
-        // Deafening Blast, so this is a no-op (px/py == the cast position) for the other seven.
-        float travelled = kPlaceholderVfxSpeed[i] * age;
-        int px = m_placeholderVfxX[i] + static_cast<int>(m_placeholderVfxDirX[i] * travelled);
-        int py = m_placeholderVfxY[i] + static_cast<int>(m_placeholderVfxDirY[i] * travelled);
-        SDL_Rect dst = { px - PLACEHOLDER_VFX_DRAW_SIZE / 2, py - PLACEHOLDER_VFX_DRAW_SIZE / 2,
-            PLACEHOLDER_VFX_DRAW_SIZE, PLACEHOLDER_VFX_DRAW_SIZE };
-
-        if (kPlaceholderVfxRotates[i])
-        {
-            // The art is authored facing local +x ("forward"); rotating it to (dirX, dirY) points it at the enemy.
-            // SDL's angle is degrees, clockwise, which is exactly atan2(dy, dx) in screen space (y grows downward).
-            double angle = std::atan2(m_placeholderVfxDirY[i], m_placeholderVfxDirX[i]) * (180.0 / 3.14159265358979323846);
-            SDL_RenderCopyEx(m_screen, m_placeholderVfxSheet[i], &src, &dst, angle, NULL, SDL_FLIP_NONE);
-        }
-        else
-        {
-            SDL_RenderCopy(m_screen, m_placeholderVfxSheet[i], &src, &dst);
-        }
-    }
+        skillvfx::Render(m_screen, static_cast<invoker::SkillId>(i), m_skillVfx[i]);
 }
 
 // Current Q/W/E orbs and the two invoked spells (D = newest, F = previous). Never shows recipes or targets.
@@ -1016,9 +1006,9 @@ void GameManager::RenderInvokerHud()
     for (int i = inv.OrbCount(); i < 3; ++i)
     {
         SDL_SetRenderDrawColor(m_screen, 200, 200, 210, 90);
-        FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 20);
+        draw::FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 20);
         SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 140);
-        FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 17);
+        draw::FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 17);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     for (int i = 0; i < inv.OrbCount(); ++i)
@@ -1273,14 +1263,7 @@ void GameManager::Close()
         SDL_DestroyTexture(m_ghostWalkSheet);
         m_ghostWalkSheet = NULL;
     }
-    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-    {
-        if (m_placeholderVfxSheet[i] != NULL)
-        {
-            SDL_DestroyTexture(m_placeholderVfxSheet[i]);
-            m_placeholderVfxSheet[i] = NULL;
-        }
-    }
+    audio::Shutdown();
 
     SDL_DestroyRenderer(m_screen);
     m_screen = NULL;
