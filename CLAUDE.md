@@ -1,6 +1,6 @@
 # Three Elements — tài liệu bàn giao cho agent
 
-> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-28: Phase 3 xong và đã có **bản web chạy trên điện thoại** (http://3elements.relifes.net). Mọi việc làm trên nhánh **`main`**; nhánh `gh-pages` chỉ chứa bản web đã build. Debug và Release x64 lẫn bản web đều đã được build và chạy thử.
+> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-28: Phase 3 xong và đã có **bản web chạy trên điện thoại** (http://3elements.relifes.net). Mọi việc làm trên nhánh **`main`**; nhánh `gh-pages` chỉ chứa bản web đã build. Repo chỉ còn đúng hai nhánh này (các nhánh cũ đã xóa 2026-09-29). Debug và Release x64 lẫn bản web đều đã được build và chạy thử.
 
 **Đọc theo thứ tự này trước khi sửa code:**
 
@@ -104,7 +104,7 @@ Tài nguyên trong `assets/`:
 - `background/`: 12 lớp parallax
 - `enemies/`: 13 sprite, **10 đang dùng** (mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run + dark_wiz, kitsune_run, knight_run thêm ở Phase 3); chưa dùng: bat_fly, mush (trùng nấm), nec_walk_bg (trùng nec_walk)
 - `keyboard/`: icon Q W E R D F
-- `skill/`: 10 icon skill (`Tornado.png` là icon) + thư mục `Skills/Tornado/` (cạnh `skill/`, đã được code dùng) chứa `tornado_vfx_16f.png`, sheet hiệu ứng Tornado 512×512 (4×4 frame 128×128, nền trong suốt) và `tornado_icon.png` (chưa dùng)
+- `skill/`: 10 icon skill (`Tornado.png` là icon). `Skills/` (cạnh `skill/`) chỉ còn 2 thư mục sprite hiệu ứng: `Tornado/` (`tornado_vfx_16f.png`, sheet 512×512, 4×4 frame 128×128, nền trong suốt; `tornado_icon.png` chưa dùng) và `Ghost/` (`Ghost Walk-spritesheet.png`; `Ghost.png` chưa dùng)
 - `main.bmp`: sprite người chơi
 
 ## 5. Đã làm được
@@ -115,7 +115,7 @@ Tài nguyên trong `assets/`:
 - **Điều khiển:** Q/W/E/R/D/F chơi. **Ready:** Enter bắt đầu, Esc thoát app. **Playing:** Esc về Ready (phiên bị dừng và reset, kỷ lục best combo giữ nguyên), Enter bị bỏ qua. **Game Over:** Enter bắt đầu phiên mới, Esc về Ready. Không có pause. Luật Enter/Esc nằm trong `PracticeSession::PressEnter/PressEscape` (có test). Phím giữ (auto-repeat) không còn tạo nhiều lần bấm.
 - **Tornado (hiệu ứng thật đầu tiên):** cast Tornado từ D hoặc F (nhận theo `SkillId` trong ô) bắn ra một quả cầu lốc từ người chơi về phía quái, hướng chốt một lần lúc bắn (không tự dẫn), bay thẳng theo `dt` (700 px/s). **Chỉ được chấm khi trúng con quái đã bị nhắm tới**, qua đúng đường chấm điểm cũ (`PracticeSession::JudgeCast`): trúng quái cần Tornado thì quái biến mất, điểm và combo +1 đúng một lần; trúng quái cần skill khác thì là **1 cast sai** (quái vẫn sống, HP không đổi, combo/điểm/độ chính xác theo luật cast sai thường); **trượt thì không đổi gì** (không combo, điểm, độ chính xác, HP). Không có quái thì không bắn và không tính cast. **Không giới hạn số projectile cùng lúc** (mỗi cast hợp lệ tạo đúng một quả). Animation lặp 0→15→0 khi projectile còn sống. Logic ở `Practice/Practice.*` (hàm thuần, có test), vẽ ở `GameManager::RenderTornadoes` (16 frame, 10 fps, nearest-neighbour, dưới HUD). Giá trị là tuning ban đầu.
 - **Gợi ý tên skill (2026-09-23, quyết định chủ project):** HUD luôn hiện "TARGET: <tên skill>" ở góc trên phải cho mọi người chơi, mọi bản build (native lẫn web), không cần `--debug` (`GameManager::RenderTargetHint`). Vẫn **không** hiện recipe/phím cần bấm. Chạy `"Three Elements.exe" --debug` (chỉ để phát triển) vẫn thêm dòng log `[debug] ... target ... recipe ...` ra console, không ảnh hưởng HUD.
-- **Hiệu ứng skill (2026-09-29):** Tornado và Ghost Walk dùng sprite riêng; 8 skill còn lại vẽ bằng code theo kiểu Dota (`SkillVfx.*`): Cold Snap mảnh băng, Ice Wall hàng cột băng, EMP cầu điện tím rồi nổ, Alacrity hào quang cam-tím, Sun Strike cột sáng vàng, Forge Spirit cầu lửa bay, Chaos Meteor thiên thạch rơi rồi nổ, Deafening Blast sóng vòng cung. Chỉ để trình bày; Practice chấm cast như cũ. Projectile bay 700 px/s. Các sheet hiệu ứng tạm cũ (`assets/Skills/<skill>/*_vfx_16f.png` của 8 skill) **không còn được dùng**.
+- **Hiệu ứng skill (2026-09-29):** Tornado và Ghost Walk dùng sprite riêng; 8 skill còn lại vẽ bằng code theo kiểu Dota (`SkillVfx.*`): Cold Snap mảnh băng, Ice Wall hàng cột băng, EMP cầu điện tím rồi nổ, Alacrity hào quang cam-tím, Sun Strike cột sáng vàng, Forge Spirit cầu lửa bay, Chaos Meteor thiên thạch rơi rồi nổ, Deafening Blast sóng vòng cung. Chỉ để trình bày; Practice chấm cast như cũ. Projectile bay 700 px/s. Các sheet hiệu ứng tạm cũ của 8 skill đã bị xóa (2026-09-29).
 - **Âm thanh (2026-09-29):** mỗi orb một tiếng (Q chuông băng, W tiếng điện, E tiếng lửa), R invoke, cast đúng/sai, cast chưa chấm (whoosh), mất máu, Game Over, bắt đầu phiên. Nút "SOUND ON/OFF" dưới ACC (chạm/click) hoặc phím **M**; lựa chọn lưu ở `settings.txt` (PC) / `localStorage` (web). Trên web, `shell.html` đánh thức AudioContext ở lần chạm/phím đầu tiên (trình duyệt bắt buộc).
 - **Đếm lượt truy cập (web, 2026-09-29):** `shell.html` gọi dịch vụ miễn phí Abacus (`abacus.jasoncameron.dev`, khóa `threeelements-relifes/visitors`); mỗi trình duyệt chỉ cộng 1 lần (cờ `localStorage`), chỉ trang thật (relifes.net / github.io) mới cộng, bản chạy thử chỉ đọc. Hiện dưới canvas trên PC, ở góc trên phải (dải đen) khi điện thoại nằm ngang. Dịch vụ lỗi thì bộ đếm tự ẩn. Ai cũng gọi được API này nên con số chỉ mang tính tham khảo.
 - **HUD (2026-09-23, quyết định chủ project):** orb Q/W/E vẽ thành hình tròn màu (Quas xanh băng, Wex tím điện, Exort cam lửa, `kOrbColors`), ô trống là vòng mờ; orb và ô D/F nằm giữa màn hình và chỉ hiện khi đang chơi.
@@ -126,7 +126,8 @@ Tài nguyên trong `assets/`:
 
 ## 6. Chưa có (phần việc còn lại)
 
-- **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, animation người chơi, nhạc nền, cài đặt (âm lượng), cân bằng độ khó.
+- **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, animation người chơi, cài đặt (âm lượng). **Không làm nhạc nền** (chủ project, 2026-09-29).
+- **Độ khó:** chủ project thấy giá trị hiện tại ổn (2026-09-29); **hoãn cân bằng** tới khi làm background thay đổi theo độ khó, rồi chỉnh cả hai cùng lúc.
 - **Nền tảng:** bản web đã chạy (chưa có CMake); app Android riêng, PC/Steam.
 - **Sau MVP:** chiến đấu, cốt truyện Threne, nhiều mục tiêu, chế độ người mới có gợi ý.
 

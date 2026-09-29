@@ -14,7 +14,7 @@ Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code b
 | 3 | Practice Gameplay | **Committed (`a76802e`) + review round (`fix: refine practice session lifecycle`); awaiting owner review** |
 | 4 | Game Loop / Input / State readiness | **Mostly done** (frame step, dt-based animation; asset-path helper and ownership clean-up left) |
 | 5 | Web MVP (GitHub Pages) | **Mostly done** (live at http://3elements.relifes.net, `web/build.sh`; no CMake yet, HTTPS cert pending) |
-| 6 | UX / Audio / Game Feel | **In progress** (records, feedback, sound effects, code-drawn skill effects done; tuning, music, HUD polish left) |
+| 6 | UX / Audio / Game Feel | **Mostly done** (records, feedback, sound effects, code-drawn skill effects; tuning deferred to the difficulty backgrounds, HUD polish left) |
 | 7 | Android | placeholder |
 | 8 | Future Combat / Story | placeholder, not started |
 | 9 | PC / Steam | placeholder, conditional |
@@ -108,8 +108,8 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 - [x] Sound effects (`Audio.*`): synthesised in code at start-up, mixed in an SDL audio callback, no SDL_mixer and no sound files; web audio unlocked on the first gesture; SOUND ON/OFF button + M key, remembered.
 - [x] Code-drawn effects for the 8 skills that used TEST placeholder sheets (`SkillVfx.*`, `Draw.*`).
 - [x] Web visitor counter (`web/shell.html`, Abacus API, one count per browser).
-- [ ] Background music (optional).
-- [ ] Difficulty tuning from playtesting.
+- [-] Background music: **not wanted** (owner, 2026-09-29).
+- [ ] Difficulty tuning: **deferred** (owner, 2026-09-29: current values feel fine). Do it together with the planned difficulty-dependent backgrounds.
 - [ ] Text rendering / HUD polish, pixel-art polish (integer scaling, background aspect). No recipe hints in normal play.
 
 ### Phase 7 — Android
@@ -134,3 +134,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-28 — **Phase 4/5 clean-up:** frame step `RunFrame()` + browser-driven main loop (ASYNCIFY dropped), dt-based enemy animation and parallax, desktop cap 25 → 60 FPS, `web/build.sh` (build + verified deploy), docs updated, work consolidated on `main`.
 - 2026-09-28 — **Phase 6 (part 1):** persistent records (Best Score / Combo / Survival Time, `MergeBests`, 12 new checks → Practice tests 876) and light hit/miss/leak feedback; pixel font gains `!` and `+`.
 - 2026-09-29 — **Phase 6 (part 2):** synthesised sound effects with mute, code-drawn effects for 8 skills (placeholder sheets no longer used), web visitor counter.
+- 2026-09-29 — Clean-up: the 8 unused placeholder VFX sheets deleted; branches `phase-2-invoker-core`, `backU`, `Jun2024` deleted (all work is on `main`). Owner decisions: no background music; difficulty tuning waits for difficulty-dependent backgrounds.
