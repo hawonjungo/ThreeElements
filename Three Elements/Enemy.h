@@ -1,36 +1,27 @@
-
 #ifndef ENEMY_OBJECT_H_
 #define ENEMY_OBJECT_H_
 
 #include "BaseObject.h"
-#include <vector>
 
 
 
 // Walk-cycle speed in sprite frames per second: the old code advanced one frame per rendered frame at 25 FPS.
 const float ENEMY_ANIM_FPS = 25.0f;
 
-class EnemyObject : public BaseObject 
+// An enemy's sprite sheet and walk cycle. The frame data (clips, frame size, current frame) is BaseObject's own;
+// where the enemy is comes from the Practice session.
+class EnemyObject : public BaseObject
 {
 public:
 
 	EnemyObject();
 	~EnemyObject();
 
-	bool LoadImg(std::string path, SDL_Renderer* screen,int frame_num);
-	void set_clips();
+	bool LoadImg(std::string path, SDL_Renderer* screen, int frame_num);  // horizontal sheet of frame_num frames
 	void Update(float dt);  // advances the walk cycle by real time (seconds)
-	void Render(SDL_Renderer* screen);
-	void SetPos(int x, int y) {
-		rect_.x = x; rect_.y = y;
-	}
+	void Render(SDL_Renderer* screen);  // mirrored: the sheets face right, the enemies walk left
 private:
-	int currentFrame_;
 	float animTime_;  // seconds accumulated towards the next frame
-	int frame_num_;
-	std::vector<SDL_Rect> frame_clip_;
-	int width_frame_;  // for 1 frame
-	int height_frame_; // for 1 frame
 };
 
 

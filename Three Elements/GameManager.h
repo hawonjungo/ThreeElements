@@ -26,6 +26,11 @@ const float MAX_FRAME_DT = 0.1f;  // s; a longer gap (tab hidden, debugger pause
 // Parallax scrolling in real time; reproduces the old per-frame speed at 25 FPS (layer i moved 0.1 * (i + 1) px
 // per frame). The enemy walk-cycle speed is ENEMY_ANIM_FPS in Enemy.h.
 const float BACKGROUND_LAYER_SPEED = 2.5f;  // px/s for layer 0; layer i scrolls at (i + 1) times this
+// The layers are 928 x 793. They used to be squashed into 928 x 544; now a 544 px band is cut out unscaled instead.
+// Row 729 of the source (the top of the ground) lands on y = 500 = practice::GROUND_LINE_Y, where it was before,
+// so the enemies and the player still stand on the ground.
+const int BACKGROUND_SOURCE_HEIGHT = 793;
+const int BACKGROUND_CROP_Y = 229;
 
 const int RENDER_DRAW_COLOR = 0Xff;
 
@@ -57,6 +62,11 @@ const Uint8 GHOST_WALK_ALPHA = 150;      // the ring's centre is a solid swirl: 
 // Centre of the player's visible body (the sprite is drawn at (10, 385)); shared by every effect drawn on the player.
 const int PLAYER_BODY_CENTER_X = 121;
 const int PLAYER_BODY_CENTER_Y = 476;
+
+// Skill icons (assets/skill, 128 px RGBA made by art/make_skill_icons.py) are drawn scaled to these sizes.
+const int SKILL_SLOT_SIZE = 64;     // D / F slots
+const int SKILL_HINT_SIZE = 40;     // next to "TARGET: <name>"
+const int SKILL_RECIPE_SIZE = 40;   // recipe reference list
 
 // The other 8 skills are drawn in code by SkillVfx.* (owner 2026-09-29; they replaced the TEST placeholder sheets).
 
@@ -101,6 +111,10 @@ const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENT
 const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
 // Sound on/off button (all states), drawn under ACC on the left of the HUD; M toggles it on a keyboard.
 const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
+// Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
+// while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
+const SDL_Rect RECIPES_BUTTON_READY_RECT    = { 344, 420, 240, 36 };
+const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 344, 430, 240, 36 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
@@ -163,7 +177,8 @@ protected:
 	Uint32 m_lastTick = 0;                // SDL_GetTicks() at the previous frame, for dt
 	bool m_hasPlayer = false;             // player sprite loaded
 	bool m_showTouchControls = false;
-	bool m_audioReady = false;            // an audio device was opened     // touch device (web media query) or any finger touch seen; PC keeps it off
+	bool m_audioReady = false;            // an audio device was opened
+	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over only)     // touch device (web media query) or any finger touch seen; PC keeps it off
 
 	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
 	// top-left corners (64 x 64). Both groups are symmetric around SCREEN_WIDTH / 2 = 464.
@@ -230,6 +245,9 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
+	void RenderRecipesButton(const SDL_Rect& rect);
+	void RenderRecipes();
+	void RenderSmallOrb(invoker::Orb orb, int centerX, int centerY);
 	void DimScreen(Uint8 alpha);
 };
 

@@ -24,6 +24,12 @@ GameManager::GameManager()
 {
     m_window = NULL;
     m_screen = NULL;
+    for (int i = 0; i < 12; ++i)
+    {
+        backgroundLayers[i] = NULL;  // Close() frees whichever layers were loaded
+        backgroundPositions[i] = 0.0f;
+        backgroundSpeeds[i] = 0.0f;
+    }
 
 }
 
@@ -46,7 +52,9 @@ bool GameManager::InitSDL()
     else
         printf("SDL audio unavailable (%s): running without sound\n", SDL_GetError());
 
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+    // Nearest-neighbour scaling for everything by default: this is pixel art (the old "1" = linear blurred every
+    // scaled sprite). Only the painted skill icons opt into smoothing (Skill::LoadIcon).
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
     m_window = SDL_CreateWindow("Three Elements",
         SDL_WINDOWPOS_UNDEFINED,
@@ -136,8 +144,7 @@ void GameManager::LoadAssets()
     // skill icons: one sprite per Core skill, indexed by SkillId; icon paths come from Core
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
     {
-        m_skillIcons[i].LoadImg(invoker::GetSkillDefinition(static_cast<invoker::SkillId>(i)).icon, m_screen);
-        m_skillIcons[i].set_clips();
+        m_skillIcons[i].LoadIcon(invoker::GetSkillDefinition(static_cast<invoker::SkillId>(i)).icon, m_screen);
     }
 
     // enemy sprites: one per Practice enemy definition, loaded once (not on every spawn)
@@ -274,6 +281,8 @@ bool GameManager::RunFrame()
         RenderReadyScreen();
     else if (m_session.State() == practice::GameState::GameOver)
         RenderGameOverScreen();
+    if (m_showRecipes && m_session.State() != practice::GameState::Playing)
+        RenderRecipes();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -289,6 +298,12 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
 
     SDL_Keycode sym = e.key.keysym.sym;
+    if (m_showRecipes)  // the recipe reference is open: any key just closes it
+    {
+        m_showRecipes = false;
+        return;
+    }
+    if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE) { PressEscapeAction(quit); return; }
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
@@ -344,6 +359,17 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (hit(SOUND_BUTTON_RECT))  // sound on/off, in every state
     {
         ToggleMute();
+        return;
+    }
+    if (m_showRecipes)  // the recipe reference is open: a tap anywhere closes it
+    {
+        m_showRecipes = false;
+        return;
+    }
+    if ((m_session.State() == practice::GameState::Ready && hit(RECIPES_BUTTON_READY_RECT)) ||
+        (m_session.State() == practice::GameState::GameOver && hit(RECIPES_BUTTON_GAMEOVER_RECT)))
+    {
+        m_showRecipes = true;
         return;
     }
 
@@ -917,6 +943,77 @@ void GameManager::RenderSoundButton()
         muted ? off : on);
 }
 
+// "RECIPES (H)" button on the Ready / Game Over screens.
+void GameManager::RenderRecipesButton(const SDL_Rect& rect)
+{
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 200);
+    SDL_RenderFillRect(m_screen, &rect);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &rect);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const char* label = "RECIPES  (H)";
+    pixeltext::DrawShadowed(m_screen, label, rect.x + (rect.w - pixeltext::Width(label, 2)) / 2, rect.y + (rect.h - 14) / 2, 2, gold);
+}
+
+// A small orb for the recipe list: element colour, dark rim, key letter.
+void GameManager::RenderSmallOrb(invoker::Orb orb, int centerX, int centerY)
+{
+    SDL_Color c = kOrbColors[static_cast<int>(orb)];
+    SDL_SetRenderDrawColor(m_screen, 10, 12, 18, 255);
+    draw::FillCircle(m_screen, centerX, centerY, 11);
+    SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 255);
+    draw::FillCircle(m_screen, centerX, centerY, 9);
+    const char* letter = orb == invoker::Orb::Quas ? "Q" : orb == invoker::Orb::Wex ? "W" : "E";
+    const SDL_Color white = { 255, 255, 255, 255 };
+    pixeltext::DrawShadowed(m_screen, letter, centerX - pixeltext::Width(letter, 1) / 2, centerY - 3, 1, white);
+}
+
+// The recipe reference (spec §17: allowed outside play only): the 10 skills in catalog order, two columns of
+// five, each with its icon, name and the three orbs it needs.
+void GameManager::RenderRecipes()
+{
+    DimScreen(190);
+    const SDL_Rect panel = { 64, 36, SCREEN_WIDTH - 128, SCREEN_HEIGHT - 72 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 235);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color grey = { 170, 170, 185, 255 };
+    pixeltext::DrawCentered(m_screen, "RECIPES", SCREEN_WIDTH, panel.y + 18, 3, gold);
+
+    const int top = panel.y + 66;
+    const int rowHeight = 74;
+    const int columnX[2] = { panel.x + 48, panel.x + panel.w / 2 + 24 };
+    for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+    {
+        const invoker::SkillDefinition& def = invoker::GetSkillDefinition(static_cast<invoker::SkillId>(i));
+        int x = columnX[i / 5];
+        int y = top + (i % 5) * rowHeight;
+        m_skillIcons[i].RenderAt(m_screen, x, y, SKILL_RECIPE_SIZE);
+        pixeltext::DrawShadowed(m_screen, def.name, x + SKILL_RECIPE_SIZE + 14, y + 2, 2, white);
+
+        // the orbs in a fixed Q, W, E order (the order never matters in play, only the counts do)
+        int orbX = x + SKILL_RECIPE_SIZE + 14 + 11;
+        const int counts[3] = { def.recipe.quas, def.recipe.wex, def.recipe.exort };
+        for (int element = 0; element < 3; ++element)
+        {
+            for (int n = 0; n < counts[element]; ++n)
+            {
+                RenderSmallOrb(static_cast<invoker::Orb>(element), orbX, y + 32);
+                orbX += 26;
+            }
+        }
+    }
+    pixeltext::DrawCentered(m_screen, "PRESS ANY KEY OR TAP TO CLOSE", SCREEN_WIDTH, panel.y + panel.h - 26, 2, grey);
+}
+
 // Starts (or restarts) the code-drawn effect of `skill`, if it has one (see SkillVfx.h). An effect placed on the
 // enemy or aimed at it needs an enemy: with none, nothing is shown, same convention as casting into an empty
 // encounter. The direction toward the enemy is captured once here (no homing).
@@ -1014,13 +1111,15 @@ void GameManager::RenderInvokerHud()
     for (int i = 0; i < inv.OrbCount(); ++i)
         RenderOrb(inv.GetOrb(i), elementPos[i].first, elementPos[i].second);
 
-    // frames for the two slots, so an empty slot is visible too
+    // frames for the two slots, so an empty slot is visible too (the icons are cut-outs, the frame is their tile)
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 110);
     for (int i = 0; i < 2; ++i)
     {
-        SDL_Rect frame = { skillPos[i].first - 2, skillPos[i].second - 2, 68, 68 };
+        SDL_Rect frame = { skillPos[i].first - 2, skillPos[i].second - 2, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 4 };
+        SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
         SDL_RenderFillRect(m_screen, &frame);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 70);
+        SDL_RenderDrawRect(m_screen, &frame);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
@@ -1032,17 +1131,9 @@ void GameManager::RenderInvokerHud()
     invoker::SkillId spellD = inv.GetSlot(invoker::Slot::D);
     invoker::SkillId spellF = inv.GetSlot(invoker::Slot::F);
     if (spellD != invoker::SkillId::None)
-    {
-        Skill& icon = m_skillIcons[static_cast<int>(spellD)];
-        icon.SetPos(skillPos[0].first, skillPos[0].second);
-        icon.Render(m_screen);
-    }
+        m_skillIcons[static_cast<int>(spellD)].RenderAt(m_screen, skillPos[0].first, skillPos[0].second, SKILL_SLOT_SIZE);
     if (spellF != invoker::SkillId::None)
-    {
-        Skill& icon = m_skillIcons[static_cast<int>(spellF)];
-        icon.SetPos(skillPos[1].first, skillPos[1].second);
-        icon.Render(m_screen);
-    }
+        m_skillIcons[static_cast<int>(spellF)].RenderAt(m_screen, skillPos[1].first, skillPos[1].second, SKILL_SLOT_SIZE);
 }
 
 // "83%" or "--" until the first judged cast, and "mm:ss": shared by the HUD and the Game Over screen
@@ -1137,6 +1228,7 @@ void GameManager::RenderReadyScreen()
 #ifndef __EMSCRIPTEN__
     pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);  // nothing to quit on the web
 #endif
+    RenderRecipesButton(RECIPES_BUTTON_READY_RECT);
 }
 
 void GameManager::RenderGameOverScreen()
@@ -1176,6 +1268,7 @@ void GameManager::RenderGameOverScreen()
 
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
+    RenderRecipesButton(RECIPES_BUTTON_GAMEOVER_RECT);
 }
 
 // Shows which skill the active enemy requires. Owner decision (2026-09-23): always on for every player,
@@ -1189,7 +1282,18 @@ void GameManager::RenderTargetHint()
     const SDL_Color yellow = { 255, 235, 60, 255 };
     char buf[64];
     snprintf(buf, sizeof(buf), "TARGET: %s", invoker::GetSkillDefinition(e.target).name);
-    pixeltext::DrawShadowed(m_screen, buf, SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16, 78, 2, yellow);
+    int textX = SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16;
+    pixeltext::DrawShadowed(m_screen, buf, textX, 78, 2, yellow);
+
+    // the skill's icon left of the text, on a small dark tile (owner 2026-09-30: name and icon)
+    SDL_Rect tile = { textX - SKILL_HINT_SIZE - 12, 85 - SKILL_HINT_SIZE / 2 - 2, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
+    SDL_RenderFillRect(m_screen, &tile);
+    SDL_SetRenderDrawColor(m_screen, 255, 235, 60, 160);
+    SDL_RenderDrawRect(m_screen, &tile);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    m_skillIcons[static_cast<int>(e.target)].RenderAt(m_screen, tile.x + 2, tile.y + 2, SKILL_HINT_SIZE);
 }
 
 bool GameManager::loadBackgroundLayers() {
@@ -1228,17 +1332,18 @@ bool GameManager::loadBackgroundLayers() {
 
 void GameManager::renderBackgroundLayers() {
     for (int i = 0; i < 12; ++i) {
+        SDL_Rect srcRect = { 0, BACKGROUND_CROP_Y, SCREEN_WIDTH, SCREEN_HEIGHT };  // unscaled band, see GameManager.h
         SDL_Rect destRect = { static_cast<int>(backgroundPositions[i]), 0, SCREEN_WIDTH, SCREEN_HEIGHT };
-        SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+        SDL_RenderCopy(m_screen, backgroundLayers[i], &srcRect, &destRect);
 
         // Render a second copy of the layer to create a seamless loop
         if (backgroundPositions[i] <= 0) {
             destRect.x = static_cast<int>(backgroundPositions[i]) + SCREEN_WIDTH;
-            SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+            SDL_RenderCopy(m_screen, backgroundLayers[i], &srcRect, &destRect);
         }
         else {
             destRect.x = static_cast<int>(backgroundPositions[i]) - SCREEN_WIDTH;
-            SDL_RenderCopy(m_screen, backgroundLayers[i], NULL, &destRect);
+            SDL_RenderCopy(m_screen, backgroundLayers[i], &srcRect, &destRect);
         }
     }
 }
@@ -1264,6 +1369,15 @@ void GameManager::Close()
         m_ghostWalkSheet = NULL;
     }
     audio::Shutdown();
+    for (int i = 0; i < 12; ++i)
+    {
+        if (backgroundLayers[i] != NULL)
+        {
+            SDL_DestroyTexture(backgroundLayers[i]);
+            backgroundLayers[i] = NULL;
+        }
+    }
+    // sprites owned by BaseObject-derived members are freed by their destructors (BaseObject::free)
 
     SDL_DestroyRenderer(m_screen);
     m_screen = NULL;

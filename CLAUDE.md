@@ -91,7 +91,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `BaseObject.h/.cpp` | Lớp gốc: texture, rect, clip animation, `LoadImg`, `Render` |
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
-| `Skill.h/.cpp` | Chỉ là sprite icon của một skill (dữ liệu skill nằm trong Core) |
+| `Skill.h/.cpp` | Icon của một skill: `LoadIcon` (RGBA, không color key, làm mượt) và `RenderAt(x, y, size)`; dữ liệu skill nằm trong Core |
 | `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (876 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame); dùng cho nhãn D/F và cụm phím cảm ứng (orb được vẽ thành hình tròn màu, không dùng icon phím nữa) |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation theo thời gian (`Update(dt)`, `ENEMY_ANIM_FPS`); vị trí do Practice quyết định |
@@ -104,7 +104,7 @@ Tài nguyên trong `assets/`:
 - `background/`: 12 lớp parallax
 - `enemies/`: 13 sprite, **10 đang dùng** (mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run + dark_wiz, kitsune_run, knight_run thêm ở Phase 3); chưa dùng: bat_fly, mush (trùng nấm), nec_walk_bg (trùng nec_walk)
 - `keyboard/`: icon Q W E R D F
-- `skill/`: 10 icon skill (`Tornado.png` là icon). `Skills/` (cạnh `skill/`) chỉ còn 2 thư mục sprite hiệu ứng: `Tornado/` (`tornado_vfx_16f.png`, sheet 512×512, 4×4 frame 128×128, nền trong suốt; `tornado_icon.png` chưa dùng) và `Ghost/` (`Ghost Walk-spritesheet.png`; `Ghost.png` chưa dùng)
+- `skill/`: 10 icon skill **128×128 RGBA, nền trong suốt**, do script `art/make_skill_icons.py` tạo từ ảnh gốc 2048×2048 của chủ project trong `art/skill-icons/` (tách nền trắng/caro/tối loang từ mép, thu nhỏ). Thay ảnh gốc thì chạy lại `python art/make_skill_icons.py` (cần Pillow); `art/` không được đóng gói vào bản web. `Skills/` (cạnh `skill/`) chỉ còn 2 thư mục sprite hiệu ứng: `Tornado/` (`tornado_vfx_16f.png`, sheet 512×512, 4×4 frame 128×128, nền trong suốt; `tornado_icon.png` chưa dùng) và `Ghost/` (`Ghost Walk-spritesheet.png`; `Ghost.png` chưa dùng)
 - `main.bmp`: sprite người chơi
 
 ## 5. Đã làm được
@@ -122,7 +122,10 @@ Tài nguyên trong `assets/`:
 - **Điện thoại (web):** cụm phím cảm ứng Q/W/E/R (một hàng) + D/F (hàng dưới, lệch như bàn phím) ở góc dưới trái, 88 px, **chỉ hiện trên thiết bị cảm ứng** (media query lúc khởi động hoặc khi có chạm), ẩn trên PC. Chạm vào chữ Enter/Esc trên màn hình để bắt đầu/về menu. Nằm ngang thì canvas giãn tối đa, giữ tỉ lệ; nút "Full" bật toàn màn hình (Android) hoặc hướng dẫn "Thêm vào MH chính" (iPhone, vì iOS không cho web toàn màn hình). Trên web, Esc ở Ready không làm gì (không có app để thoát).
 - **Kỷ lục (2026-09-28):** Best Score / Best Combo / Best Survival Time lưu ở `bests.txt` (PC) hoặc `localStorage` (web), cập nhật khi phiên kết thúc (Game Over hoặc Esc khi đang chơi), hiện ở màn Ready và Game Over ("NEW BEST!"). Practice chỉ so sánh (`MergeBests`, có test); `GameManager` lưu/đọc. **Top-10 điểm** vẫn giữ, lưu ở `highscores.txt` / `localStorage`.
 - **Phản hồi khi chơi (2026-09-28, mức nhẹ):** cast đúng → vòng vàng + "+1"; cast sai → quái nháy đỏ + "MISS"; quái chạm người chơi → viền đỏ, rung nhẹ (chỉ phần cảnh, HUD và phím cảm ứng đứng yên), ô HP vừa mất nhấp nháy. Hằng số `FEEDBACK_*` trong `GameManager.h`.
-- **Background:** 12 lớp parallax.
+- **Background:** 12 lớp parallax 928×793, cắt một dải 544 px **không co giãn** (`BACKGROUND_CROP_Y`), mặt đất vẫn ở y = 500 (trước đây ảnh bị ép dẹt).
+- **Hình ảnh sắc nét (2026-09-30):** `SDL_HINT_RENDER_SCALE_QUALITY "0"` (nearest) cho pixel art; chỉ icon skill (tranh vẽ) được làm mượt (`Skill::LoadIcon`).
+- **Bảng tra công thức (2026-09-30, quyết định chủ project):** phím H hoặc nút "RECIPES (H)" ở màn Ready/Game Over mở bảng 10 skill (icon, tên, 3 orb màu); **không mở được khi đang chơi**; phím/chạm bất kỳ để đóng (`GameManager::RenderRecipes`).
+- **Gợi ý mục tiêu có icon (2026-09-30):** "TARGET: <tên>" kèm icon skill 40 px bên trái.
 
 ## 6. Chưa có (phần việc còn lại)
 
@@ -133,10 +136,10 @@ Tài nguyên trong `assets/`:
 
 ## 7. Nợ kỹ thuật còn lại
 
-1. `Close()` vẫn gần như chỉ hủy renderer/window; các texture tải trong `LoopGame` (background, icon, sprite) không được giải phóng tường minh (thoát process là hết). `BaseObject` chưa có copy-control (double free nếu bị copy).
-2. `EnemyObject` vẫn có vài biến che biến của lớp cha (`currentFrame_`, `frame_clip_`, `width_frame_`, `height_frame_`) và 3 sprite quái chưa dùng (`bat_fly`, `mush`, `nec_walk_bg`).
-3. Màu trong suốt cố định (175,175,175) áp cho mọi ảnh; nền bị squash (928×793 → 928×544); `SDL_HINT_RENDER_SCALE_QUALITY "1"` làm mờ pixel art khi scale.
-4. Đường dẫn asset là chuỗi rải rác (chưa có chỗ chung cho Web/Android).
+1. 3 sprite quái chưa dùng (`bat_fly`, `mush`, `nec_walk_bg`).
+2. Màu trong suốt cố định (175,175,175) vẫn áp cho ảnh nạp qua `BaseObject::LoadImg` (icon skill thì không).
+3. Đường dẫn asset là chuỗi rải rác (chưa có chỗ chung cho Web/Android).
+(Đã xử lý 2026-09-30: `Close()` giải phóng background, `BaseObject` cấm copy, `EnemyObject` dùng biến của lớp cha, nền không còn bị ép, pixel art không còn mờ.)
 
 ## 8. Hướng đi
 
@@ -156,6 +159,6 @@ Hướng thiết kế đã chốt (mục 2). Lộ trình chi tiết nằm trong 
 - Style hiện có: tab để thụt lề, tên hàm lẫn lộn giữa `PascalCase` (`LoadImg`, `SetPos`) và `camelCase` (`handleKeyPress`), biến thành viên có hậu tố `_` hoặc tiền tố `m_`. Code mới nên theo style của file đang sửa.
 - Comment trong code trộn tiếng Anh và tiếng Việt; commit message bằng tiếng Anh.
 - **Test:** logic Core và Practice có bộ test riêng trong `Tests/` (không dùng framework, không dính SDL). Chạy `Tests\run_tests.cmd` (build + chạy cả hai chương trình, mã thoát 0 = đạt); xem `Tests/README.md`. Phải chạy trước khi sửa Core/Practice. Không có CI. Phần SDL (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) chưa có test tự động; kiểm bằng cách chạy game (`--debug` in mục tiêu ra console để lái phiên chơi).
-- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready, chỉ bản PC), Q/W/E/R/D/F = chơi, M = bật/tắt âm thanh.
+- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready, chỉ bản PC), Q/W/E/R/D/F = chơi, M = bật/tắt âm thanh, H = bảng công thức (ở Ready/Game Over).
 - **Kiểm tra bản web:** sau khi `web/build.sh`, có thể phục vụ `D:\Dev\web-build` bằng một HTTP server tĩnh và mở bằng Chrome (giả lập điện thoại trong DevTools) để thử.
 - Lịch sử commit: bắt đầu từ game nền (background + nhân vật), rồi refactor OOP, sau đó thêm Keyboard/Skill, gộp combo skill, và gần đây nhất là respawn quái ngẫu nhiên và chỉnh thời gian respawn.

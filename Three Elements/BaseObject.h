@@ -10,6 +10,9 @@ class BaseObject
 public:
 	BaseObject();
 	~BaseObject();
+	// Owns its SDL texture (destroyed in free()): a copy would destroy the same texture twice, so none is allowed.
+	BaseObject(const BaseObject&) = delete;
+	BaseObject& operator=(const BaseObject&) = delete;
 	virtual bool LoadImg(std::string path, SDL_Renderer* screen);
 	void Render(SDL_Renderer* screen);
 	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }

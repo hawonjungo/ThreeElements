@@ -110,7 +110,10 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 - [x] Web visitor counter (`web/shell.html`, Abacus API, one count per browser).
 - [-] Background music: **not wanted** (owner, 2026-09-29).
 - [ ] Difficulty tuning: **deferred** (owner, 2026-09-29: current values feel fine). Do it together with the planned difficulty-dependent backgrounds.
-- [ ] Text rendering / HUD polish, pixel-art polish (integer scaling, background aspect). No recipe hints in normal play.
+- [x] Pixel-art polish: nearest-neighbour scaling, background no longer squashed (unscaled band, ground unchanged).
+- [x] New skill icons (owner art, processed by `art/make_skill_icons.py`), icon next to the target name.
+- [x] Recipe reference on Ready / Game Over (H or button), never during play (spec §17).
+- [ ] Text rendering / HUD polish. No recipe hints in normal play.
 
 ### Phase 7 — Android
 SDL Android project, six keyboard-like touch buttons Q/W/E/R/D/F firing on touch-down through `InputAction`, landscape/safe-area layout, lifecycle and renderer-reset handling, latency check on a real device. iOS is out of scope.
@@ -135,3 +138,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-28 — **Phase 6 (part 1):** persistent records (Best Score / Combo / Survival Time, `MergeBests`, 12 new checks → Practice tests 876) and light hit/miss/leak feedback; pixel font gains `!` and `+`.
 - 2026-09-29 — **Phase 6 (part 2):** synthesised sound effects with mute, code-drawn effects for 8 skills (placeholder sheets no longer used), web visitor counter.
 - 2026-09-29 — Clean-up: the 8 unused placeholder VFX sheets deleted; branches `phase-2-invoker-core`, `backU`, `Jun2024` deleted (all work is on `main`). Owner decisions: no background music; difficulty tuning waits for difficulty-dependent backgrounds.
+- 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play.

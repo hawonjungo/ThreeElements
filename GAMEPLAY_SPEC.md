@@ -210,6 +210,10 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 
 **Target-skill hint [CONFIRMED, owner decision 2026-09-23 — reverses the previous "no hints" stance on `TargetSkillId`].** The enemy's required *skill name* (not its recipe) is now shown to every player at all times, per E-8. The player still has to know or work out the Q/W/E recipe for that skill themselves — only "which skill" is given, not "which keys".
 
+**Recipe reference [CONFIRMED, owner decision 2026-09-30].** A reference list of all 10 skills (icon, name, the three orbs) can be opened with H or a "RECIPES" button **on the Ready and Game Over screens only**; it can never be opened while Playing, and any key or tap closes it. Knowing the recipes is still the player's job during play.
+
+**Target-skill icon [CONFIRMED, owner decision 2026-09-30].** The target hint shows the skill's icon next to its name (still no recipe).
+
 **[FUTURE]** A beginner mode may add hints. *Observation (not blocking):* with no hints and no reference in the game, the enemy↔spell mapping can only be learnt by trial and error; a beginner mode or an out-of-game reference would address this later.
 
 **Not addressed here (handled by PLAN.md):** audio, menus beyond restart, settings, tutorials, localisation.
