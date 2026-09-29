@@ -189,6 +189,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 - **Z-3 [RECOMMENDED]** Restart is a UI command separate from the six gameplay actions (never Q/W/E/R/D/F): e.g. Enter/Space on keyboard, a button on mobile. Starting on a key press (rather than immediately) is preferred for web focus and future audio unlock.
 - **Z-3b [CONFIRMED]** Controls (owner decision, Phase 3 review): **Ready** — Enter starts a session, Esc quits the application. **Playing** — Esc returns to Ready (the session is stopped and reset, the best combo record is kept), Enter is ignored, so nothing can restart or quit by accident. **Game Over** — Enter starts a new session, Esc returns to Ready. There is no pause.
 - **Z-4 [RECOMMENDED]** Focus loss/hidden tab: clamp `dt`; never spawn several enemies to "catch up".
+- **Z-5 [CONFIRMED, owner decision 2026-09-30]** The Ready screen offers **two modes**: **Practice** (this document's game, Enter as before) and **Tutorial** (§24, T key or its button). An "Advanced" mode may come later **[FUTURE]**.
 
 ## 16. MVP scope (in)
 
@@ -213,6 +214,8 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 **Recipe reference [CONFIRMED, owner decision 2026-09-30].** A reference list of all 10 skills (icon, name, the three orbs) can be opened with H or a "RECIPES" button **on the Ready and Game Over screens only**; it can never be opened while Playing, and any key or tap closes it. Knowing the recipes is still the player's job during play.
 
 **Target-skill icon [CONFIRMED, owner decision 2026-09-30].** The target hint shows the skill's icon, large, below its name (still no recipe).
+
+**Tutorial exception [CONFIRMED, owner decision 2026-09-30].** The Tutorial (§24) is a separate mode whose whole purpose is to show the keys: it displays key sequences such as `E E E R D`. None of that appears in Practice.
 
 **[FUTURE]** A beginner mode may add hints. *Observation (not blocking):* with no hints and no reference in the game, the enemy↔spell mapping can only be learnt by trial and error; a beginner mode or an out-of-game reference would address this later.
 
@@ -287,3 +290,33 @@ R with <3 orbs (OD-3) → no-op, §4 · slot kept after cast (OD-6) → kept, S-
 | One enemy, kill, leak, HP 3, Game Over | enemies wrap forever | Missing |
 | Score, combo, accuracy, survival time, persistent bests | none | Missing |
 | Difficulty by time | constant 5 s / 5 px per frame | Missing; needs `dt` |
+
+## 24. Tutorial mode
+
+A short guided introduction for players who have never played Invoker. Owner decisions 2026-09-30: step pacing with NEXT, **one** key-by-key example (Sun Strike, `E E E`), everything else explained on cards and then looked up by the player, strong highlighting of what to look at, a choice between Practice and Tutorial on the Ready screen, English only, no other modes for now.
+
+### Rules
+
+- **T-1 [CONFIRMED]** Entered from the Ready screen (T key or a TUTORIAL button); Practice stays the default (Enter). Esc leaves the tutorial at any time and returns to Ready.
+- **T-2 [CONFIRMED]** English text only (the built-in pixel font: capitals, digits, basic punctuation). Every text line fits the 928 px screen at scale 2 (about 45 characters).
+- **T-3 [CONFIRMED]** Two kinds of steps:
+  - **Card**: a short explanation. The player continues with **NEXT**: Enter or Space, or tapping the NEXT button.
+  - **Guided input**: the exact sequence to press is shown (e.g. `E  E  E  R  D`), the key to press **now** is highlighted (in the sequence, and on the touch button on phones), and the step waits for it.
+- **T-4 [CONFIRMED]** **Only one guided spell: Sun Strike (`E E E`, `R`, `D`).** The other rules (any order, the D/F rotation, wrong spells) are explained on cards; the other nine recipes are looked up by the player (Recipes list, §17).
+- **T-5 [CONFIRMED]** **Highlight what matters.** Whenever a step is about something on screen it is framed by a pulsing gold highlight: the enemy when it appears, the `TARGET` hint (name and icon) that says which spell it needs, the orb row, slot D when the spell lands in it, and the key to press (on screen and on the touch button).
+- **T-6 [RECOMMENDED]** In a guided step a wrong key does nothing to the game state: the expected key flashes and a line says `PRESS E`. No penalty, no retry limit. Keys reach the real Invoker state only when they are the expected key, so orbs and slots always match what the tutorial says.
+- **T-7 [RECOMMENDED]** Tutorial enemies are **training dummies**: standing still in lesson 2, walking slowly in lesson 4. No score, combo, accuracy, records or top-10 entries are ever changed by the tutorial. HP is shown only in lesson 4 and cannot reach Game Over.
+- **T-8 [CONFIRMED]** In lesson 4 only the skill **name and icon** are shown (as in Practice), never the keys: the player looks the recipe up. In the tutorial the Recipes list can be opened with H even while enemies walk; they stop while it is open (tutorial only; in Practice it stays Ready / Game Over only).
+- **T-9 [RECOMMENDED]** The rules taught are exactly the Practice rules (Core `InvokerState` for orbs / invoke / D-F slots; right / wrong decided by `skill == target`), so nothing learnt in the tutorial behaves differently in Practice.
+- **T-10 [RECOMMENDED]** On completion: a `TUTORIAL COMPLETE` card with `ENTER  PLAY PRACTICE` and `ESC  MENU`. Completion is remembered locally (like the records), e.g. for a checkmark on the button; it never blocks Practice.
+- **T-11 [RECOMMENDED]** Architecture: a `TutorialSession` in the Practice layer (no SDL): an ordered script of steps, the current step, the expected key, the dummy enemies, its own `InvokerState`, the same right / wrong rule. Pure and unit-tested like `PracticeSession`. The presentation layer draws cards, key sequences and highlights.
+
+### Script (4 lessons; about 2 minutes)
+
+| # | Lesson | Steps (C = card + NEXT, G = guided keys; *highlighted* = gold frame) | Teaches |
+|---|---|---|---|
+| 1 | Elements | C: `QUAS  WEX  EXORT - YOUR THREE ELEMENTS` · G: `Q` `W` `E`, each new orb *highlighted* · C: `YOU HOLD 3 ORBS. A 4TH PUSHES OUT THE OLDEST` · G: `Q` | Q/W/E only load orbs; 3 at most, rolling |
+| 2 | Sun Strike | A dummy walks in and stops, *highlighted*; C: `AN ENEMY! LOOK AT ITS TARGET` with the `TARGET: SUN STRIKE` hint (name and icon) *highlighted* · C: `SUN STRIKE  =  E E E` · G: `E E E` · C: `PRESS R TO INVOKE` · G: `R`, slot D *highlighted* as Sun Strike lands · C: `IT IS IN SLOT D. PRESS D TO CAST` · G: `D` → gold ring, `+1` · C: `RIGHT SPELL = ENEMY GONE` | The whole loop once, key by key |
+| 3 | Rules | C: `ORDER DOES NOT MATTER: QQW = QWQ = WQQ` · C: `A NEW SPELL GOES TO D, THE OLD ONE TO F. BOTH CAST` (slots *highlighted*) · C: `WRONG SPELL = MISS. NO DAMAGE. TRY AGAIN` · C: `FORGOT A RECIPE? PRESS H FOR THE LIST` | The remaining rules, as cards |
+| 4 | Your turn | C: `NOW YOU. READ THE TARGET, FIND THE KEYS` · 3 slow dummies, random targets; each new one and its `TARGET` hint *highlighted* for a moment; H opens the Recipes list (enemies stop); HP shown, a leak takes a heart but never ends the run | The full loop on your own |
+| — | End | C: `TUTORIAL COMPLETE` · `ENTER  PLAY PRACTICE` / `ESC  MENU` | — |
