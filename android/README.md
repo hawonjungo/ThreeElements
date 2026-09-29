@@ -29,6 +29,19 @@ Or open the `android/` folder in Android Studio and press Run.
 On the phone: *Settings → About phone → tap Build number 7 times*, then *Developer options → USB debugging* on,
 connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-tools`) should list it.
 
+## Checking other screen shapes (emulator)
+
+The APK also contains `x86_64`, so it runs in the Android Studio emulator (AVD `Medium_Phone_API_36.0`, 1080×2400).
+Other shapes without other phones: `adb shell wm size 1080x1920` (16:9), `adb shell wm size 1536x2048` (4:3 tablet),
+then relaunch the app; `adb shell wm size reset` afterwards. `adb exec-out screencap -p > shot.png` takes a
+screenshot, `adb shell input tap X Y` taps.
+
+Two traps found this way (2026-09-30), both invisible on desktop / web where the window is exactly 928 × 544:
+- `SDL_RenderSetViewport(renderer, NULL)` resets the viewport to the whole screen and **drops SDL's letterbox
+  offset**: the game jumped to the left edge. Save the viewport with `SDL_RenderGetViewport` and restore that.
+- With a logical size set, SDL **already** rewrites `SDL_FINGER*` positions to 0..1 of the letterboxed game area.
+  Multiply by 928 / 544 and nothing else; converting through the viewport again moved every touch.
+
 ## What is Android-specific in the C++ code
 
 All in `GameManager.cpp`, behind `#ifdef __ANDROID__` where it differs:

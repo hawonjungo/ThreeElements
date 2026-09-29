@@ -303,13 +303,18 @@ bool GameManager::RunFrame()
 
     // The scene shakes briefly after a leak: it is drawn into a viewport nudged by a few pixels. The HUD and
     // touch buttons are drawn afterwards at the normal position, so they never move under the player's thumb.
+    // The normal viewport is SDL's letterbox (SDL_RenderSetLogicalSize): on a screen of another shape (a phone)
+    // it is offset to centre the game, so it is saved and restored as it is. Resetting it with NULL would put the
+    // game at the left edge (the bug seen on Android; invisible on desktop / web, where there is no letterbox).
+    SDL_Rect sceneViewport;
+    SDL_RenderGetViewport(m_screen, &sceneViewport);
     if (m_shakeLeft > 0.0f)
     {
         float strength = m_shakeLeft / FEEDBACK_SHAKE_TIME;
         float t = static_cast<float>(now) / 1000.0f;
-        SDL_Rect shaken = { static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::sin(t * 90.0f))),
-            static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::cos(t * 70.0f))),
-            SCREEN_WIDTH, SCREEN_HEIGHT };
+        SDL_Rect shaken = sceneViewport;
+        shaken.x += static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::sin(t * 90.0f)));
+        shaken.y += static_cast<int>(FEEDBACK_SHAKE_PX * strength * (0.5f + 0.5f * std::cos(t * 70.0f)));
         SDL_RenderSetViewport(m_screen, &shaken);
     }
 
@@ -326,7 +331,7 @@ bool GameManager::RunFrame()
     RenderTornadoes();  // above the background, player and enemy, below the HUD
     RenderSkillVfx();   // code-drawn skill effects, above everything else in the scene
     RenderFeedback();   // "+1" / "MISS" and the defeat ring, part of the scene
-    SDL_RenderSetViewport(m_screen, NULL);  // end of the (possibly shaken) scene
+    SDL_RenderSetViewport(m_screen, &sceneViewport);  // end of the (possibly shaken) scene: back to the letterbox
 
     RenderLeakFlash();
     RenderTouchControls();  // on top of the scene, only while Playing
@@ -967,18 +972,13 @@ void GameManager::SaveRecordsSoFar()
         SaveBests(sofar);
 }
 
-// Game coordinates (0..928, 0..544) of a touch. SDL_FINGER* positions are 0..1 of the whole window, while the game
-// is drawn into a letterboxed logical area (SDL_RenderSetLogicalSize): go through the renderer's scale and viewport.
+// Game coordinates (0..928, 0..544) of a touch. With a logical size set, SDL's renderer already rewrites
+// SDL_FINGER* positions to 0..1 of the letterboxed game area (SDL_render.c, SDL_RendererEventWatch), so they only
+// need scaling. (Converting them through the viewport again moved every touch on a letterboxed phone screen.)
 void GameManager::TouchToGame(float normX, float normY, int& gameX, int& gameY)
 {
-    int outW = 0, outH = 0;
-    SDL_GetRendererOutputSize(m_screen, &outW, &outH);
-    float scaleX = 1.0f, scaleY = 1.0f;
-    SDL_RenderGetScale(m_screen, &scaleX, &scaleY);
-    SDL_Rect viewport;
-    SDL_RenderGetViewport(m_screen, &viewport);
-    gameX = static_cast<int>(normX * outW / scaleX) - viewport.x;
-    gameY = static_cast<int>(normY * outH / scaleY) - viewport.y;
+    gameX = static_cast<int>(normX * SCREEN_WIDTH);
+    gameY = static_cast<int>(normY * SCREEN_HEIGHT);
 }
 
 // A session is over, by Game Over or by Esc while Playing: its score, combo and survival time can set records.
