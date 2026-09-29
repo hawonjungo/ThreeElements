@@ -81,3 +81,6 @@ Three Elements/highscores.txt
 Three Elements/bests.txt
 Three Elements/settings.txt
 
+
+# Python bytecode (art/ scripts)
+__pycache__/
