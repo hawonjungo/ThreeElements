@@ -293,6 +293,8 @@ R with <3 orbs (OD-3) → no-op, §4 · slot kept after cast (OD-6) → kept, S-
 
 ## 24. Tutorial mode
 
+**Status: implemented 2026-09-30** (`Practice/Tutorial.*`, tested in `Tests/PracticeTests`; drawn by `GameManager::RenderTutorial`).
+
 A short guided introduction for players who have never played Invoker. Owner decisions 2026-09-30: step pacing with NEXT, **one** key-by-key example (Sun Strike, `E E E`), everything else explained on cards and then looked up by the player, strong highlighting of what to look at, a choice between Practice and Tutorial on the Ready screen, English only, no other modes for now.
 
 ### Rules
@@ -307,7 +309,7 @@ A short guided introduction for players who have never played Invoker. Owner dec
 - **T-6 [RECOMMENDED]** In a guided step a wrong key does nothing to the game state: the expected key flashes and a line says `PRESS E`. No penalty, no retry limit. Keys reach the real Invoker state only when they are the expected key, so orbs and slots always match what the tutorial says.
 - **T-7 [RECOMMENDED]** Tutorial enemies are **training dummies**: standing still in lesson 2, walking slowly in lesson 4. No score, combo, accuracy, records or top-10 entries are ever changed by the tutorial. HP is shown only in lesson 4 and cannot reach Game Over.
 - **T-8 [CONFIRMED]** In lesson 4 only the skill **name and icon** are shown (as in Practice), never the keys: the player looks the recipe up. In the tutorial the Recipes list can be opened with H even while enemies walk; they stop while it is open (tutorial only; in Practice it stays Ready / Game Over only).
-- **T-9 [RECOMMENDED]** The rules taught are exactly the Practice rules (Core `InvokerState` for orbs / invoke / D-F slots; right / wrong decided by `skill == target`), so nothing learnt in the tutorial behaves differently in Practice.
+- **T-9 [RECOMMENDED]** The rules taught are exactly the Practice rules (Core `InvokerState` for orbs / invoke / D-F slots; right / wrong decided by `skill == target`), so nothing learnt in the tutorial behaves differently in Practice. One simplification: in the tutorial every spell, Tornado included, is judged when it is cast (no projectile flight).
 - **T-10 [RECOMMENDED]** On completion: a `TUTORIAL COMPLETE` card with `ENTER  PLAY PRACTICE` and `ESC  MENU`. Completion is remembered locally (like the records), e.g. for a checkmark on the button; it never blocks Practice.
 - **T-11 [RECOMMENDED]** Architecture: a `TutorialSession` in the Practice layer (no SDL): an ordered script of steps, the current step, the expected key, the dummy enemies, its own `InvokerState`, the same right / wrong rule. Pure and unit-tested like `PracticeSession`. The presentation layer draws cards, key sequences and highlights.
 

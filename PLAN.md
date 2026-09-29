@@ -113,6 +113,7 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 - [x] Pixel-art polish: nearest-neighbour scaling, background no longer squashed (unscaled band, ground unchanged).
 - [x] New skill icons (owner art, processed by `art/make_skill_icons.py`), icon next to the target name.
 - [x] Recipe reference on Ready / Game Over (H or button), never during play (spec §17).
+- [x] Tutorial mode (spec §24): `TutorialSession` (tested) + guided overlay with highlights, reachable from Ready (T).
 - [ ] Text rendering / HUD polish. No recipe hints in normal play.
 
 ### Phase 7 — Android  *(in progress)*
@@ -145,3 +146,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-29 — Clean-up: the 8 unused placeholder VFX sheets deleted; branches `phase-2-invoker-core`, `backU`, `Jun2024` deleted (all work is on `main`). Owner decisions: no background music; difficulty tuning waits for difficulty-dependent backgrounds.
 - 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play.
 - 2026-09-30 — **Phase 7 started:** native Android project (`android/`), Android-specific code paths, launcher icon; `CMakeLists.txt` for the NDK build.
+- 2026-09-30 — **Tutorial mode** (spec §24): 4 lessons, one key-by-key spell (Sun Strike), highlights, final unguided run; `Practice/Tutorial.*` + 70 new test checks (Practice tests 946); pixel font gains `,` `=` `>`.

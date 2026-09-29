@@ -40,6 +40,7 @@ add_library(main SHARED
     "${GAME_DIR}/Audio.cpp"
     "${GAME_DIR}/Core/Invoker.cpp"
     "${GAME_DIR}/Practice/Practice.cpp"
+    "${GAME_DIR}/Practice/Tutorial.cpp"
 )
 set_target_properties(main PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 target_include_directories(main PRIVATE "${GAME_DIR}")

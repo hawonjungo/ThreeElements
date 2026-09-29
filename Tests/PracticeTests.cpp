@@ -5,9 +5,11 @@
 // How to run: see Tests/README.md.
 
 #include "Practice/Practice.h"
+#include "Practice/Tutorial.h"
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 using namespace practice;
 using invoker::InputAction;
@@ -1505,6 +1507,217 @@ static void TestInvokerThroughSession()
 	CHECK(p.Invoker().GetSlot(Slot::D) == SkillId::None && p.Invoker().OrbCount() == 2);
 }
 
+// ---------------------------------------------------------------- tutorial (spec §24)
+
+static InputAction ActionFor(char key)
+{
+	switch (key)
+	{
+	case 'Q': return InputAction::Q;
+	case 'W': return InputAction::W;
+	case 'E': return InputAction::E;
+	case 'R': return InputAction::R;
+	case 'D': return InputAction::D;
+	default:  return InputAction::F;
+	}
+}
+
+// Plays the tutorial from its current step up to (not into) the first step of `kind`, pressing NEXT on cards and
+// the expected key on key steps; also gives the dummy time to walk. Returns false if it got stuck.
+static bool TutorialAdvanceTo(TutorialSession& t, TutorialStepKind kind)
+{
+	for (int guard = 0; guard < 200 && t.Step().kind != kind; ++guard)
+	{
+		t.Update(0.05f);
+		if (t.Step().kind == TutorialStepKind::Card)
+			t.Next();
+		else if (t.Step().kind == TutorialStepKind::Keys)
+			t.Input(ActionFor(t.ExpectedKey()));
+		else
+			return false;
+	}
+	return t.Step().kind == kind;
+}
+
+// The script itself: 4 lessons, one guided spell (Sun Strike), a run, the end; text fits the screen.
+static void TestTutorialScript()
+{
+	CHECK(TutorialStepCount() > 10);
+	CHECK(GetTutorialStep(0).lesson == 1);
+	CHECK(GetTutorialStep(TutorialStepCount() - 1).kind == TutorialStepKind::Done);
+	int runSteps = 0, keySteps = 0, lastLesson = 1;
+	bool lessonsInOrder = true, sunStrikeGuided = false, keysValid = true, linesFit = true;
+	for (int i = 0; i < TutorialStepCount(); ++i)
+	{
+		const TutorialStep& s = GetTutorialStep(i);
+		if (s.lesson < lastLesson || s.lesson > TUTORIAL_LESSON_COUNT)
+			lessonsInOrder = false;
+		lastLesson = s.lesson;
+		if (s.kind == TutorialStepKind::Run)
+			++runSteps;
+		if (s.kind == TutorialStepKind::Keys)
+		{
+			++keySteps;
+			if (std::strlen(s.keys) == 0 || std::strspn(s.keys, "QWERDF") != std::strlen(s.keys))
+				keysValid = false;
+			if (std::strcmp(s.keys, "EEE") == 0)
+				sunStrikeGuided = true;
+		}
+		if (std::strlen(s.line1) > 40 || std::strlen(s.line2) > 40)
+			linesFit = false;
+	}
+	CHECK(lessonsInOrder);
+	CHECK(runSteps == 1);
+	CHECK(keySteps >= 4);
+	CHECK(keysValid);
+	CHECK(sunStrikeGuided);
+	CHECK(linesFit);
+
+	// NEXT only works on cards; gameplay keys do nothing on a card
+	TutorialSession t;
+	t.Start(1);
+	CHECK(t.StepIndex() == 0 && t.Step().kind == TutorialStepKind::Card);
+	TutorialInputResult r = t.Input(InputAction::Q);
+	CHECK(!r.accepted && !r.wrongKey && t.Invoker().OrbCount() == 0);
+	CHECK(t.Next() && t.StepIndex() == 1);
+	CHECK(t.Step().kind == TutorialStepKind::Keys && !t.Next() && t.StepIndex() == 1);
+}
+
+// A key step waits for exactly the expected key; wrong keys change nothing.
+static void TestTutorialGuidedKeys()
+{
+	TutorialSession t;
+	t.Start(1);
+	t.Next();                                    // -> "PRESS Q, W AND E"
+	CHECK(std::strcmp(t.Step().keys, "QWE") == 0 && t.ExpectedKey() == 'Q');
+
+	TutorialInputResult r = t.Input(InputAction::E);  // wrong
+	CHECK(!r.accepted && r.wrongKey && t.KeysDone() == 0 && t.Invoker().OrbCount() == 0);
+	r = t.Input(InputAction::R);
+	CHECK(r.wrongKey && t.Invoker().OrbCount() == 0);
+
+	r = t.Input(InputAction::Q);
+	CHECK(r.accepted && !r.stepAdvanced && t.KeysDone() == 1 && t.ExpectedKey() == 'W');
+	CHECK(r.invoker.event == invoker::InvokerEvent::OrbAdded && t.Invoker().OrbCount() == 1);
+	t.Input(InputAction::W);
+	r = t.Input(InputAction::E);
+	CHECK(r.accepted && r.stepAdvanced && t.Step().kind == TutorialStepKind::Card);  // the sequence is done
+	CHECK(t.Invoker().OrbCount() == 3);
+
+	t.Next();                                    // -> "PRESS Q ONCE MORE": the 4th orb rolls out the oldest
+	t.Input(InputAction::Q);
+	CHECK(t.Invoker().OrbCount() == 3);
+	CHECK(t.Invoker().GetOrb(0) == invoker::Orb::Wex && t.Invoker().GetOrb(2) == invoker::Orb::Quas);
+}
+
+// Lesson 2: the dummy walks in and stops; E E E R puts Sun Strike in D; D defeats the dummy.
+static void TestTutorialSunStrike()
+{
+	TutorialSession t;
+	t.Start(3);
+	while (t.Step().lesson < 2)
+	{
+		if (t.Step().kind == TutorialStepKind::Card) t.Next();
+		else t.Input(ActionFor(t.ExpectedKey()));
+	}
+	CHECK(t.Enemy().active && t.Enemy().target == SkillId::SunStrike);
+	CHECK(GetEnemyDefinition(t.Enemy().definition).targetSkill == SkillId::SunStrike);
+	CHECK(t.Step().highlight & HIGHLIGHT_ENEMY);
+	CHECK(t.Step().highlight & HIGHLIGHT_TARGET);
+	for (int i = 0; i < 100; ++i)
+		t.Update(0.05f);
+	CHECK(NearF(t.Enemy().x, TUTORIAL_DUMMY_STOP_X, 0.01f));  // stopped, never reaches the player
+	CHECK(t.Enemy().active);
+
+	// to the "EEE" step
+	while (t.Step().kind != TutorialStepKind::Keys) t.Next();
+	CHECK(std::strcmp(t.Step().keys, "EEE") == 0);
+	t.Input(InputAction::E); t.Input(InputAction::E); t.Input(InputAction::E);
+	while (t.Step().kind != TutorialStepKind::Keys) t.Next();
+	CHECK(t.ExpectedKey() == 'R');
+	TutorialInputResult r = t.Input(InputAction::R);
+	CHECK(r.invoker.event == invoker::InvokerEvent::Invoked && r.invoker.skill == SkillId::SunStrike);
+	CHECK(t.Invoker().GetSlot(Slot::D) == SkillId::SunStrike);
+	while (t.Step().kind != TutorialStepKind::Keys) t.Next();
+	CHECK(t.ExpectedKey() == 'D');
+	CHECK(!t.Input(InputAction::F).accepted);   // F would cast the empty slot: refused
+	r = t.Input(InputAction::D);
+	CHECK(r.cast == CastOutcome::Correct && r.stepAdvanced);
+	CHECK(!t.Enemy().active);
+	CHECK(t.Step().lesson == 2 && t.Step().kind == TutorialStepKind::Card);  // "RIGHT SPELL = ENEMY GONE"
+}
+
+// Lesson 4: free play against slow enemies; right spells win, wrong ones miss, three enemies end it.
+static void TestTutorialRun()
+{
+	TutorialSession t;
+	t.Start(7);
+	CHECK(TutorialAdvanceTo(t, TutorialStepKind::Run));
+	CHECK(t.Hearts() == START_HP && t.RunResolved() == 0 && !t.Enemy().active);
+
+	SkillId previous = SkillId::None;
+	for (int n = 0; n < TUTORIAL_RUN_ENEMIES; ++n)
+	{
+		bool spawned = false;
+		for (int i = 0; i < 100 && !spawned; ++i)
+			spawned = t.Update(0.05f).spawned;
+		CHECK(spawned && t.Enemy().active);
+		CHECK(NearF(t.Enemy().speed, TUTORIAL_RUN_SPEED, 0.01f));
+		CHECK(t.Enemy().target != previous);     // never the same target twice in a row
+		previous = t.Enemy().target;
+
+		// a wrong spell first: a miss, the enemy stays
+		SkillId wrong = t.Enemy().target == SkillId::ColdSnap ? SkillId::SunStrike : SkillId::ColdSnap;
+		invoker::Recipe w = invoker::GetSkillDefinition(wrong).recipe;
+		for (int k = 0; k < w.quas; ++k) t.Input(InputAction::Q);
+		for (int k = 0; k < w.wex; ++k) t.Input(InputAction::W);
+		for (int k = 0; k < w.exort; ++k) t.Input(InputAction::E);
+		t.Input(InputAction::R);
+		TutorialInputResult r = t.Input(InputAction::D);
+		CHECK(r.accepted && r.cast == CastOutcome::Incorrect && t.Enemy().active);
+
+		// then the right one (every spell, Tornado included, is judged when cast in the tutorial)
+		invoker::Recipe ok = invoker::GetSkillDefinition(t.Enemy().target).recipe;
+		for (int k = 0; k < ok.quas; ++k) t.Input(InputAction::Q);
+		for (int k = 0; k < ok.wex; ++k) t.Input(InputAction::W);
+		for (int k = 0; k < ok.exort; ++k) t.Input(InputAction::E);
+		t.Input(InputAction::R);
+		r = t.Input(InputAction::D);
+		CHECK(r.cast == CastOutcome::Correct && !t.Enemy().active);
+		CHECK(t.RunDefeated() == n + 1);
+		CHECK(r.stepAdvanced == (n == TUTORIAL_RUN_ENEMIES - 1));
+	}
+	CHECK(t.IsDone() && t.Hearts() == START_HP);
+	CHECK(!t.Next());                            // the end card waits for the menu choice
+	CHECK(!t.Input(InputAction::Q).accepted);
+}
+
+// A leak costs a heart and counts as one enemy of the run; the run never ends in Game Over.
+static void TestTutorialRunLeaks()
+{
+	TutorialSession t;
+	t.Start(11);
+	CHECK(TutorialAdvanceTo(t, TutorialStepKind::Run));
+	int leaks = 0;
+	bool finished = false;
+	for (int i = 0; i < 20000 && !finished; ++i)
+	{
+		TutorialUpdateResult u = t.Update(0.05f);
+		if (u.leaked)
+		{
+			++leaks;
+			CHECK(t.Hearts() == START_HP - leaks);
+		}
+		finished = u.finished;
+	}
+	CHECK(finished && leaks == TUTORIAL_RUN_ENEMIES);
+	CHECK(t.IsDone() && t.Hearts() == 0 && t.RunDefeated() == 0);
+
+	// the tutorial starts over cleanly
+	t.Start(12);
+	CHECK(t.StepIndex() == 0 && !t.Enemy().active && t.Invoker().OrbCount() == 0 && t.Hearts() == START_HP);
+}
+
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
@@ -1536,6 +1749,11 @@ int main()
 	RunTest("input outside Playing", TestInputOutsidePlaying);
 	RunTest("invoker through the session", TestInvokerThroughSession);
 	RunTest("persistent bests", TestPersistentBests);
+	RunTest("tutorial: script", TestTutorialScript);
+	RunTest("tutorial: guided keys", TestTutorialGuidedKeys);
+	RunTest("tutorial: Sun Strike lesson", TestTutorialSunStrike);
+	RunTest("tutorial: run", TestTutorialRun);
+	RunTest("tutorial: run leaks", TestTutorialRunLeaks);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;

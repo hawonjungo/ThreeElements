@@ -13,6 +13,7 @@
 #include "SkillVfx.h"
 #include "Core/Invoker.h"
 #include "Practice/Practice.h"
+#include "Practice/Tutorial.h"
 #include <vector>
 using namespace std;
 //Screen dimension constants
@@ -113,7 +114,16 @@ const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU
 const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
-const SDL_Rect RECIPES_BUTTON_READY_RECT    = { 344, 420, 240, 36 };
+const SDL_Rect RECIPES_BUTTON_READY_RECT    = { 474, 420, 230, 36 };
+// Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
+// is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
+const SDL_Rect TUTORIAL_BUTTON_READY_RECT   = { 224, 420, 230, 36 };
+const SDL_Rect TUTORIAL_PANEL_RECT          = { 120, 8, 540, 128 };
+const SDL_Rect TUTORIAL_NEXT_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
+const SDL_Rect TUTORIAL_PLAY_RECT           = { 140, 8 + 128 - 40, 250, 32 };
+const SDL_Rect TUTORIAL_MENU_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
+const float TUTORIAL_WRONG_FLASH = 0.6f;    // s: the expected key flashes after a wrong one
+const float TUTORIAL_SPAWN_FLASH = 3.0f;    // s: a new run enemy and its target are highlighted
 const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 344, 430, 240, 36 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
 
@@ -178,7 +188,17 @@ protected:
 	bool m_hasPlayer = false;             // player sprite loaded
 	bool m_showTouchControls = false;
 	bool m_audioReady = false;            // an audio device was opened
-	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over only)     // touch device (web media query) or any finger touch seen; PC keeps it off
+	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over, and the tutorial run)
+	practice::TutorialSession m_tutorial; // spec §24; only meaningful while m_tutorialActive
+	bool m_tutorialActive = false;        // the tutorial is on screen (the Practice session waits in Ready)
+	bool m_tutorialDone = false;          // finished once on this machine / browser (saved with the settings)
+	float m_tutorialWrongFlash = 0.0f;
+	float m_tutorialSpawnFlash = 0.0f;     // touch device (web media query) or any finger touch seen; PC keeps it off
+
+	// Sound for a key the Core has handled (orb, invoke, cast whoosh), the Ghost Walk aura and the skill effect;
+	// shared by Practice and the tutorial. The judged outcome (right / wrong) is handled by OnCastJudged.
+	void PresentInvokerResult(invoker::InputAction action, const invoker::InvokerResult& result,
+		practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody);
 
 	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
 	// top-left corners (64 x 64). Both groups are symmetric around SCREEN_WIDTH / 2 = 464.
@@ -230,7 +250,7 @@ private:
 	void EndSession();            // a session ended (Game Over or Esc while Playing): update and save the records
 
 	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy);  // "+1" / "MISS" feedback
-	void OnLeak();
+	void OnLeak(int lostHeartIndex);
 	void UpdateFeedback(float dt);
 	void RenderFeedback();        // rings and floating text, in the scene
 	void RenderLeakFlash();       // red frame, over everything but the HUD text
@@ -247,6 +267,20 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
+	// tutorial (spec §24)
+	void StartTutorial();
+	void ExitTutorial(bool startPractice);
+	void HandleTutorialKey(SDL_Keycode sym, const SDL_Event& e);
+	bool HandleTutorialPointer(int x, int y);  // true = the tap was used
+	void ProcessTutorialAction(invoker::InputAction action);
+	void RenderTutorial();
+	void RenderHighlight(SDL_Rect rect);        // pulsing gold frame around what the player should look at
+	void RenderButton(const SDL_Rect& rect, const char* label, bool pulse);
+	// what the play view shows: the tutorial's invoker / enemy while it runs, the Practice session's otherwise
+	const invoker::InvokerState& ShownInvoker() const { return m_tutorialActive ? m_tutorial.Invoker() : m_session.Invoker(); }
+	const practice::ActiveEnemy& ShownEnemy() const { return m_tutorialActive ? m_tutorial.Enemy() : m_session.Enemy(); }
+	bool IsPlayView() const { return m_tutorialActive || m_session.State() == practice::GameState::Playing; }
+	SDL_Rect TargetHintArea(invoker::SkillId target, int& textX) const;  // where RenderTargetHint draws
 	void RenderRecipesButton(const SDL_Rect& rect);
 	void RenderRecipes();
 	void RenderSmallOrb(invoker::Orb orb, int centerX, int centerY);

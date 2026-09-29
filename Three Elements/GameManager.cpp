@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <cstring>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -265,12 +266,24 @@ bool GameManager::RunFrame()
     if (update.cast != practice::CastOutcome::None)
         OnCastJudged(update.cast, enemyBefore);
     if (update.leaked)
-        OnLeak();
+        OnLeak(m_session.GetStats().hp);  // HP was already reduced: this square was just lost
     if (update.gameOver)
     {
         EndSession();
         audio::Play(audio::Sfx::GameOver);
     }
+    if (m_tutorialActive && !m_showRecipes)  // the recipe list pauses the tutorial run
+    {
+        practice::TutorialUpdateResult t = m_tutorial.Update(dt);
+        if (t.spawned)
+            m_tutorialSpawnFlash = TUTORIAL_SPAWN_FLASH;
+        if (t.leaked)
+            OnLeak(m_tutorial.Hearts());
+        if (t.finished)
+            audio::Play(audio::Sfx::Start);
+    }
+    m_tutorialWrongFlash -= dt;
+    m_tutorialSpawnFlash -= dt;
     UpdateFeedback(dt);
     m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
     for (int vi = 0; vi < invoker::SKILL_COUNT; ++vi)
@@ -315,7 +328,9 @@ bool GameManager::RunFrame()
     RenderStatsHud();
     RenderTargetHint();
 
-    if (m_session.State() == practice::GameState::Ready)
+    if (m_tutorialActive)
+        RenderTutorial();
+    else if (m_session.State() == practice::GameState::Ready)
         RenderReadyScreen();
     else if (m_session.State() == practice::GameState::GameOver)
         RenderGameOverScreen();
@@ -341,7 +356,13 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         m_showRecipes = false;
         return;
     }
+    if (m_tutorialActive)
+    {
+        HandleTutorialKey(sym, e);
+        return;
+    }
     if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
+    if (sym == SDLK_t && m_session.State() == practice::GameState::Ready) { StartTutorial(); return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
@@ -404,6 +425,16 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         m_showRecipes = false;
         return;
     }
+    if (m_tutorialActive)
+    {
+        HandleTutorialPointer(x, y);
+        return;
+    }
+    if (m_session.State() == practice::GameState::Ready && hit(TUTORIAL_BUTTON_READY_RECT))
+    {
+        StartTutorial();
+        return;
+    }
     if ((m_session.State() == practice::GameState::Ready && hit(RECIPES_BUTTON_READY_RECT)) ||
         (m_session.State() == practice::GameState::GameOver && hit(RECIPES_BUTTON_GAMEOVER_RECT)))
     {
@@ -464,15 +495,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
     default: break;
     }
 
-    // sounds: each orb has its element's sound, R only sounds when it really invoked, a judged cast sounds right /
-    // wrong (OnCastJudged), and a cast that is not judged at once (Tornado launch, no enemy) just whooshes
-    if (r.invoker.event == invoker::InvokerEvent::OrbAdded)
-        audio::Play(action == invoker::InputAction::Q ? audio::Sfx::OrbQuas
-            : action == invoker::InputAction::W ? audio::Sfx::OrbWex : audio::Sfx::OrbExort);
-    else if (r.invoker.event == invoker::InvokerEvent::Invoked)
-        audio::Play(audio::Sfx::Invoke);
-    else if (r.invoker.event == invoker::InvokerEvent::Cast && r.cast == practice::CastOutcome::None)
-        audio::Play(audio::Sfx::Cast);
+    PresentInvokerResult(action, r.invoker, r.cast, hadEnemy, enemyBody);
 
     const invoker::InvokerState& inv = m_session.Invoker();
     const char* slotName = action == invoker::InputAction::D ? "D" : "F";
@@ -492,23 +515,37 @@ void GameManager::ProcessAction(invoker::InputAction action)
         printf("Cast %s: (empty)\n", slotName);
     }
 
-    if (r.invoker.event == invoker::InvokerEvent::Cast && r.invoker.skill == invoker::SkillId::GhostWalk)
-        m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
-    if (r.invoker.event == invoker::InvokerEvent::Cast)
-        StartSkillVfx(r.invoker.skill, hadEnemy, enemyBody);  // no-op for Tornado / Ghost Walk (own effects)
-
     if (r.tornadoLaunched)
         printf("[practice] Tornado launched (judged when it hits the enemy)\n");
     LogOutcome(r.cast);
-    if (r.cast != practice::CastOutcome::None)
-        OnCastJudged(r.cast, enemyBody);
+}
+
+void GameManager::PresentInvokerResult(invoker::InputAction action, const invoker::InvokerResult& result,
+    practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody)
+{
+    // sounds: each orb has its element's sound, R only sounds when it really invoked, a judged cast sounds right /
+    // wrong (OnCastJudged), and a cast that is not judged at once (Tornado launch, no enemy) just whooshes
+    if (result.event == invoker::InvokerEvent::OrbAdded)
+        audio::Play(action == invoker::InputAction::Q ? audio::Sfx::OrbQuas
+            : action == invoker::InputAction::W ? audio::Sfx::OrbWex : audio::Sfx::OrbExort);
+    else if (result.event == invoker::InvokerEvent::Invoked)
+        audio::Play(audio::Sfx::Invoke);
+    else if (result.event == invoker::InvokerEvent::Cast && cast == practice::CastOutcome::None)
+        audio::Play(audio::Sfx::Cast);
+
+    if (result.event == invoker::InvokerEvent::Cast && result.skill == invoker::SkillId::GhostWalk)
+        m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
+    if (result.event == invoker::InvokerEvent::Cast)
+        StartSkillVfx(result.skill, hadEnemy, enemyBody);  // no-op for Tornado / Ghost Walk (own effects)
+    if (cast != practice::CastOutcome::None)
+        OnCastJudged(cast, enemyBody);
 }
 
 // The six touch buttons (Q/W/E/R/D/F), drawn only while Playing (matches the keyboard: those keys are
 // no-ops in Ready/Game Over too). Reuses the already-loaded keyboard icons at a larger size - no new art.
 void GameManager::RenderTouchControls()
 {
-    if (m_session.State() != practice::GameState::Playing || !m_showTouchControls)
+    if (!IsPlayView() || !m_showTouchControls)
         return;
 
     Keyboard* icons[6] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyR, &m_keyD, &m_keyF };
@@ -538,6 +575,13 @@ void GameManager::RenderTouchControls()
         }
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    // tutorial: the button of the key to press now
+    char expected = m_tutorialActive ? m_tutorial.ExpectedKey() : 0;
+    const char letters[6] = { 'Q', 'W', 'E', 'R', 'D', 'F' };
+    for (int i = 0; i < 6 && expected != 0; ++i)
+        if (letters[i] == expected)
+            RenderHighlight(kTouchButtons[i].rect);
 }
 
 // One log line per judged cast; shared by casts that are judged at once and by Tornado hits.
@@ -612,7 +656,7 @@ void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
 // The single active enemy, drawn where the Practice session says it is.
 void GameManager::RenderEnemy()
 {
-    const practice::ActiveEnemy& e = m_session.Enemy();
+    const practice::ActiveEnemy& e = ShownEnemy();
     if (!e.active)
         return;
 
@@ -729,13 +773,13 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
 }
 
 // An enemy reached the player: a red frame, a short light shake, and the lost HP square blinks.
-void GameManager::OnLeak()
+void GameManager::OnLeak(int lostHeartIndex)
 {
     audio::Play(audio::Sfx::Leak);
     m_leakFlashLeft = FEEDBACK_LEAK_FLASH;
     m_shakeLeft = FEEDBACK_SHAKE_TIME;
     m_hpBlinkLeft = FEEDBACK_HP_BLINK;
-    m_hpBlinkIndex = m_session.GetStats().hp;  // HP was already reduced: the square at this index was just lost
+    m_hpBlinkIndex = lostHeartIndex;
 }
 
 void GameManager::UpdateFeedback(float dt)
@@ -947,34 +991,43 @@ void GameManager::EndSession()
 void GameManager::LoadSettings()
 {
     int muted = 0;
+    int tutorialDone = 0;
 #ifdef __EMSCRIPTEN__
     muted = EM_ASM_INT({
         try { return localStorage.getItem('threeElements_muted') === '1' ? 1 : 0; } catch (e) { return 0; }
+    });
+    tutorialDone = EM_ASM_INT({
+        try { return localStorage.getItem('threeElements_tutorialDone') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
 #else
     FILE* f = fopen(SavePath("settings.txt").c_str(), "r");
     if (f != NULL)
     {
-        if (fscanf(f, "muted %d", &muted) != 1)
+        if (fscanf(f, "muted %d tutorial %d", &muted, &tutorialDone) < 1)
             muted = 0;
         fclose(f);
     }
 #endif
     audio::SetMuted(muted != 0);
+    m_tutorialDone = tutorialDone != 0;
 }
 
 void GameManager::SaveSettings()
 {
     int muted = audio::IsMuted() ? 1 : 0;
+    int tutorialDone = m_tutorialDone ? 1 : 0;
 #ifdef __EMSCRIPTEN__
     EM_ASM({
-        try { localStorage.setItem('threeElements_muted', $0 ? '1' : '0'); } catch (e) {}
-    }, muted);
+        try {
+            localStorage.setItem('threeElements_muted', $0 ? '1' : '0');
+            localStorage.setItem('threeElements_tutorialDone', $1 ? '1' : '0');
+        } catch (e) {}
+    }, muted, tutorialDone);
 #else
     FILE* f = fopen(SavePath("settings.txt").c_str(), "w");
     if (f != NULL)
     {
-        fprintf(f, "muted %d\n", muted);
+        fprintf(f, "muted %d tutorial %d\n", muted, tutorialDone);
         fclose(f);
     }
 #endif
@@ -1005,6 +1058,260 @@ void GameManager::RenderSoundButton()
     const SDL_Color off = { 170, 170, 180, 255 };
     pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 1)) / 2, r.y + (r.h - 7) / 2, 1,
         muted ? off : on);
+}
+
+// ------------------------------------------------------------------ tutorial (spec §24)
+
+void GameManager::StartTutorial()
+{
+    ResetVisualEffects();
+    m_showRecipes = false;
+    unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
+    m_tutorial.Start(seed);
+    m_tutorialActive = true;
+    m_tutorialWrongFlash = m_tutorialSpawnFlash = 0.0f;
+    audio::Play(audio::Sfx::Start);
+    printf("[tutorial] started\n");
+}
+
+// Back to the Ready screen, or straight into Practice from the end card. Finishing is remembered.
+void GameManager::ExitTutorial(bool startPractice)
+{
+    if (m_tutorial.IsDone() && !m_tutorialDone)
+    {
+        m_tutorialDone = true;
+        SaveSettings();
+    }
+    m_tutorialActive = false;
+    m_showRecipes = false;
+    ResetVisualEffects();
+    printf("[tutorial] left\n");
+    if (startPractice)
+        PressEnterAction();
+}
+
+// Keys while the tutorial runs: NEXT (Enter / Space) on cards, the gameplay keys on key steps and the run, H for the
+// recipe list during the run, Esc / Back to leave. On the end card Enter starts Practice.
+void GameManager::HandleTutorialKey(SDL_Keycode sym, const SDL_Event& e)
+{
+    if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { ExitTutorial(false); return; }
+    if (sym == SDLK_m) { ToggleMute(); return; }
+    if (sym == SDLK_h && m_tutorial.Step().kind == practice::TutorialStepKind::Run) { m_showRecipes = true; return; }
+    if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
+    {
+        if (m_tutorial.IsDone())
+            ExitTutorial(true);
+        else if (m_tutorial.Next())
+            audio::Play(audio::Sfx::Cast);  // a soft whoosh for turning the card
+        return;
+    }
+    invoker::InputAction action;
+    if (MainPlayer::TranslateKey(e, action))
+        ProcessTutorialAction(action);
+}
+
+bool GameManager::HandleTutorialPointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    const practice::TutorialStep& step = m_tutorial.Step();
+    if (hit(TOUCH_PLAYING_MENU_RECT))  // "ESC  EXIT"
+    {
+        ExitTutorial(false);
+        return true;
+    }
+    if (step.kind == practice::TutorialStepKind::Done)
+    {
+        if (hit(TUTORIAL_PLAY_RECT)) { ExitTutorial(true); return true; }
+        if (hit(TUTORIAL_MENU_RECT)) { ExitTutorial(false); return true; }
+        return false;
+    }
+    if (step.kind == practice::TutorialStepKind::Card && hit(TUTORIAL_NEXT_RECT))
+    {
+        m_tutorial.Next();
+        audio::Play(audio::Sfx::Cast);
+        return true;
+    }
+    for (int i = 0; i < 6 && m_showTouchControls; ++i)
+    {
+        if (hit(kTouchButtons[i].rect))
+        {
+            ProcessTutorialAction(kTouchButtons[i].action);
+            return true;
+        }
+    }
+    return false;
+}
+
+void GameManager::ProcessTutorialAction(invoker::InputAction action)
+{
+    bool hadEnemy = m_tutorial.Enemy().active;
+    practice::Bounds enemyBody = hadEnemy ? practice::EnemyBounds(m_tutorial.Enemy()) : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+    practice::TutorialInputResult r = m_tutorial.Input(action);
+    if (r.wrongKey)
+    {
+        m_tutorialWrongFlash = TUTORIAL_WRONG_FLASH;
+        audio::Play(audio::Sfx::CastWrong);
+        return;
+    }
+    if (!r.accepted)
+        return;
+    PresentInvokerResult(action, r.invoker, r.cast, hadEnemy, enemyBody);
+    if (r.stepAdvanced && m_tutorial.IsDone())
+        audio::Play(audio::Sfx::Start);
+}
+
+// The TARGET hint's text position and the box around its text and icon (see RenderTargetHint).
+SDL_Rect GameManager::TargetHintArea(invoker::SkillId target, int& textX) const
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "TARGET: %s", invoker::GetSkillDefinition(target).name);
+    int width = pixeltext::Width(buf, 2);
+    textX = SCREEN_WIDTH - width - 16;
+    SDL_Rect area = { textX, 78, width, 100 + SKILL_HINT_SIZE + 4 - 78 };
+    return area;
+}
+
+void GameManager::RenderHighlight(SDL_Rect rect)
+{
+    float t = SDL_GetTicks() / 1000.0f;
+    Uint8 alpha = static_cast<Uint8>(150 + 105 * (0.5f + 0.5f * std::sin(t * 7.0f)));
+    const int pad = 5;
+    rect.x -= pad; rect.y -= pad; rect.w += pad * 2; rect.h += pad * 2;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 60, alpha);
+    for (int i = 0; i < 3; ++i)
+    {
+        SDL_Rect r = { rect.x - i, rect.y - i, rect.w + i * 2, rect.h + i * 2 };
+        SDL_RenderDrawRect(m_screen, &r);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+}
+
+void GameManager::RenderButton(const SDL_Rect& rect, const char* label, bool pulse)
+{
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 220);
+    SDL_RenderFillRect(m_screen, &rect);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &rect);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    pixeltext::DrawShadowed(m_screen, label, rect.x + (rect.w - pixeltext::Width(label, 2)) / 2, rect.y + (rect.h - 14) / 2, 2, gold);
+    if (pulse)
+        RenderHighlight(rect);
+}
+
+// The tutorial layer: highlights around what the step is about, then the card panel at the top with the lesson,
+// the text, the key sequence (key steps), the run's progress and hearts, and NEXT / PLAY / MENU.
+void GameManager::RenderTutorial()
+{
+    const practice::TutorialStep& step = m_tutorial.Step();
+    const practice::ActiveEnemy& enemy = m_tutorial.Enemy();
+    bool run = step.kind == practice::TutorialStepKind::Run;
+
+    // ---- highlights (in the run only for a moment when an enemy appears)
+    int flags = step.highlight;
+    if (run && m_tutorialSpawnFlash <= 0.0f)
+        flags = practice::HIGHLIGHT_NONE;
+    if (flags & practice::HIGHLIGHT_ORBS)
+        RenderHighlight({ elementPos[0].first - 26, elementPos[0].second - 26, elementPos[2].first - elementPos[0].first + 52, 52 });
+    if ((flags & practice::HIGHLIGHT_ENEMY) && enemy.active)
+    {
+        practice::Bounds b = practice::EnemyBounds(enemy);
+        RenderHighlight({ static_cast<int>(b.x), static_cast<int>(b.y), static_cast<int>(b.w), static_cast<int>(b.h) });
+    }
+    if ((flags & practice::HIGHLIGHT_TARGET) && enemy.active)
+    {
+        int textX = 0;
+        RenderHighlight(TargetHintArea(enemy.target, textX));
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        int bit = i == 0 ? practice::HIGHLIGHT_SLOT_D : practice::HIGHLIGHT_SLOT_F;
+        if (flags & bit)
+            RenderHighlight({ skillPos[i].first - 2, skillPos[i].second - 38, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 40 });
+    }
+
+    // ---- the panel
+    const SDL_Rect& panel = TUTORIAL_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 12, 14, 22, 225);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    const SDL_Color red = { 255, 90, 90, 255 };
+    const SDL_Color green = { 120, 220, 130, 255 };
+    char buf[64];
+    if (step.kind != practice::TutorialStepKind::Done)
+    {
+        snprintf(buf, sizeof(buf), "TUTORIAL  %d/%d", step.lesson, practice::TUTORIAL_LESSON_COUNT);
+        pixeltext::Draw(m_screen, buf, panel.x + 12, panel.y + 6, 2, grey);  // scale 2: readable on a phone too
+    }
+    pixeltext::DrawShadowed(m_screen, step.line1, panel.x + 12, panel.y + 30, 2, step.kind == practice::TutorialStepKind::Done ? gold : white);
+    if (step.line2[0] != '\0')
+        pixeltext::DrawShadowed(m_screen, step.line2, panel.x + 12, panel.y + 52, 2, white);
+
+    if (step.kind == practice::TutorialStepKind::Keys)
+    {
+        // the whole sequence, one box per key: done = green, now = gold (pulsing frame), later = grey
+        int count = static_cast<int>(std::strlen(step.keys));
+        for (int i = 0; i < count; ++i)
+        {
+            SDL_Rect box = { panel.x + 12 + i * 44, panel.y + 80, 36, 36 };
+            bool done = i < m_tutorial.KeysDone();
+            bool now = i == m_tutorial.KeysDone();
+            SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 255);
+            SDL_RenderFillRect(m_screen, &box);
+            SDL_Color c = done ? green : now ? gold : grey;
+            SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 255);
+            SDL_RenderDrawRect(m_screen, &box);
+            char key[2] = { step.keys[i], '\0' };
+            pixeltext::DrawShadowed(m_screen, key, box.x + (box.w - pixeltext::Width(key, 3)) / 2, box.y + 8, 3, c);
+            if (now)
+                RenderHighlight(box);
+        }
+        if (m_tutorialWrongFlash > 0.0f)
+        {
+            char want[2] = { m_tutorial.ExpectedKey(), '\0' };
+            snprintf(buf, sizeof(buf), "PRESS %s", want);
+            pixeltext::DrawShadowed(m_screen, buf, panel.x + 12 + count * 44 + 16, panel.y + 90, 2, red);
+        }
+    }
+    else if (step.kind == practice::TutorialStepKind::Card)
+    {
+        RenderButton(TUTORIAL_NEXT_RECT, "NEXT  >", true);
+    }
+    else if (run)
+    {
+        snprintf(buf, sizeof(buf), "DEFEATED %d/%d", m_tutorial.RunDefeated(), practice::TUTORIAL_RUN_ENEMIES);
+        pixeltext::DrawShadowed(m_screen, buf, panel.x + 12, panel.y + 94, 2, gold);
+        // hearts, like the HP squares of Practice (a lost one blinks)
+        pixeltext::DrawShadowed(m_screen, "HP", panel.x + 300, panel.y + 94, 2, white);
+        for (int i = 0; i < practice::START_HP; ++i)
+        {
+            SDL_Rect box = { panel.x + 340 + i * 24, panel.y + 92, 18, 18 };
+            bool blinkOn = i == m_hpBlinkIndex && m_hpBlinkLeft > 0.0f && static_cast<int>(m_hpBlinkLeft * 16.0f) % 2 == 0;
+            if (blinkOn)
+                SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+            else if (i < m_tutorial.Hearts())
+                SDL_SetRenderDrawColor(m_screen, 220, 50, 50, 255);
+            else
+                SDL_SetRenderDrawColor(m_screen, 40, 20, 24, 255);
+            SDL_RenderFillRect(m_screen, &box);
+            SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+            SDL_RenderDrawRect(m_screen, &box);
+        }
+    }
+    else  // Done
+    {
+        RenderButton(TUTORIAL_PLAY_RECT, "PLAY PRACTICE", true);
+        RenderButton(TUTORIAL_MENU_RECT, "MENU", false);
+    }
 }
 
 // "RECIPES (H)" button on the Ready / Game Over screens.
@@ -1157,10 +1464,10 @@ void GameManager::RenderSkillVfx()
 // Only while Playing: centred, it would otherwise sit under the Ready / Game Over text.
 void GameManager::RenderInvokerHud()
 {
-    if (m_session.State() != practice::GameState::Playing)
+    if (!IsPlayView())
         return;
 
-    const invoker::InvokerState& inv = m_session.Invoker();
+    const invoker::InvokerState& inv = ShownInvoker();
 
     // three orb sockets: empty ones are a faint ring, so the player sees how many orbs are loaded
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
@@ -1221,6 +1528,13 @@ void GameManager::RenderStatsHud()
     const practice::Stats& st = m_session.GetStats();
     const SDL_Color white = { 255, 255, 255, 255 };
     char buf[64];
+
+    if (m_tutorialActive)  // the tutorial has no score: its card panel takes the top of the screen
+    {
+        const SDL_Color grey = { 200, 200, 210, 255 };
+        pixeltext::DrawShadowed(m_screen, "ESC  EXIT", SCREEN_WIDTH - pixeltext::Width("ESC  EXIT", 2) - 16, 42, 2, grey);
+        return;
+    }
 
     // row 1: HP squares, score, combo, best combo
     pixeltext::DrawShadowed(m_screen, "HP", 16, 12, 2, white);
@@ -1293,6 +1607,7 @@ void GameManager::RenderReadyScreen()
     pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);  // nothing to quit on the web
 #endif
     RenderRecipesButton(RECIPES_BUTTON_READY_RECT);
+    RenderButton(TUTORIAL_BUTTON_READY_RECT, "TUTORIAL  (T)", !m_tutorialDone);  // pulses until done once
 }
 
 void GameManager::RenderGameOverScreen()
@@ -1339,19 +1654,19 @@ void GameManager::RenderGameOverScreen()
 // not just --debug builds; see GAMEPLAY_SPEC.md E-8 and the "Target-skill hint" rule in §17.
 void GameManager::RenderTargetHint()
 {
-    const practice::ActiveEnemy& e = m_session.Enemy();
+    const practice::ActiveEnemy& e = ShownEnemy();
     if (!e.active)
         return;
 
     const SDL_Color yellow = { 255, 235, 60, 255 };
     char buf[64];
     snprintf(buf, sizeof(buf), "TARGET: %s", invoker::GetSkillDefinition(e.target).name);
-    int textX = SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16;
+    int textX = 0;
+    SDL_Rect area = TargetHintArea(e.target, textX);
     pixeltext::DrawShadowed(m_screen, buf, textX, 78, 2, yellow);
 
     // the skill's icon below the text, centred under it, large enough to read at a glance (owner 2026-09-30)
-    int textCenter = textX + pixeltext::Width(buf, 2) / 2;
-    SDL_Rect tile = { textCenter - SKILL_HINT_SIZE / 2 - 2, 100, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
+    SDL_Rect tile = { area.x + (area.w - SKILL_HINT_SIZE - 4) / 2, 100, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
     if (tile.x + tile.w > SCREEN_WIDTH - 16)  // short names: keep the tile inside the right margin
         tile.x = SCREEN_WIDTH - 16 - tile.w;
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);

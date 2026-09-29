@@ -87,6 +87,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `../art/` | Ảnh gốc (`skill-icons/`) + `make_skill_icons.py` (icon game) + `make_launcher_icon.py` (icon app Android) |
 | `GameManager.h/.cpp` | **Presentation**: khởi tạo SDL, `LoadAssets()` + `RunFrame()` (một khung hình: input, `PracticeSession::Update(dt)`, vẽ). `LoopGame()` gọi `RunFrame()` trong vòng `while` (PC) hoặc qua `emscripten_set_main_loop_arg` (web). Vẽ background, quái, hiệu ứng skill, HUD (orb màu, ô D/F ở giữa), cụm phím cảm ứng, màn Ready/Game Over, Top-10 điểm, log phát triển |
 | `Practice/Practice.h/.cpp` | **Practice** (không SDL, không đồng hồ, không biến toàn cục): `EnemyDefinition` (10 quái, `targetSkill`), `DifficultyAt(elapsed)`, `PracticeSession` (Ready/Playing/GameOver, HP, điểm, combo, độ chính xác, thời gian sống sót, một quái đang hoạt động, sở hữu `InvokerState`) |
+| `Practice/Tutorial.h/.cpp` | **Tutorial** (spec §24, không SDL): `TutorialSession` chạy kịch bản các bước (Card / Keys / Run / Done), dùng `InvokerState` và luật đúng/sai của Practice, hình nhân tập, 3 quái đi chậm ở bài cuối; không đụng điểm/kỷ lục |
 | `PixelText.h/.cpp` | Chữ pixel 5×7 vẽ bằng `SDL_RenderFillRect` cho HUD (không cần font hay SDL2_ttf) |
 | `Draw.h/.cpp` | Hàm vẽ cơ bản dùng chung: hình tròn, vòng, cung, hình thoi, `Hash` (số giả ngẫu nhiên cho hạt) |
 | `SkillVfx.h/.cpp` | Hiệu ứng **vẽ bằng code** cho 8 skill (trừ Tornado, Ghost Walk dùng sprite): bảng thời lượng/điểm xuất phát + một hàm vẽ mỗi skill, tính lại từ tuổi hiệu ứng mỗi khung hình |
@@ -95,7 +96,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `Core/Invoker.h/.cpp` | **Core** (không SDL): `InputAction`, `Orb`, `Recipe` (chuẩn hóa theo số lượng), `SkillDefinition`/catalog 10 skill (id, recipe, tên, đường dẫn icon), `InvokerState` (orb, ô D/F, `Apply/AddOrb/Invoke/Cast/Reset`). Đây là nơi duy nhất chứa luật Invoker |
 | `MainPlayer.h/.cpp` | Sprite người chơi + `TranslateKey` (SDL key → `InputAction`, bỏ qua `key.repeat`); không giữ trạng thái game |
 | `Skill.h/.cpp` | Icon của một skill: `LoadIcon` (RGBA, không color key, làm mượt) và `RenderAt(x, y, size)`; dữ liệu skill nằm trong Core |
-| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (876 kiểm tra) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
+| `../Tests/` | `InvokerCoreTests` (243 kiểm tra) và `PracticeTests` (946 kiểm tra, gồm Tutorial) + `run_tests.cmd` + README: project riêng trong `.sln`, không được link vào game |
 | `Keyboard.h/.cpp` | Icon phím (2 frame); dùng cho nhãn D/F và cụm phím cảm ứng (orb được vẽ thành hình tròn màu, không dùng icon phím nữa) |
 | `Enemy.h/.cpp` | `EnemyObject`: chỉ còn là sprite sheet + animation theo thời gian (`Update(dt)`, `ENEMY_ANIM_FPS`); vị trí do Practice quyết định |
 | `ImpTimer.h/.cpp` | Bộ đếm giữ FPS ổn định cho bản PC (chỉ `start()` và `get_ticks()`) |
@@ -128,6 +129,7 @@ Tài nguyên trong `assets/`:
 - **Background:** 12 lớp parallax 928×793, cắt một dải 544 px **không co giãn** (`BACKGROUND_CROP_Y`), mặt đất vẫn ở y = 500 (trước đây ảnh bị ép dẹt).
 - **Hình ảnh sắc nét (2026-09-30):** `SDL_HINT_RENDER_SCALE_QUALITY "0"` (nearest) cho pixel art; chỉ icon skill (tranh vẽ) được làm mượt (`Skill::LoadIcon`).
 - **Bảng tra công thức (2026-09-30, quyết định chủ project):** phím H hoặc nút "RECIPES (H)" ở màn Ready/Game Over mở bảng 10 skill (icon, tên, 3 orb màu); **không mở được khi đang chơi**; phím/chạm bất kỳ để đóng (`GameManager::RenderRecipes`).
+- **Tutorial (2026-09-30, spec §24):** nút **TUTORIAL (T)** ở màn Ready (nhấp nháy tới khi hoàn thành lần đầu; trạng thái lưu cùng cài đặt âm thanh). 4 bài: nguyên tố → Sun Strike dắt tay từng phím (E E E R D, phím cần bấm sáng lên cả trên HUD lẫn nút cảm ứng) → thẻ quy tắc → tự chơi 3 quái chậm (chỉ thấy tên + icon, H mở bảng công thức và tạm dừng). Khung vàng nhấp nháy làm nổi bật quái, TARGET, orb, ô D/F. Enter/Space/NEXT sang thẻ tiếp; Esc thoát; màn cuối Enter vào Practice. Không ảnh hưởng điểm/kỷ lục.
 - **Gợi ý mục tiêu có icon (2026-09-30):** "TARGET: <tên>" kèm icon skill 80 px ngay bên dưới tên (`SKILL_HINT_SIZE`).
 
 ## 6. Chưa có (phần việc còn lại)
@@ -162,6 +164,6 @@ Hướng thiết kế đã chốt (mục 2). Lộ trình chi tiết nằm trong 
 - Style hiện có: tab để thụt lề, tên hàm lẫn lộn giữa `PascalCase` (`LoadImg`, `SetPos`) và `camelCase` (`handleKeyPress`), biến thành viên có hậu tố `_` hoặc tiền tố `m_`. Code mới nên theo style của file đang sửa.
 - Comment trong code trộn tiếng Anh và tiếng Việt; commit message bằng tiếng Anh.
 - **Test:** logic Core và Practice có bộ test riêng trong `Tests/` (không dùng framework, không dính SDL). Chạy `Tests\run_tests.cmd` (build + chạy cả hai chương trình, mã thoát 0 = đạt); xem `Tests/README.md`. Phải chạy trước khi sửa Core/Practice. Không có CI. Phần SDL (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) chưa có test tự động; kiểm bằng cách chạy game (`--debug` in mục tiêu ra console để lái phiên chơi).
-- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready, chỉ bản PC), Q/W/E/R/D/F = chơi, M = bật/tắt âm thanh, H = bảng công thức (ở Ready/Game Over).
+- **Chạy game:** thư mục làm việc phải là `Three Elements/` (chứa `assets/`). Enter = bắt đầu/chơi lại, Esc = về Ready (thoát app khi đang ở Ready, chỉ bản PC), Q/W/E/R/D/F = chơi, M = bật/tắt âm thanh, H = bảng công thức (ở Ready/Game Over), T = Tutorial (ở Ready).
 - **Kiểm tra bản web:** sau khi `web/build.sh`, có thể phục vụ `D:\Dev\web-build` bằng một HTTP server tĩnh và mở bằng Chrome (giả lập điện thoại trong DevTools) để thử.
 - Lịch sử commit: bắt đầu từ game nền (background + nhân vật), rồi refactor OOP, sau đó thêm Keyboard/Skill, gộp combo skill, và gần đây nhất là respawn quái ngẫu nhiên và chỉnh thời gian respawn.

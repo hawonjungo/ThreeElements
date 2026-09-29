@@ -82,10 +82,12 @@
   <ItemGroup>
     <ClCompile Include="PracticeTests.cpp" />
     <ClCompile Include="..\Three Elements\Practice\Practice.cpp" />
+    <ClCompile Include="..\Three Elements\Practice\Tutorial.cpp" />
     <ClCompile Include="..\Three Elements\Core\Invoker.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Three Elements\Practice\Practice.h" />
+    <ClInclude Include="..\Three Elements\Practice\Tutorial.h" />
     <ClInclude Include="..\Three Elements\Core\Invoker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

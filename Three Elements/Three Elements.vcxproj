@@ -166,6 +166,7 @@
     <ClCompile Include="Skill.cpp" />
     <ClCompile Include="Core\Invoker.cpp" />
     <ClCompile Include="Practice\Practice.cpp" />
+    <ClCompile Include="Practice\Tutorial.cpp" />
     <ClCompile Include="PixelText.cpp" />
     <ClCompile Include="Draw.cpp" />
     <ClCompile Include="SkillVfx.cpp" />
@@ -182,6 +183,7 @@
     <ClInclude Include="Skill.h" />
     <ClInclude Include="Core\Invoker.h" />
     <ClInclude Include="Practice\Practice.h" />
+    <ClInclude Include="Practice\Tutorial.h" />
     <ClInclude Include="PixelText.h" />
     <ClInclude Include="Draw.h" />
     <ClInclude Include="SkillVfx.h" />
