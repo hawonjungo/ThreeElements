@@ -125,7 +125,7 @@ Tài nguyên trong `assets/`:
 - **Background:** 12 lớp parallax 928×793, cắt một dải 544 px **không co giãn** (`BACKGROUND_CROP_Y`), mặt đất vẫn ở y = 500 (trước đây ảnh bị ép dẹt).
 - **Hình ảnh sắc nét (2026-09-30):** `SDL_HINT_RENDER_SCALE_QUALITY "0"` (nearest) cho pixel art; chỉ icon skill (tranh vẽ) được làm mượt (`Skill::LoadIcon`).
 - **Bảng tra công thức (2026-09-30, quyết định chủ project):** phím H hoặc nút "RECIPES (H)" ở màn Ready/Game Over mở bảng 10 skill (icon, tên, 3 orb màu); **không mở được khi đang chơi**; phím/chạm bất kỳ để đóng (`GameManager::RenderRecipes`).
-- **Gợi ý mục tiêu có icon (2026-09-30):** "TARGET: <tên>" kèm icon skill 40 px bên trái.
+- **Gợi ý mục tiêu có icon (2026-09-30):** "TARGET: <tên>" kèm icon skill 80 px ngay bên dưới tên (`SKILL_HINT_SIZE`).
 
 ## 6. Chưa có (phần việc còn lại)
 

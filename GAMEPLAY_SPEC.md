@@ -212,7 +212,7 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 
 **Recipe reference [CONFIRMED, owner decision 2026-09-30].** A reference list of all 10 skills (icon, name, the three orbs) can be opened with H or a "RECIPES" button **on the Ready and Game Over screens only**; it can never be opened while Playing, and any key or tap closes it. Knowing the recipes is still the player's job during play.
 
-**Target-skill icon [CONFIRMED, owner decision 2026-09-30].** The target hint shows the skill's icon next to its name (still no recipe).
+**Target-skill icon [CONFIRMED, owner decision 2026-09-30].** The target hint shows the skill's icon, large, below its name (still no recipe).
 
 **[FUTURE]** A beginner mode may add hints. *Observation (not blocking):* with no hints and no reference in the game, the enemy↔spell mapping can only be learnt by trial and error; a beginner mode or an out-of-game reference would address this later.
 

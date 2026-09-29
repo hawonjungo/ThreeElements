@@ -1285,8 +1285,11 @@ void GameManager::RenderTargetHint()
     int textX = SCREEN_WIDTH - pixeltext::Width(buf, 2) - 16;
     pixeltext::DrawShadowed(m_screen, buf, textX, 78, 2, yellow);
 
-    // the skill's icon left of the text, on a small dark tile (owner 2026-09-30: name and icon)
-    SDL_Rect tile = { textX - SKILL_HINT_SIZE - 12, 85 - SKILL_HINT_SIZE / 2 - 2, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
+    // the skill's icon below the text, centred under it, large enough to read at a glance (owner 2026-09-30)
+    int textCenter = textX + pixeltext::Width(buf, 2) / 2;
+    SDL_Rect tile = { textCenter - SKILL_HINT_SIZE / 2 - 2, 100, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
+    if (tile.x + tile.w > SCREEN_WIDTH - 16)  // short names: keep the tile inside the right margin
+        tile.x = SCREEN_WIDTH - 16 - tile.w;
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
     SDL_RenderFillRect(m_screen, &tile);

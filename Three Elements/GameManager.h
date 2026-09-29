@@ -65,7 +65,7 @@ const int PLAYER_BODY_CENTER_Y = 476;
 
 // Skill icons (assets/skill, 128 px RGBA made by art/make_skill_icons.py) are drawn scaled to these sizes.
 const int SKILL_SLOT_SIZE = 64;     // D / F slots
-const int SKILL_HINT_SIZE = 40;     // next to "TARGET: <name>"
+const int SKILL_HINT_SIZE = 80;     // under "TARGET: <name>"
 const int SKILL_RECIPE_SIZE = 40;   // recipe reference list
 
 // The other 8 skills are drawn in code by SkillVfx.* (owner 2026-09-29; they replaced the TEST placeholder sheets).
