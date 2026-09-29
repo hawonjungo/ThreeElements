@@ -15,7 +15,7 @@ Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code b
 | 4 | Game Loop / Input / State readiness | **Mostly done** (frame step, dt-based animation; asset-path helper and ownership clean-up left) |
 | 5 | Web MVP (GitHub Pages) | **Mostly done** (live at http://3elements.relifes.net, `web/build.sh`; no CMake yet, HTTPS cert pending) |
 | 6 | UX / Audio / Game Feel | **Mostly done** (records, feedback, sound effects, code-drawn skill effects; tuning deferred to the difficulty backgrounds, HUD polish left) |
-| 7 | Android | placeholder |
+| 7 | Android | **In progress** (native SDL2 project in `android/`; owner goal: debug APK on own phone, not Google Play yet) |
 | 8 | Future Combat / Story | placeholder, not started |
 | 9 | PC / Steam | placeholder, conditional |
 
@@ -115,8 +115,13 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 - [x] Recipe reference on Ready / Game Over (H or button), never during play (spec §17).
 - [ ] Text rendering / HUD polish. No recipe hints in normal play.
 
-### Phase 7 — Android
-SDL Android project, six keyboard-like touch buttons Q/W/E/R/D/F firing on touch-down through `InputAction`, landscape/safe-area layout, lifecycle and renderer-reset handling, latency check on a real device. iOS is out of scope.
+### Phase 7 — Android  *(in progress)*
+Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK installed on the owner's own phone first, tested on a real device.
+- [x] Gradle project `android/` from SDL 2.32's template (AGP 8.7.3 / Gradle 8.9 / JDK 21), SDL sources fetched by `android/fetch_deps.sh` (not in git), `app/jni/CMakeLists.txt` building SDL2, SDL2_image (PNG via stb, BMP) and the game as `libmain.so`.
+- [x] Code: logical 928×544 rendering with letterbox (`SDL_RenderSetLogicalSize`, all platforms), `TouchToGame`, landscape hint, touch buttons on from start, Back = Esc, save files in `SDL_GetPrefPath`, records saved when the app goes to the background.
+- [x] Launcher icon (`art/make_launcher_icon.py`).
+- [ ] First successful APK build and install on the owner's phone; latency and layout check on the device.
+- [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
 ### Phase 8 — Future Combat / Story  *(deliberately not started)*
 Design note only, when the MVP has proven fun: Threne story, Evil King, hero roles, assign-cards screens, real skill effects/damage, bosses, multi-target hard modes, beginner-mode hints. Builds on Core; no code before this phase is explicitly opened.
@@ -139,3 +144,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-29 — **Phase 6 (part 2):** synthesised sound effects with mute, code-drawn effects for 8 skills (placeholder sheets no longer used), web visitor counter.
 - 2026-09-29 — Clean-up: the 8 unused placeholder VFX sheets deleted; branches `phase-2-invoker-core`, `backU`, `Jun2024` deleted (all work is on `main`). Owner decisions: no background music; difficulty tuning waits for difficulty-dependent backgrounds.
 - 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play.
+- 2026-09-30 — **Phase 7 started:** native Android project (`android/`), Android-specific code paths, launcher icon; `CMakeLists.txt` for the NDK build.

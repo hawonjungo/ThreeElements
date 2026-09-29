@@ -19,6 +19,28 @@
 
 GameManager* GameManager::instance_ = NULL;
 
+// Where the small save files (top scores, records, settings) live: next to the exe on desktop, as always; in the
+// app's private data folder on Android, where an app cannot write to its install location. (The web build keeps
+// them in localStorage instead and never calls this.)
+static std::string SavePath(const char* name)
+{
+#ifdef __ANDROID__
+    static std::string dir;
+    if (dir.empty())
+    {
+        char* pref = SDL_GetPrefPath("relifes", "ThreeElements");
+        if (pref != NULL)
+        {
+            dir = pref;
+            SDL_free(pref);
+        }
+    }
+    return dir + name;
+#else
+    return name;
+#endif
+}
+
 
 GameManager::GameManager()
 {
@@ -56,11 +78,16 @@ bool GameManager::InitSDL()
     // scaled sprite). Only the painted skill icons opt into smoothing (Skill::LoadIcon).
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
+    Uint32 windowFlags = SDL_WINDOW_SHOWN;
+#ifdef __ANDROID__
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");  // the game is landscape only
+    windowFlags |= SDL_WINDOW_FULLSCREEN;
+#endif
     m_window = SDL_CreateWindow("Three Elements",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH, SCREEN_HEIGHT,
-        SDL_WINDOW_SHOWN);
+        windowFlags);
 
     if (m_window == NULL)
     {
@@ -78,6 +105,9 @@ bool GameManager::InitSDL()
         else
         {
             SDL_SetRenderDrawColor(m_screen, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR, RENDER_DRAW_COLOR);
+            // The game is always drawn in 928 x 544 game pixels. A screen of another size or shape (a phone) gets it
+            // scaled and letterboxed by SDL; on desktop and web the window already is 928 x 544, so nothing changes.
+            SDL_RenderSetLogicalSize(m_screen, SCREEN_WIDTH, SCREEN_HEIGHT);
             int imgFlags = IMG_INIT_PNG;
             if (!(IMG_Init(imgFlags) && imgFlags))
             {
@@ -175,6 +205,9 @@ void GameManager::LoadAssets()
     // (same media query the web shell uses). Any finger touch later turns it on too (see SDL_FINGERDOWN).
     m_showTouchControls = EM_ASM_INT({ return window.matchMedia('(hover: none) and (pointer: coarse)').matches ? 1 : 0; }) != 0;
 #endif
+#ifdef __ANDROID__
+    m_showTouchControls = true;  // a phone: the on-screen Q/W/E/R/D/F buttons are the controls
+#endif
 
     printf("Three Elements - Practice Mode. Press Enter to start.\n");
 
@@ -200,6 +233,10 @@ bool GameManager::RunFrame()
         {
             quit = true;
         }
+        else if (m_event.type == SDL_APP_WILLENTERBACKGROUND)
+        {
+            SaveRecordsSoFar();
+        }
         else if (m_event.type == SDL_KEYDOWN)
         {
             HandleKeyDown(m_event, quit);
@@ -207,8 +244,9 @@ bool GameManager::RunFrame()
         else if (m_event.type == SDL_FINGERDOWN)  // phone/tablet touch (normalised 0..1 coordinates)
         {
             m_showTouchControls = true;  // a touch screen is in use, whatever the media query said
-            HandlePointerDown(static_cast<int>(m_event.tfinger.x * SCREEN_WIDTH),
-                static_cast<int>(m_event.tfinger.y * SCREEN_HEIGHT), quit);
+            int gameX = 0, gameY = 0;
+            TouchToGame(m_event.tfinger.x, m_event.tfinger.y, gameX, gameY);
+            HandlePointerDown(gameX, gameY, quit);
         }
         else if (m_event.type == SDL_MOUSEBUTTONDOWN && m_event.button.which != SDL_TOUCH_MOUSEID)
         {
@@ -305,7 +343,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     }
     if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
-    if (sym == SDLK_ESCAPE) { PressEscapeAction(quit); return; }
+    if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
     if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) { PressEnterAction(); return; }
 
@@ -772,7 +810,7 @@ void GameManager::LoadTopScores()
             HEAP32[($0 >> 2) + i] = values[i] | 0;
     }, m_topScores);
 #else
-    FILE* f = fopen("highscores.txt", "r");
+    FILE* f = fopen(SavePath("highscores.txt").c_str(), "r");
     if (f != NULL)
     {
         for (int i = 0; i < 10 && fscanf(f, "%d", &m_topScores[i]) == 1; ++i) {}
@@ -792,7 +830,7 @@ void GameManager::SaveTopScores()
         localStorage.setItem('threeElements_topScores', values.join(','));
     }, m_topScores);
 #else
-    FILE* f = fopen("highscores.txt", "w");
+    FILE* f = fopen(SavePath("highscores.txt").c_str(), "w");
     if (f != NULL)
     {
         for (int i = 0; i < 10; ++i)
@@ -834,7 +872,7 @@ void GameManager::LoadBests()
         } catch (e) {}
     }, raw);
 #else
-    FILE* f = fopen("bests.txt", "r");
+    FILE* f = fopen(SavePath("bests.txt").c_str(), "r");
     if (f != NULL)
     {
         if (fscanf(f, "%d %d %d", &raw[0], &raw[1], &raw[2]) != 3)
@@ -847,9 +885,9 @@ void GameManager::LoadBests()
     m_bests.survivalTime = raw[2] > 0 ? raw[2] / 1000.0f : 0.0f;
 }
 
-void GameManager::SaveBests()
+void GameManager::SaveBests(const practice::BestStats& bests)
 {
-    int raw[3] = { m_bests.score, m_bests.combo, static_cast<int>(m_bests.survivalTime * 1000.0f) };
+    int raw[3] = { bests.score, bests.combo, static_cast<int>(bests.survivalTime * 1000.0f) };
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         try {
@@ -858,7 +896,7 @@ void GameManager::SaveBests()
         } catch (e) {}
     }, raw);
 #else
-    FILE* f = fopen("bests.txt", "w");
+    FILE* f = fopen(SavePath("bests.txt").c_str(), "w");
     if (f != NULL)
     {
         fprintf(f, "%d %d %d\n", raw[0], raw[1], raw[2]);
@@ -867,13 +905,39 @@ void GameManager::SaveBests()
 #endif
 }
 
+// The app is going to the background (Android) and may be closed there without warning: write the records the
+// current session has already beaten. m_bests itself is left alone, so the Game Over screen can still say
+// "NEW BEST!" when the session really ends.
+void GameManager::SaveRecordsSoFar()
+{
+    if (m_session.State() != practice::GameState::Playing)
+        return;
+    practice::BestStats sofar = m_bests;
+    if (practice::MergeBests(sofar, m_session.GetStats()).Any())
+        SaveBests(sofar);
+}
+
+// Game coordinates (0..928, 0..544) of a touch. SDL_FINGER* positions are 0..1 of the whole window, while the game
+// is drawn into a letterboxed logical area (SDL_RenderSetLogicalSize): go through the renderer's scale and viewport.
+void GameManager::TouchToGame(float normX, float normY, int& gameX, int& gameY)
+{
+    int outW = 0, outH = 0;
+    SDL_GetRendererOutputSize(m_screen, &outW, &outH);
+    float scaleX = 1.0f, scaleY = 1.0f;
+    SDL_RenderGetScale(m_screen, &scaleX, &scaleY);
+    SDL_Rect viewport;
+    SDL_RenderGetViewport(m_screen, &viewport);
+    gameX = static_cast<int>(normX * outW / scaleX) - viewport.x;
+    gameY = static_cast<int>(normY * outH / scaleY) - viewport.y;
+}
+
 // A session is over, by Game Over or by Esc while Playing: its score, combo and survival time can set records.
 void GameManager::EndSession()
 {
     m_lastBestUpdate = practice::MergeBests(m_bests, m_session.GetStats());
     if (m_lastBestUpdate.Any())
     {
-        SaveBests();
+        SaveBests(m_bests);
         printf("[practice] new record(s):%s%s%s\n", m_lastBestUpdate.score ? " score" : "",
             m_lastBestUpdate.combo ? " combo" : "", m_lastBestUpdate.survivalTime ? " survival time" : "");
     }
@@ -888,7 +952,7 @@ void GameManager::LoadSettings()
         try { return localStorage.getItem('threeElements_muted') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
 #else
-    FILE* f = fopen("settings.txt", "r");
+    FILE* f = fopen(SavePath("settings.txt").c_str(), "r");
     if (f != NULL)
     {
         if (fscanf(f, "muted %d", &muted) != 1)
@@ -907,7 +971,7 @@ void GameManager::SaveSettings()
         try { localStorage.setItem('threeElements_muted', $0 ? '1' : '0'); } catch (e) {}
     }, muted);
 #else
-    FILE* f = fopen("settings.txt", "w");
+    FILE* f = fopen(SavePath("settings.txt").c_str(), "w");
     if (f != NULL)
     {
         fprintf(f, "muted %d\n", muted);

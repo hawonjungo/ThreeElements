@@ -75,6 +75,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 - Cửa sổ 928×544. Bản PC giới hạn 60 FPS; bản web chạy theo tần số màn hình. Mọi chuyển động/animation tính theo thời gian thật (`dt`), nên FPS không đổi tốc độ game.
 - **Bản web (Emscripten):** `web/build.sh` build vào **một** thư mục duy nhất `D:\Dev\web-build` (emsdk ở `D:\Dev\tools\emsdk`; đổi được bằng biến `EMSDK_DIR`, `WEB_BUILD_DIR`). `web/build.sh --deploy` build rồi commit bản build vào nhánh `gh-pages`, push, và **chờ GitHub Pages phát hành xong rồi so file trên trang thật** (GitHub đôi khi bỏ qua một lần push; script báo lại, chạy lại là được). Chạy từ Git Bash. `web/shell.html` là trang HTML bao quanh canvas (bố cục điện thoại, nút toàn màn hình, thẻ meta iOS), `web/manifest.webmanifest` cho "Thêm vào màn hình chính". Tên miền `3elements.relifes.net` (file `CNAME` trong `gh-pages`); HTTPS của tên miền chưa được GitHub cấp chứng chỉ (chủ project xử lý trong Settings → Pages).
 - **Không tạo thêm nhánh hay thư mục build mới** khi build/deploy (yêu cầu của chủ project).
+- **Bản Android (native SDL2, Phase 7, bắt đầu 2026-09-30):** thư mục `android/` (Gradle, AGP 8.7.3, Gradle 8.9, JDK 21 của Android Studio). Mã nguồn SDL2 2.32.10 / SDL2_image 2.8.12 **không nằm trong git**: chạy `android/fetch_deps.sh` một lần. Build: `cd android && JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug` (hoặc `installDebug` khi điện thoại cắm USB). NDK/CMake: tự lấy bản mới nhất đã cài. Mục tiêu hiện tại: **chỉ cài APK lên máy chủ project**, chưa lên Google Play. Chi tiết: [android/README.md](android/README.md).
 
 ## 4. Cấu trúc code (`Three Elements/`)
 
@@ -82,6 +83,8 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 |---|---|
 | `main.cpp` | Tạo singleton `GameManager`, đọc tùy chọn `--debug` (chỉ dev), gọi `InitSDL()` rồi `LoopGame()`; trả 1 nếu khởi tạo lỗi |
 | `../web/` | `build.sh` (build/deploy web), `shell.html`, `manifest.webmanifest` |
+| `../android/` | Project Android: `app/jni/CMakeLists.txt` (SDL2 + SDL2_image + game → `libmain.so`), `ThreeElementsActivity` (kế thừa `SDLActivity`), manifest (ngang, toàn màn hình), `fetch_deps.sh`, README |
+| `../art/` | Ảnh gốc (`skill-icons/`) + `make_skill_icons.py` (icon game) + `make_launcher_icon.py` (icon app Android) |
 | `GameManager.h/.cpp` | **Presentation**: khởi tạo SDL, `LoadAssets()` + `RunFrame()` (một khung hình: input, `PracticeSession::Update(dt)`, vẽ). `LoopGame()` gọi `RunFrame()` trong vòng `while` (PC) hoặc qua `emscripten_set_main_loop_arg` (web). Vẽ background, quái, hiệu ứng skill, HUD (orb màu, ô D/F ở giữa), cụm phím cảm ứng, màn Ready/Game Over, Top-10 điểm, log phát triển |
 | `Practice/Practice.h/.cpp` | **Practice** (không SDL, không đồng hồ, không biến toàn cục): `EnemyDefinition` (10 quái, `targetSkill`), `DifficultyAt(elapsed)`, `PracticeSession` (Ready/Playing/GameOver, HP, điểm, combo, độ chính xác, thời gian sống sót, một quái đang hoạt động, sở hữu `InvokerState`) |
 | `PixelText.h/.cpp` | Chữ pixel 5×7 vẽ bằng `SDL_RenderFillRect` cho HUD (không cần font hay SDL2_ttf) |
@@ -131,7 +134,7 @@ Tài nguyên trong `assets/`:
 
 - **UI/UX:** font thật (SDL2_ttf) và HUD đẹp, animation người chơi, cài đặt (âm lượng). **Không làm nhạc nền** (chủ project, 2026-09-29).
 - **Độ khó:** chủ project thấy giá trị hiện tại ổn (2026-09-29); **hoãn cân bằng** tới khi làm background thay đổi theo độ khó, rồi chỉnh cả hai cùng lúc.
-- **Nền tảng:** bản web đã chạy (chưa có CMake); app Android riêng, PC/Steam.
+- **Nền tảng:** bản web đã chạy; app Android native đang làm (Phase 7); PC/Steam.
 - **Sau MVP:** chiến đấu, cốt truyện Threne, nhiều mục tiêu, chế độ người mới có gợi ý.
 
 ## 7. Nợ kỹ thuật còn lại

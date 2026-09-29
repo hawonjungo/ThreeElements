@@ -1,0 +1,88 @@
+apply plugin: 'com.android.application'
+
+// ---- NDK / CMake: use the newest ones installed through Android Studio's SDK Manager, so the build does not
+// break when a different version is installed. The SDK location comes from local.properties (written by
+// Android Studio, or by hand: sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk) or ANDROID_HOME.
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def sdkDir = localProps.getProperty('sdk.dir') ?: System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')
+
+def newestVersionIn = { String sub ->
+    if (sdkDir == null) return null
+    def dirs = new File(sdkDir, sub).listFiles()?.findAll { it.isDirectory() }?.collect { it.name }
+    if (!dirs) return null
+    return dirs.max { a, b ->
+        def pa = a.tokenize('.').collect { it.isInteger() ? it.toInteger() : 0 }
+        def pb = b.tokenize('.').collect { it.isInteger() ? it.toInteger() : 0 }
+        for (int i = 0; i < Math.max(pa.size(), pb.size()); ++i) {
+            int d = (i < pa.size() ? pa[i] : 0) <=> (i < pb.size() ? pb[i] : 0)
+            if (d != 0) return d
+        }
+        return 0
+    }
+}
+def installedNdk = newestVersionIn('ndk')
+def installedCmake = newestVersionIn('cmake')
+
+// ---- the game's images and sprites: the C++ code opens "assets/...", so the APK's asset root must contain a
+// folder named "assets". They are copied from the one shared copy in "Three Elements/assets" at build time.
+def gameAssetsRoot = layout.buildDirectory.dir('generated/gameAssets').get().asFile
+task copyGameAssets(type: Copy) {
+    from "${rootDir}/../Three Elements/assets"
+    into new File(gameAssetsRoot, 'assets')
+}
+preBuild.dependsOn copyGameAssets
+
+android {
+    namespace 'net.relifes.threeelements'
+    compileSdk 35
+    if (installedNdk != null) {
+        ndkVersion installedNdk
+    }
+
+    defaultConfig {
+        applicationId 'net.relifes.threeelements'
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName '0.1'
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared'
+                // real phones only (32 and 64-bit ARM); add 'x86_64' to run in the Android Studio emulator
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'jni/CMakeLists.txt'
+            if (installedCmake != null) {
+                version installedCmake
+            }
+        }
+    }
+
+    sourceSets.main {
+        assets.srcDirs = [gameAssetsRoot]
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+    }
+}

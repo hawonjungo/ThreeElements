@@ -1,0 +1,18 @@
+// Top-level build file. Android Gradle Plugin 8.7 needs Gradle 8.9+ (gradle/wrapper) and runs on the JDK 21 that
+// ships with Android Studio.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

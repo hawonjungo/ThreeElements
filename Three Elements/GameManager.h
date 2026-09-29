@@ -206,7 +206,8 @@ private:
 	void LoadAssets();
 	bool RunFrame();  // one frame of input, rules and drawing; false once quit was requested
 	void HandleKeyDown(const SDL_Event& e, bool& quit);
-	void HandlePointerDown(int x, int y, bool& quit);  // touch (SDL_FINGERDOWN) and mouse (SDL_MOUSEBUTTONDOWN)
+	void HandlePointerDown(int x, int y, bool& quit);
+	void TouchToGame(float normX, float normY, int& gameX, int& gameY);  // SDL finger position -> game pixels  // touch (SDL_FINGERDOWN) and mouse (SDL_MOUSEBUTTONDOWN)
 	void PressEnterAction();          // shared by the Enter key and its touch tap zones
 	void PressEscapeAction(bool& quit); // shared by the Esc key and its touch tap zones
 	void ProcessAction(invoker::InputAction action);
@@ -221,7 +222,8 @@ private:
 	void SaveTopScores();
 	bool SubmitScore(int score);  // true if it entered the top 10
 	void LoadBests();
-	void SaveBests();
+	void SaveBests(const practice::BestStats& bests);
+	void SaveRecordsSoFar();      // app going to the background (Android): save records reached so far
 	void LoadSettings();          // sound on/off, saved like the records
 	void SaveSettings();
 	void ToggleMute();

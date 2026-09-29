@@ -102,7 +102,7 @@ def background_mask(img, protect_radius=0.0):
     return mask
 
 
-def make_icon(source_path, target_path):
+def make_icon(source_path, target_path, size=ICON_SIZE):
     src = Image.open(source_path)
     has_alpha = src.mode in ('RGBA', 'LA') or 'transparency' in src.info
     work = src.convert('RGBA').resize((WORK_SIZE, WORK_SIZE), Image.LANCZOS)
@@ -110,7 +110,7 @@ def make_icon(source_path, target_path):
         bg = background_mask(work.convert('RGB'), PROTECT_RADIUS.get(os.path.basename(source_path), 0.0))
         alpha = Image.eval(bg, lambda v: 255 - v).filter(ImageFilter.GaussianBlur(1))
         work.putalpha(alpha)
-    icon = work.convert('RGBa').resize((ICON_SIZE, ICON_SIZE), Image.LANCZOS).convert('RGBA')
+    icon = work.convert('RGBa').resize((size, size), Image.LANCZOS).convert('RGBA')
     icon.save(target_path, optimize=True)
     return icon
 

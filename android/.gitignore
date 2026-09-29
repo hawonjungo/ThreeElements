@@ -1,0 +1,14 @@
+# Downloaded by fetch_deps.sh
+app/jni/SDL/
+app/jni/SDL_image/
+app/src/main/java/org/libsdl/
+
+# Gradle / Android Studio
+.gradle/
+build/
+app/build/
+app/.cxx/
+local.properties
+.idea/
+*.iml
+captures/
