@@ -150,6 +150,56 @@ A separate mode on top of Practice: a boss appears and only takes damage from a 
 - Later: **items** (Refresher, Eul's, Blink...). Refresher only makes sense with cooldowns, which the game does not have: a design decision for then.
 - Pulls part of Phase 8 (combat) forward, by owner decision.
 
+### Next steps — planned 2026-10-01  *(owner: "1 done. 2 đồng ý … 3 … lên kế hoạch")*
+
+Status: 1.3.7 is uploaded to the Google Play closed test by the owner (14-day clock running). Every later version is uploaded to the same test track (versionCode +1). Other open items (stage backgrounds, tutorial card for PLAY, online boards, enemy art) wait until these two are done.
+
+#### 1.4.0 — Shop and items (PLAY only)
+
+Owner decisions: items only work in PLAY; mix of permanent and consumable items; **6 slots in 2 rows of 3, like the Dota 2 inventory**, used with the **right hand** while the left hand types Q/W/E/R/D/F; every item has a **cooldown suited to the game** and its own **upgraded version at a higher price**; prices high (grinding); gold only from elites, bosses and Bounty; simple pixel icons in the spirit of the Dota items (drawn from scratch, not Valve art); no real-money purchases.
+
+| Step | Work | Output |
+|---|---|---|
+| A1 | Spec §27 Shop: item table (base + upgrade, effect, cooldown, price), slots, keys, buying / upgrading / equipping, what happens on Game Over, save format | GAMEPLAY_SPEC.md §27, owner confirms |
+| A2 | Practice layer: `ItemDefinition` table, `Inventory` (owned level per item, consumable counts, 6 equipped slots, gold spending), item use + cooldowns + effects inside the PLAY session (pure, `dt`-driven) | `Practice/Items.*`, tests |
+| A3 | Shop screen: menu line SHOP (Home), item grid with icon, level, price, BUY / UPGRADE, and the 2 x 3 loadout to equip | GameManager |
+| A4 | In-game item bar: 2 x 3 on the right (desktop keys, phone buttons for the right thumb), cooldown sweep, consumable counts, a flash when used | GameManager |
+| A5 | Pixel icons for every item and its upgrade (`art/make_item_icons.py`) | `assets/items/` |
+| A6 | Saving: inventory + loadout next to the gold (`items.txt` / localStorage), privacy page updated | — |
+| A7 | Release on PC / web / Android, docs, store text | 1.4.0 |
+
+Proposed item table (to confirm in A1; effects are this game's, not Dota's):
+
+| Item | Base: effect · cooldown · price | Upgrade: name · effect · cooldown · price |
+|---|---|---|
+| Blink Dagger | enemies walk back 3 s · 40 s · 1500 | Swift Blink · 4 s · 30 s · 4000 |
+| Refresher Orb | the current chain loses 2 skills (at least 1 is left) · 90 s · 3000 | Refresher Orb II · same · 60 s · 7000 |
+| Eul's Scepter | the enemy stands still 2 s · 25 s · 1200 | Wind Waker · 3 s and pushed back · 20 s · 3500 |
+| Black King Bar | no life lost for 5 s · 120 s · 2500 | BKB II · 7 s · 90 s · 6000 |
+| Hand of Midas | passive: +50 % gold · — · 2000 | Midas II · +100 % gold · — · 6000 |
+| Octarine Core | passive: item cooldowns −25 % · — · 3500 | Octarine II · −40 % · — · 8000 |
+| Aghanim's Scepter | passive: choose 1 of 2 runes after a boss · — · 4000 | Aghanim's Blessing · choose 1 of 3 · — · 9000 |
+| Healing Salve (consumable) | +1 life · — · 60 each | Cheese · +2 lives · — · 300 each |
+| Smoke of Deceit (consumable) | enemies 50 % speed 8 s · — · 80 each | Greater Smoke · 12 s · — · 200 each |
+
+Keys proposed: **U I O / J K L** (the 2 x 3 grid under the right hand), numpad 7 8 9 / 4 5 6 as well; on phones a 2 x 3 block of buttons on the right edge (the Q/W/E/R/D/F cluster is on the left).
+
+#### 1.5.0 — Boss Fights: long combos with all 10 skills
+
+Owner: Boss Fights gets longer combo chains for new bosses; **the owner makes the boss art**.
+
+| Step | Work | Output |
+|---|---|---|
+| B1 | Spec §25 update: Boss-mode effects for the five skills not used yet — Cold Snap (freezes the boss in short pulses: a second way to hold it), Ice Wall (slow zone), Ghost Walk (the boss loses the player and stops ~2 s), Forge Spirit (spirits hit over time), Alacrity (faster spirits) — and new bosses with 5-6 spell combos and two phases (the combo changes at 50 % HP) | spec, owner confirms |
+| B2 | `BossSession`: the new effects, phases, the new boss table | `Practice/Boss.*`, tests |
+| B3 | Art hand-off: boss sheet format for the owner (below); the new sheets drawn per boss (walk, hit, lifted/frozen, death) | GameManager |
+| B4 | Presentation: new effects' visuals (Ice Wall zone, frozen tint, spirits), phase change, boss list with the new bosses | GameManager |
+| B5 | Release on all platforms, docs | 1.5.0 |
+
+Proposed new bosses (to confirm in B1): Frost Troll — Cold Snap → Sun Strike · Glacier Golem — Ice Wall → Chaos Meteor → Deafening Blast · Fire Imp — Cold Snap → Alacrity → Forge Spirit (graded on speed, not landing) · Shadow Assassin — Ghost Walk → Tornado → Chaos Meteor → Sun Strike → Deafening Blast · Final boss — Tornado → EMP → Chaos Meteor → Sun Strike → Ice Wall → Deafening Blast, second phase Cold Snap → Forge Spirit → Alacrity.
+
+Boss art format for the owner: PNG with transparency, square frames of 256 px in a grid (like the Injoker sheets), boss **facing left** (it walks toward the player), feet on the same row in every frame; sheets: walk (8-16 frames), hit (4-8), death (8-16); optional idle. One sheet per animation, file names `assets/bosses/<name>-walk.png` etc.
+
 ### Phase 8 — Future Combat / Story  *(deliberately not started)*
 Design note only, when the MVP has proven fun: Threne story, Evil King, hero roles, assign-cards screens, real skill effects/damage, bosses, multi-target hard modes, beginner-mode hints. Builds on Core; no code before this phase is explicitly opened.
 
