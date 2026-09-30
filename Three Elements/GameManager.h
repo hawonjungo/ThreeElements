@@ -72,7 +72,7 @@ const float PLAYER_BOB_SPEED = 3.5f;     // rad/s
 // the magic ring under the feet and the orbit of the loaded orbs (an ellipse around the hat and shoulders)
 const int PLAYER_RING_RX = 58;
 const int PLAYER_RING_RY = 12;
-const int PLAYER_ORBIT_Y = 404;
+const int PLAYER_ORBIT_Y = 414;      // shoulders of the 90 % running Injoker
 const int PLAYER_ORBIT_RX = 62;
 const int PLAYER_ORBIT_RY = 14;
 const float PLAYER_ORBIT_SPEED = 1.8f;   // rad/s
@@ -87,8 +87,8 @@ const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run-v1.png";
 const int PLAYER_RUN_COLUMNS = 4;
 const int PLAYER_RUN_FRAME = 256;
 const int PLAYER_RUN_FRAMES = 16;
-const float PLAYER_RUN_FPS = 9.0f;    // owner 2026-10-01: 14 looked too fast against the slow background (one stride cycle = 16 frames = 1.8 s)
-const int PLAYER_RUN_DRAW = 248;
+const float PLAYER_RUN_FPS = 7.0f;    // owner 2026-10-01: 14, then 9, still looked hurried (one stride cycle = 16 frames = 2.3 s)
+const int PLAYER_RUN_DRAW = 223;     // 90 % of the first size (owner 2026-10-01)
 const int PLAYER_RUN_FEET_ROW = 190;   // in the 256 px frame
 const int PLAYER_RUN_BODY_LEFT = 65;
 
