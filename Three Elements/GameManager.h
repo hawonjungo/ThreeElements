@@ -87,7 +87,7 @@ const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run-v1.png";
 const int PLAYER_RUN_COLUMNS = 4;
 const int PLAYER_RUN_FRAME = 256;
 const int PLAYER_RUN_FRAMES = 16;
-const float PLAYER_RUN_FPS = 7.0f;    // owner 2026-10-01: 14, then 9, still looked hurried (one stride cycle = 16 frames = 2.3 s)
+const float PLAYER_RUN_FPS = 5.5f;    // owner 2026-10-01: 14, 9, 7 all looked hurried (one stride cycle = 16 frames = 2.9 s)
 const int PLAYER_RUN_DRAW = 223;     // 90 % of the first size (owner 2026-10-01)
 const int PLAYER_RUN_FEET_ROW = 190;   // in the 256 px frame
 const int PLAYER_RUN_BODY_LEFT = 65;

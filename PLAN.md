@@ -184,4 +184,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-10-01 — **1.3.1:** the owner's running Injoker sheet replaces the gliding picture; the owner's Chaos Meteor and Forge Spirit sprite sheets replace their code-drawn effects (Boss mode shows the meteor falling before its impact); versionCode 6.
 - 2026-10-01 — **1.3.2:** the run animation slowed from 14 to 9 frames per second (owner: too fast, not smooth); versionCode 7.
 - 2026-10-01 — **1.3.3:** run animation 7 fps and the Injoker drawn at 90 % (owner: still hurried); versionCode 8.
+- 2026-10-01 — **1.3.4:** run animation 5.5 fps (owner: still hurried); versionCode 9.
 - Next (owner): **shop** for the gold (Invoker-only items with Dota-like pixel icons, 6 activatable item slots, mix of permanent and consumable, high prices; Refresher Orb removes 2 skills of a chain, Blink Dagger makes enemies walk back for 3 s) — to be confirmed again with the owner before any code; then Boss Fights with all 10 skills; then stage backgrounds (owner looking for art) with difficulty tuning.
