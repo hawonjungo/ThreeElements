@@ -1,11 +1,15 @@
 {
-  "name": "Three Elements",
-  "short_name": "Three Elements",
-  "description": "Invoker-style practice prototype",
+  "name": "Injoker",
+  "short_name": "Injoker",
+  "description": "Invoke the elements. Beat the clock.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#000000",
-  "theme_color": "#11141c"
+  "theme_color": "#11141c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
 }
