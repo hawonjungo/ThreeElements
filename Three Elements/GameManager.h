@@ -121,10 +121,6 @@ const float FORGE_ATTACK_TIME = 0.7f;
 const int PLAYER_BODY_CENTER_X = 86;
 const int PLAYER_BODY_CENTER_Y = 440;
 
-// Ready screen logo (the same art as the app icon).
-const char* const TITLE_LOGO_PATH = "assets/title/injoker_logo.png";
-const int TITLE_LOGO_H = 170;
-
 // Skill icons (assets/skill, 128 px RGBA made by art/make_skill_icons.py) are drawn scaled to these sizes.
 const int SKILL_SLOT_SIZE = 64;     // D / F slots
 const int SKILL_HINT_SIZE = 80;     // under "TARGET: <name>"
@@ -180,17 +176,24 @@ const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
 const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
-// Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
-// PLAY = the main game (spec §26); SURVIVAL = the former Practice.
-enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
-const int MENU_X = 340;
-const int MENU_Y = 238;
-const int MENU_W = 248;
-const int MENU_ITEM_H = 28;   // 9 lines (8 on the web) must end above the bottom edge
-const int MENU_STEP = 32;
+// Home (the Ready screen, owner 2026-10-01): no logo picture; the four modes are big buttons in a column, the rest
+// (RECIPES, LEADERBOARD, SETTINGS, QUIT on desktop) small buttons in a row below. Arrows + Enter, hotkeys, or a tap.
+// PLAY = the main game (spec §26); SURVIVAL = the former Practice. SETTINGS holds sound and the recipe hint.
+enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
+const int MENU_MAIN_COUNT = 4;           // the big buttons: the modes
+const int MENU_MAIN_W = 300;
+const int MENU_MAIN_H = 50;
+const int MENU_MAIN_Y = 116;
+const int MENU_MAIN_STEP = 60;
+const int MENU_SMALL_W = 150;            // the small buttons, in one centred row
+const int MENU_SMALL_H = 30;
+const int MENU_SMALL_GAP = 12;
+const int MENU_SMALL_Y = 362;            // ends above the running Injoker's head
+// SETTINGS: sound and the recipe hint in one panel (M / G still toggle them anywhere).
+const SDL_Rect SETTINGS_PANEL_RECT = { 234, 110, 460, 300 };
 const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune) stays on screen
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
-const SDL_Rect TOP3_PANEL_RECT = { 628, 250, 276, 150 };
+const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
 const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 474, 430, 230, 36 };
 // Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
 // is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
@@ -245,7 +248,6 @@ protected:
 
 	// declare object
 	MainPlayer m_player;
-	BaseObject m_titleLogo;
 	float m_orbFlash = 0.0f;           // s left of the invoke flare on the orbiting orbs
 	Skill m_skillIcons[invoker::SKILL_COUNT];  // icon sprites, indexed by invoker::SkillId
 	Keyboard m_keyQ, m_keyW, m_keyE, m_keyR, m_keyD, m_keyF;  // key icons: orbs, invoke, slot labels; R was
@@ -271,6 +273,8 @@ protected:
 	int m_lastRank = 0;                  // where the run that just ended landed in m_topRuns (0 = not listed)
 	int m_menuIndex = 0;                 // highlighted line of the main menu
 	bool m_showLeaderboard = false;      // the top 10 is open (Ready / Game Over)
+	bool m_showSettings = false;         // the SETTINGS panel is open (Home)
+	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint
 	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topRuns
 	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
 
@@ -401,6 +405,11 @@ private:
 	void RenderMenu();
 	void RenderTop3Panel();
 	void RenderLeaderboard();
+	void RenderSettings();
+	SDL_Rect SettingsRowRect(int row) const;
+	SDL_Rect SettingsCloseRect() const;
+	void HandleSettingsKey(SDL_Keycode sym);
+	void HandleSettingsPointer(int x, int y);
 	void RenderPlayer();          // the running Injoker and its orbiting orbs
 	// tutorial (spec §24)
 	void StartTutorial();

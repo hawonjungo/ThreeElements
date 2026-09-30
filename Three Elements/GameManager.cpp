@@ -163,7 +163,6 @@ void GameManager::LoopGame()
 void GameManager::LoadAssets()
 {
     m_hasPlayer = m_player.LoadImgAlpha(PLAYER_SPRITE_PATH, m_screen);
-    m_titleLogo.LoadImgAlpha(TITLE_LOGO_PATH, m_screen);
 
     // key icons: the orbs (Q/W/E), invoke (R: touch button only, the keyboard has no on-screen R icon),
     // and the slot labels (D/F)
@@ -378,6 +377,8 @@ bool GameManager::RunFrame()
         RenderLeaderboard();
     if (m_showBossSelect)
         RenderBossSelect();
+    if (m_showSettings)
+        RenderSettings();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -398,6 +399,11 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         m_showRecipes = m_showLeaderboard = false;
         return;
     }
+    if (m_showSettings)
+    {
+        HandleSettingsKey(sym);
+        return;
+    }
     if (m_tutorialActive)
     {
         HandleTutorialKey(sym, e);
@@ -414,10 +420,10 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
     }
     bool menu = m_session.State() == practice::GameState::Ready;
-    if (menu && (sym == SDLK_UP || sym == SDLK_DOWN))  // move through the menu (wraps round)
+    if (menu && (sym == SDLK_UP || sym == SDLK_DOWN || sym == SDLK_LEFT || sym == SDLK_RIGHT))  // through the menu, wrapping
     {
         int n = MenuItemCount();
-        m_menuIndex = (m_menuIndex + (sym == SDLK_UP ? n - 1 : 1)) % n;
+        m_menuIndex = (m_menuIndex + (sym == SDLK_UP || sym == SDLK_LEFT ? n - 1 : 1)) % n;
         return;
     }
     if (menu && (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE))
@@ -489,6 +495,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (m_showRecipes || m_showLeaderboard)  // an overlay is open: a tap anywhere closes it
     {
         m_showRecipes = m_showLeaderboard = false;
+        return;
+    }
+    if (m_showSettings)
+    {
+        HandleSettingsPointer(x, y);
         return;
     }
     if (m_showBossSelect)  // the boss list: a tap on a boss starts the fight, anywhere else closes the list
@@ -1249,7 +1260,15 @@ MenuItem GameManager::MenuItemAt(int index) const { return static_cast<MenuItem>
 
 SDL_Rect GameManager::MenuItemRect(int index) const
 {
-    SDL_Rect r = { MENU_X, MENU_Y + index * MENU_STEP, MENU_W, MENU_ITEM_H };
+    if (index < MENU_MAIN_COUNT)  // the modes: a column of big buttons in the middle
+    {
+        SDL_Rect r = { (SCREEN_WIDTH - MENU_MAIN_W) / 2, MENU_MAIN_Y + index * MENU_MAIN_STEP, MENU_MAIN_W, MENU_MAIN_H };
+        return r;
+    }
+    int small = MenuItemCount() - MENU_MAIN_COUNT;  // the rest: one centred row of small buttons
+    int width = small * MENU_SMALL_W + (small - 1) * MENU_SMALL_GAP;
+    int j = index - MENU_MAIN_COUNT;
+    SDL_Rect r = { (SCREEN_WIDTH - width) / 2 + j * (MENU_SMALL_W + MENU_SMALL_GAP), MENU_SMALL_Y, MENU_SMALL_W, MENU_SMALL_H };
     return r;
 }
 
@@ -1263,8 +1282,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
-    case MENU_SOUND:       ToggleMute(); break;
-    case MENU_HINT:        ToggleRecipeHint(); break;
+    case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
     case MENU_QUIT:        PressEscapeAction(quit); break;
     }
 }
@@ -1281,35 +1299,143 @@ void GameManager::RenderMenu()
         MenuItem item = MenuItemAt(i);
         SDL_Rect r = MenuItemRect(i);
         bool selected = i == m_menuIndex;
+        bool main = i < MENU_MAIN_COUNT;
         const char* label = "";
         const char* key = "";
         switch (item)
         {
         case MENU_PLAY:        label = "PLAY";        key = "ENTER"; break;
         case MENU_SURVIVAL:    label = "SURVIVAL";    key = "S"; break;
-        case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
         case MENU_BOSS:        label = "BOSS FIGHTS"; key = "B"; break;
+        case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
-        case MENU_SOUND:       label = audio::IsMuted() ? "SOUND: OFF" : "SOUND: ON"; key = "M"; break;
-        case MENU_HINT:        label = m_recipeHint ? "RECIPE HINT: ON" : "RECIPE HINT: OFF"; key = "G"; break;
+        case MENU_SETTINGS:    label = "SETTINGS";    key = ""; break;
         case MENU_QUIT:        label = "QUIT";        key = "ESC"; break;
         }
+        // the modes stand out: brighter, larger, PLAY framed in gold; the rest is small and quiet
+        bool accent = item == MENU_PLAY;
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(m_screen, 16, 18, 28, selected ? 235 : 170);
+        if (main)
+            SDL_SetRenderDrawColor(m_screen, accent ? 70 : 28, accent ? 44 : 30, accent ? 16 : 46, selected ? 245 : 215);
+        else
+            SDL_SetRenderDrawColor(m_screen, 16, 18, 28, selected ? 230 : 160);
         SDL_RenderFillRect(m_screen, &r);
-        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 120, selected ? 210 : 125, selected ? 90 : 140, 220);
-        SDL_RenderDrawRect(m_screen, &r);
+        bool goldFrame = selected || accent;
+        SDL_SetRenderDrawColor(m_screen, goldFrame ? 255 : (main ? 150 : 100), goldFrame ? 210 : (main ? 155 : 105),
+            goldFrame ? 90 : (main ? 175 : 120), main ? 235 : 180);
+        for (int k = 0; k < (main && goldFrame ? 2 : 1); ++k)
+        {
+            SDL_Rect frame = { r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k };
+            SDL_RenderDrawRect(m_screen, &frame);
+        }
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-        const int textY = r.y + (MENU_ITEM_H - 14) / 2;
-        if (selected)
-            pixeltext::DrawShadowed(m_screen, ">", r.x + 10, textY, 2, gold);
-        pixeltext::DrawShadowed(m_screen, label, r.x + 30, textY, 2, selected ? gold : white);
-        if (!m_showTouchControls)  // keyboard hints mean nothing on a touch screen
-            pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + (MENU_ITEM_H - 7) / 2, 1, grey);
+
+        int scale = main ? 3 : 2;
+        int textH = 7 * scale;
+        int textX = r.x + (r.w - pixeltext::Width(label, scale)) / 2;
+        pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - textH) / 2, scale, selected || accent ? gold : (main ? white : grey));
+        if (main && selected)
+            pixeltext::DrawShadowed(m_screen, ">", r.x + 14, r.y + (r.h - textH) / 2, scale, gold);
+        if (main && !m_showTouchControls && key[0] != '\0')  // keyboard hints mean nothing on a touch screen
+            pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + r.h - 12, 1, grey);
         if (item == MENU_TUTORIAL && !m_tutorialDone)
             RenderHighlight(r);
     }
+}
+
+// SETTINGS (owner 2026-10-01): sound and the recipe hint in one place. A row per setting, tap or Enter to switch it.
+SDL_Rect GameManager::SettingsRowRect(int row) const
+{
+    const SDL_Rect& p = SETTINGS_PANEL_RECT;
+    SDL_Rect r = { p.x + 30, p.y + 70 + row * 70, p.w - 60, 50 };
+    return r;
+}
+
+SDL_Rect GameManager::SettingsCloseRect() const
+{
+    const SDL_Rect& p = SETTINGS_PANEL_RECT;
+    SDL_Rect r = { p.x + (p.w - 160) / 2, p.y + p.h - 50, 160, 34 };
+    return r;
+}
+
+void GameManager::HandleSettingsKey(SDL_Keycode sym)
+{
+    if (sym == SDLK_UP || sym == SDLK_DOWN)
+        m_settingsIndex = 1 - m_settingsIndex;
+    else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
+    {
+        if (m_settingsIndex == 0)
+            ToggleMute();
+        else
+            ToggleRecipeHint();
+    }
+    else if (sym == SDLK_m)
+        ToggleMute();
+    else if (sym == SDLK_g)
+        ToggleRecipeHint();
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
+        m_showSettings = false;
+}
+
+void GameManager::HandleSettingsPointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    if (hit(SettingsRowRect(0)))
+    {
+        m_settingsIndex = 0;
+        ToggleMute();
+    }
+    else if (hit(SettingsRowRect(1)))
+    {
+        m_settingsIndex = 1;
+        ToggleRecipeHint();
+    }
+    else if (hit(SettingsCloseRect()) || !hit(SETTINGS_PANEL_RECT))
+        m_showSettings = false;
+}
+
+void GameManager::RenderSettings()
+{
+    DimScreen(170);
+    const SDL_Rect& panel = SETTINGS_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 240);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    const SDL_Color on = { 120, 230, 130, 255 };
+    const SDL_Color off = { 220, 110, 110, 255 };
+    pixeltext::DrawCentered(m_screen, "SETTINGS", SCREEN_WIDTH, panel.y + 18, 3, gold);
+
+    const char* names[2] = { "SOUND", "RECIPE HINT" };
+    const char* keys[2] = { "M", "G" };
+    bool values[2] = { !audio::IsMuted(), m_recipeHint };
+    for (int i = 0; i < 2; ++i)
+    {
+        SDL_Rect r = SettingsRowRect(i);
+        bool selected = i == m_settingsIndex;
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 28, 30, 46, selected ? 240 : 190);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 130, 220);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        pixeltext::DrawShadowed(m_screen, names[i], r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
+        const char* value = values[i] ? "ON" : "OFF";
+        int valueX = r.x + r.w - pixeltext::Width(value, 3) - 16;
+        pixeltext::DrawShadowed(m_screen, value, valueX, r.y + (r.h - 21) / 2, 3, values[i] ? on : off);
+        if (!m_showTouchControls)
+            pixeltext::DrawShadowed(m_screen, keys[i], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
+    }
+    pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL. RUNS WITH IT ARE NOT RANKED.", SCREEN_WIDTH,
+        panel.y + 212, 1, grey);
+    RenderButton(SettingsCloseRect(), "CLOSE", false);
 }
 
 // The best three runs beside the menu; a tap on the panel opens the top 10.
@@ -2105,19 +2231,15 @@ void GameManager::DimScreen(Uint8 alpha)
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 }
 
-// The main menu screen: logo, name, the options, and the top 3 beside them (owner 2026-09-30: fewer things at
-// once, one option per line).
+// Home: the name, the menu (modes big, the rest small) and the top 3 beside it (owner 2026-10-01).
 void GameManager::RenderReadyScreen()
 {
     const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color grey = { 170, 175, 190, 255 };
     DimScreen(150);
-    // the logo (the app icon's art) and the name
-    if (m_titleLogo.ImageHeight() > 0)
-    {
-        int w = m_titleLogo.ImageWidth() * TITLE_LOGO_H / m_titleLogo.ImageHeight();
-        m_titleLogo.RenderScaled(m_screen, { (SCREEN_WIDTH - w) / 2, 14, w, TITLE_LOGO_H });
-    }
-    pixeltext::DrawCentered(m_screen, "INJOKER", SCREEN_WIDTH, 188, 5, gold);
+    // the name only: the logo picture is gone from Home (owner 2026-10-01)
+    pixeltext::DrawCentered(m_screen, "INJOKER", SCREEN_WIDTH, 30, 7, gold);
+    pixeltext::DrawCentered(m_screen, "INVOKE THE ELEMENTS", SCREEN_WIDTH, 88, 2, grey);
     RenderMenu();
     RenderTop3Panel();
 }
