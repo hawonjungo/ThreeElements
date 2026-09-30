@@ -115,6 +115,19 @@ namespace practice
 	// Raises each record in `bests` that `session` beat and reports which ones changed.
 	BestUpdate MergeBests(BestStats& bests, const Stats& session);
 
+	// Leaderboard (owner 2026-09-30): players are ranked by **survival time**. Practice only orders runs; where the
+	// list lives (this device now, online boards later) is the presentation layer's business.
+	const int TOP_RUNS = 10;
+	struct TopRun
+	{
+		float survivalTime;  // seconds; 0 = empty slot
+		int score;           // shown next to the time, and breaks ties
+	};
+	// Inserts `run` into `list` (TOP_RUNS entries, best first) and returns its rank 1..TOP_RUNS, or 0 when it did not
+	// make the list (or survived no time at all). Longer time ranks higher; at equal time the higher score does; a run
+	// equal to an existing entry goes below it.
+	int InsertTopRun(TopRun* list, const TopRun& run);
+
 	struct ActiveEnemy
 	{
 		bool active;

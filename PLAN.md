@@ -124,6 +124,11 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - [ ] First successful APK build and install on the owner's phone; latency and layout check on the device.
 - [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
+### Online leaderboard — owner decisions 2026-09-30  *(UI done with this device's data; online part not started)*
+- Rank by **survival time**; top 3 on the menu, top 10 on the LEADERBOARD screen (done, `practice::InsertTopRun`).
+- **Android: Google Play Games Services** sign-in and leaderboard (weekly by default + all-time). Needs the app created in Play Console (the owner has a developer account since 2026-09-30).
+- **Web: a server of our own** (to choose: hosting, how web players are identified, anti-cheat basics). Note: two separate boards unless the server also serves Android.
+
 ### Combo / Boss mode — owner idea 2026-09-30  *(not started; after the first Google Play release, planned as update 1.1)*
 A separate mode on top of Practice: a boss appears and only takes damage from a real Invoker **combo executed with Dota-like timing**, e.g. Tornado lifts it → Chaos Meteor / Sun Strike timed to land as it comes down → Deafening Blast pushes it back. The boss loses exactly the combo's HP only when the combo is completed correctly.
 - Needs (not in the game today): per-spell cast→impact delays (Dota values as reference: Sun Strike ~1.7 s, Chaos Meteor ~1.3 s fall, EMP ~2.9 s, Tornado lift ~2 s during which the boss is invulnerable), boss states (grounded / airborne / knocked back / slowed), damage only when the boss is in the right state and place at impact, boss HP bar, boss sprite, a combo tutorial.
@@ -156,3 +161,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-30 — **Phase 7 started:** native Android project (`android/`), Android-specific code paths, launcher icon; `CMakeLists.txt` for the NDK build.
 - 2026-09-30 — **Tutorial mode** (spec §24): 4 lessons, one key-by-key spell (Sun Strike), highlights, final unguided run; `Practice/Tutorial.*` + 70 new test checks (Practice tests 946); pixel font gains `,` `=` `>`.
 - 2026-09-30 — **Renamed to Injoker** (product name for Google Play; repo/folders unchanged): new player character gliding over a magic ring with the loaded orbs circling it, Ready-screen logo, Android app id `net.relifes.injoker`, new launcher / web / store icons (`art/make_injoker.py`). Web domain change to injoker.relifes.net pending the owner's DNS record.
+- 2026-09-30 — **Main menu + leaderboard UI**: one option per line (arrows/Enter/hotkeys/tap), top 3 by survival time beside it, top 10 screen with MY BEST, Game Over rank line; this device's list for now. Pixel font gains `#`.

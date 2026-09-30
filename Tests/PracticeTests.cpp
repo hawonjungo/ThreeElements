@@ -1507,6 +1507,34 @@ static void TestInvokerThroughSession()
 	CHECK(p.Invoker().GetSlot(Slot::D) == SkillId::None && p.Invoker().OrbCount() == 2);
 }
 
+// ---------------------------------------------------------------- leaderboard order (survival time)
+
+static void TestTopRuns()
+{
+	TopRun list[TOP_RUNS] = {};
+	CHECK(InsertTopRun(list, { 0.0f, 5 }) == 0);          // no time survived: never listed
+	CHECK(InsertTopRun(list, { 30.0f, 4 }) == 1);
+	CHECK(InsertTopRun(list, { 50.0f, 2 }) == 1);         // longer time wins, whatever the score
+	CHECK(InsertTopRun(list, { 40.0f, 9 }) == 2);
+	CHECK(NearF(list[0].survivalTime, 50.0f, 1e-6f) && NearF(list[1].survivalTime, 40.0f, 1e-6f));
+	CHECK(NearF(list[2].survivalTime, 30.0f, 1e-6f) && list[3].survivalTime == 0.0f);
+	CHECK(InsertTopRun(list, { 40.0f, 12 }) == 2);        // same time, higher score: above
+	CHECK(InsertTopRun(list, { 40.0f, 12 }) == 3);        // exact tie: below the existing one
+	CHECK(list[1].score == 12 && list[2].score == 12 && list[3].score == 9);
+
+	// fill up: the list keeps the best TOP_RUNS, a worse run does not get in
+	for (int i = 0; i < 20; ++i)
+		InsertTopRun(list, { 100.0f + i, i });
+	CHECK(NearF(list[0].survivalTime, 119.0f, 1e-6f) && NearF(list[TOP_RUNS - 1].survivalTime, 110.0f, 1e-6f));
+	CHECK(InsertTopRun(list, { 60.0f, 99 }) == 0);
+	CHECK(InsertTopRun(list, { 115.5f, 0 }) == 5);
+	bool sorted = true;
+	for (int i = 1; i < TOP_RUNS; ++i)
+		if (list[i].survivalTime > list[i - 1].survivalTime)
+			sorted = false;
+	CHECK(sorted);
+}
+
 // ---------------------------------------------------------------- tutorial (spec §24)
 
 static InputAction ActionFor(char key)
@@ -1749,6 +1777,7 @@ int main()
 	RunTest("input outside Playing", TestInputOutsidePlaying);
 	RunTest("invoker through the session", TestInvokerThroughSession);
 	RunTest("persistent bests", TestPersistentBests);
+	RunTest("leaderboard order", TestTopRuns);
 	RunTest("tutorial: script", TestTutorialScript);
 	RunTest("tutorial: guided keys", TestTutorialGuidedKeys);
 	RunTest("tutorial: Sun Strike lesson", TestTutorialSunStrike);

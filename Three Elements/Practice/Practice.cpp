@@ -134,6 +134,25 @@ namespace practice
 		return changed;
 	}
 
+	int InsertTopRun(TopRun* list, const TopRun& run)
+	{
+		if (run.survivalTime <= 0.0f)
+			return 0;
+		auto better = [](const TopRun& a, const TopRun& b)
+		{
+			return a.survivalTime > b.survivalTime || (a.survivalTime == b.survivalTime && a.score > b.score);
+		};
+		int pos = TOP_RUNS;
+		while (pos > 0 && better(run, list[pos - 1]))
+			--pos;
+		if (pos >= TOP_RUNS)
+			return 0;
+		for (int i = TOP_RUNS - 1; i > pos; --i)
+			list[i] = list[i - 1];
+		list[pos] = run;
+		return pos + 1;
+	}
+
 	// ------------------------------------------------------------------ PracticeSession
 
 	PracticeSession::PracticeSession()

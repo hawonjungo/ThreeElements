@@ -128,25 +128,31 @@ const TouchButton kTouchButtons[6] =
 };
 // Generous tap zones over the existing Enter/Esc text/HUD reminder, so a touch-only player can start, restart,
 // back out and quit without a keyboard. Same idea as kTouchButtons: reuse what is already drawn, not new UI.
-const SDL_Rect TOUCH_READY_START_RECT    = { 264, 250, 400, 45 };  // "PRESS ENTER TO START"
-const SDL_Rect TOUCH_READY_QUIT_RECT     = { 364, 375, 200, 30 };  // "ESC  QUIT"
 const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENTER TO RESTART"
 const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
 // Sound on/off button (all states), drawn under ACC on the left of the HUD; M toggles it on a keyboard.
 const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
-const SDL_Rect RECIPES_BUTTON_READY_RECT    = { 474, 420, 230, 36 };
+// Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
+enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_QUIT };
+const int MENU_X = 340;
+const int MENU_Y = 238;
+const int MENU_W = 248;
+const int MENU_ITEM_H = 34;
+const int MENU_STEP = 40;
+// Top 3 of the leaderboard beside the menu; a tap opens the top 10.
+const SDL_Rect TOP3_PANEL_RECT = { 628, 250, 276, 150 };
+const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 474, 430, 230, 36 };
 // Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
 // is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
-const SDL_Rect TUTORIAL_BUTTON_READY_RECT   = { 224, 420, 230, 36 };
 const SDL_Rect TUTORIAL_PANEL_RECT          = { 120, 8, 540, 128 };
 const SDL_Rect TUTORIAL_NEXT_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
 const SDL_Rect TUTORIAL_PLAY_RECT           = { 140, 8 + 128 - 40, 250, 32 };
 const SDL_Rect TUTORIAL_MENU_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
 const float TUTORIAL_WRONG_FLASH = 0.6f;    // s: the expected key flashes after a wrong one
 const float TUTORIAL_SPAWN_FLASH = 3.0f;    // s: a new run enemy and its target are highlighted
-const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 344, 430, 240, 36 };
+const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 224, 430, 230, 36 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
@@ -191,8 +197,11 @@ protected:
 	skillvfx::Effect m_skillVfx[invoker::SKILL_COUNT] = {};  // code-drawn skill effects, one per SkillId (left <= 0 = off)
 	int m_skillVfxCount = 0;                                   // casts so far, seeds each effect's particles
 
-	int m_topScores[10] = {};  // highest scores this browser/machine has seen, highest first
-	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topScores
+	practice::TopRun m_topRuns[practice::TOP_RUNS] = {};  // this device's best runs by survival time, best first
+	int m_lastRank = 0;                  // where the run that just ended landed in m_topRuns (0 = not listed)
+	int m_menuIndex = 0;                 // highlighted line of the main menu
+	bool m_showLeaderboard = false;      // the top 10 is open (Ready / Game Over)
+	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topRuns
 	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
 
 	// feedback effects (see FEEDBACK_* above); a slot with left <= 0 is free
@@ -262,9 +271,9 @@ private:
 	bool LoadGhostWalkSheet();
 	void StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody);
 	void ResetVisualEffects();
-	void LoadTopScores();
-	void SaveTopScores();
-	bool SubmitScore(int score);  // true if it entered the top 10
+	void LoadTopRuns();
+	void SaveTopRuns();
+	int SubmitRun(const practice::Stats& st);  // rank 1..10 on this device, or 0
 	void LoadBests();
 	void SaveBests(const practice::BestStats& bests);
 	void SaveRecordsSoFar();      // app going to the background (Android): save records reached so far
@@ -291,6 +300,14 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
+	// main menu and leaderboard
+	int MenuItemCount() const;
+	MenuItem MenuItemAt(int index) const;
+	SDL_Rect MenuItemRect(int index) const;
+	void ActivateMenuItem(MenuItem item, bool& quit);
+	void RenderMenu();
+	void RenderTop3Panel();
+	void RenderLeaderboard();
 	void RenderPlayer();          // magic ring, orbiting orbs and the gliding Injoker
 	// tutorial (spec §24)
 	void StartTutorial();

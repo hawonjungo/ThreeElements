@@ -20,6 +20,8 @@
 
 GameManager* GameManager::instance_ = NULL;
 
+static void FormatTime(char* out, size_t size, float seconds);  // "mm:ss", defined with the HUD code below
+
 // Where the small save files (top scores, records, settings) live: next to the exe on desktop, as always; in the
 // app's private data folder on Android, where an app cannot write to its install location. (The web build keeps
 // them in localStorage instead and never calls this.)
@@ -191,7 +193,7 @@ void GameManager::LoadAssets()
 
     LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
-    LoadTopScores();
+    LoadTopRuns();
     LoadBests();
     LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
@@ -341,6 +343,8 @@ bool GameManager::RunFrame()
         RenderGameOverScreen();
     if (m_showRecipes && m_session.State() != practice::GameState::Playing)
         RenderRecipes();
+    if (m_showLeaderboard && !m_tutorialActive && m_session.State() != practice::GameState::Playing)
+        RenderLeaderboard();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -356,9 +360,9 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
 
     SDL_Keycode sym = e.key.keysym.sym;
-    if (m_showRecipes)  // the recipe reference is open: any key just closes it
+    if (m_showRecipes || m_showLeaderboard)  // an overlay is open: any key just closes it
     {
-        m_showRecipes = false;
+        m_showRecipes = m_showLeaderboard = false;
         return;
     }
     if (m_tutorialActive)
@@ -366,8 +370,21 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         HandleTutorialKey(sym, e);
         return;
     }
+    bool menu = m_session.State() == practice::GameState::Ready;
+    if (menu && (sym == SDLK_UP || sym == SDLK_DOWN))  // move through the menu (wraps round)
+    {
+        int n = MenuItemCount();
+        m_menuIndex = (m_menuIndex + (sym == SDLK_UP ? n - 1 : 1)) % n;
+        return;
+    }
+    if (menu && (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE))
+    {
+        ActivateMenuItem(MenuItemAt(m_menuIndex), quit);
+        return;
+    }
     if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
-    if (sym == SDLK_t && m_session.State() == practice::GameState::Ready) { StartTutorial(); return; }
+    if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { m_showLeaderboard = true; return; }
+    if (sym == SDLK_t && menu) { StartTutorial(); return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
@@ -420,14 +437,15 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
     };
 
-    if (hit(SOUND_BUTTON_RECT))  // sound on/off, in every state
+    bool menu = !m_tutorialActive && m_session.State() == practice::GameState::Ready;
+    if (m_showRecipes || m_showLeaderboard)  // an overlay is open: a tap anywhere closes it
     {
-        ToggleMute();
+        m_showRecipes = m_showLeaderboard = false;
         return;
     }
-    if (m_showRecipes)  // the recipe reference is open: a tap anywhere closes it
+    if (!menu && hit(SOUND_BUTTON_RECT))  // sound on/off while playing (the menu has its own line for it)
     {
-        m_showRecipes = false;
+        ToggleMute();
         return;
     }
     if (m_tutorialActive)
@@ -435,25 +453,31 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         HandleTutorialPointer(x, y);
         return;
     }
-    if (m_session.State() == practice::GameState::Ready && hit(TUTORIAL_BUTTON_READY_RECT))
-    {
-        StartTutorial();
-        return;
-    }
-    if ((m_session.State() == practice::GameState::Ready && hit(RECIPES_BUTTON_READY_RECT)) ||
-        (m_session.State() == practice::GameState::GameOver && hit(RECIPES_BUTTON_GAMEOVER_RECT)))
+    if (m_session.State() == practice::GameState::GameOver && hit(RECIPES_BUTTON_GAMEOVER_RECT))
     {
         m_showRecipes = true;
+        return;
+    }
+    if (m_session.State() == practice::GameState::GameOver && hit(LEADERBOARD_BUTTON_GAMEOVER_RECT))
+    {
+        m_showLeaderboard = true;
         return;
     }
 
     switch (m_session.State())
     {
     case practice::GameState::Ready:
-        if (hit(TOUCH_READY_START_RECT))
-            PressEnterAction();
-        else if (hit(TOUCH_READY_QUIT_RECT))
-            PressEscapeAction(quit);
+        for (int i = 0; i < MenuItemCount(); ++i)
+        {
+            if (hit(MenuItemRect(i)))
+            {
+                m_menuIndex = i;
+                ActivateMenuItem(MenuItemAt(i), quit);
+                return;
+            }
+        }
+        if (hit(TOP3_PANEL_RECT))
+            m_showLeaderboard = true;
         break;
 
     case practice::GameState::GameOver:
@@ -633,8 +657,9 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
     {
         printf("[practice] GAME OVER: score %d, best combo %d, accuracy %.1f%% (%d/%d), survived %.1f s\n",
             st.score, st.bestCombo, st.Accuracy() * 100.0, st.correctCasts, st.TotalCasts(), st.survivalTime);
-        if (SubmitScore(st.score))
-            printf("[practice] new top-10 score!\n");
+        m_lastRank = SubmitRun(st);
+        if (m_lastRank > 0)
+            printf("[practice] rank %d on this device\n", m_lastRank);
     }
 }
 
@@ -847,66 +872,73 @@ void GameManager::RenderLeakFlash()
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 }
 
-// Loads the saved top-10 list: a small text file next to the exe on native, the browser's localStorage on
-// the web build (a native file write there would only live in Emscripten's in-memory FS and vanish on
-// reload). Simplest practical persistence for a prototype: no database, no server, no new file format.
-void GameManager::LoadTopScores()
+// This device's top 10 runs by survival time (the leaderboard until the online boards exist): a small text
+// file next to the exe on desktop / in the app folder on Android, localStorage on the web. Unreadable or missing
+// data is an empty list. (The old score-based top 10 is no longer read.)
+void GameManager::LoadTopRuns()
 {
-    for (int i = 0; i < 10; ++i)
-        m_topScores[i] = 0;
+    int raw[practice::TOP_RUNS * 2] = {};  // milliseconds, score, ...
 #ifdef __EMSCRIPTEN__
     EM_ASM({
-        var raw = localStorage.getItem('threeElements_topScores');
-        var values = raw ? raw.split(',').map(Number) : [];
-        for (var i = 0; i < 10; ++i)
-            HEAP32[($0 >> 2) + i] = values[i] | 0;
-    }, m_topScores);
+        try {
+            var parts = String(localStorage.getItem('threeElements_topTimes')).split(',');
+            for (var i = 0; i < $1; ++i) {
+                var p = (parts[i] || '').split(':');
+                HEAP32[($0 >> 2) + i * 2] = Number(p[0]) | 0;
+                HEAP32[($0 >> 2) + i * 2 + 1] = Number(p[1]) | 0;
+            }
+        } catch (e) {}
+    }, raw, practice::TOP_RUNS);
 #else
-    FILE* f = fopen(SavePath("highscores.txt").c_str(), "r");
+    FILE* f = fopen(SavePath("toptimes.txt").c_str(), "r");
     if (f != NULL)
     {
-        for (int i = 0; i < 10 && fscanf(f, "%d", &m_topScores[i]) == 1; ++i) {}
+        for (int i = 0; i < practice::TOP_RUNS && fscanf(f, "%d %d", &raw[i * 2], &raw[i * 2 + 1]) == 2; ++i) {}
+        fclose(f);
+    }
+#endif
+    for (int i = 0; i < practice::TOP_RUNS; ++i)
+        m_topRuns[i] = { 0.0f, 0 };
+    for (int i = 0; i < practice::TOP_RUNS; ++i)  // re-inserted one by one, so a damaged file still comes out sorted
+        if (raw[i * 2] > 0)
+            practice::InsertTopRun(m_topRuns, { raw[i * 2] / 1000.0f, raw[i * 2 + 1] > 0 ? raw[i * 2 + 1] : 0 });
+}
+
+void GameManager::SaveTopRuns()
+{
+    int raw[practice::TOP_RUNS * 2];
+    for (int i = 0; i < practice::TOP_RUNS; ++i)
+    {
+        raw[i * 2] = static_cast<int>(m_topRuns[i].survivalTime * 1000.0f);
+        raw[i * 2 + 1] = m_topRuns[i].score;
+    }
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var parts = [];
+            for (var i = 0; i < $1; ++i)
+                parts.push(HEAP32[($0 >> 2) + i * 2] + ':' + HEAP32[($0 >> 2) + i * 2 + 1]);
+            localStorage.setItem('threeElements_topTimes', parts.join(','));
+        } catch (e) {}
+    }, raw, practice::TOP_RUNS);
+#else
+    FILE* f = fopen(SavePath("toptimes.txt").c_str(), "w");
+    if (f != NULL)
+    {
+        for (int i = 0; i < practice::TOP_RUNS; ++i)
+            fprintf(f, "%d %d\n", raw[i * 2], raw[i * 2 + 1]);
         fclose(f);
     }
 #endif
 }
 
-// Writes the top-10 list back out to the same place LoadTopScores() reads from.
-void GameManager::SaveTopScores()
+// A finished run enters this device's top 10 if its survival time is good enough; saved at once.
+int GameManager::SubmitRun(const practice::Stats& st)
 {
-#ifdef __EMSCRIPTEN__
-    EM_ASM({
-        var values = [];
-        for (var i = 0; i < 10; ++i)
-            values.push(HEAP32[($0 >> 2) + i]);
-        localStorage.setItem('threeElements_topScores', values.join(','));
-    }, m_topScores);
-#else
-    FILE* f = fopen(SavePath("highscores.txt").c_str(), "w");
-    if (f != NULL)
-    {
-        for (int i = 0; i < 10; ++i)
-            fprintf(f, "%d\n", m_topScores[i]);
-        fclose(f);
-    }
-#endif
-}
-
-// Inserts `score` into the sorted top-10 list if it belongs there (a plain insertion sort over 10 slots -
-// there is no need for anything fancier), and saves immediately. Returns whether it made the list.
-bool GameManager::SubmitScore(int score)
-{
-    if (score <= m_topScores[9])
-        return false;
-    int i = 9;
-    while (i > 0 && m_topScores[i - 1] < score)
-    {
-        m_topScores[i] = m_topScores[i - 1];
-        --i;
-    }
-    m_topScores[i] = score;
-    SaveTopScores();
-    return true;
+    int rank = practice::InsertTopRun(m_topRuns, { st.survivalTime, st.score });
+    if (rank > 0)
+        SaveTopRuns();
+    return rank;
 }
 
 // Best Score / Best Combo / Best Survival Time (spec §13), stored the same way as the top-10 list: bests.txt
@@ -1046,8 +1078,8 @@ void GameManager::ToggleMute()
 // "SOUND ON" / "SOUND OFF" under ACC (tap or click it, or press M). Hidden when there is no audio device at all.
 void GameManager::RenderSoundButton()
 {
-    if (!m_audioReady)
-        return;
+    if (!m_audioReady || (!m_tutorialActive && m_session.State() == practice::GameState::Ready))
+        return;  // on the Ready screen the menu has a SOUND line instead
     const SDL_Rect& r = SOUND_BUTTON_RECT;
     bool muted = audio::IsMuted();
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
@@ -1061,6 +1093,147 @@ void GameManager::RenderSoundButton()
     const SDL_Color off = { 170, 170, 180, 255 };
     pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 1)) / 2, r.y + (r.h - 7) / 2, 1,
         muted ? off : on);
+}
+
+// ------------------------------------------------------------------ main menu and leaderboard
+
+int GameManager::MenuItemCount() const
+{
+#ifdef __EMSCRIPTEN__
+    return MENU_QUIT;      // a web page has nothing to quit: no QUIT line
+#else
+    return MENU_QUIT + 1;
+#endif
+}
+
+MenuItem GameManager::MenuItemAt(int index) const { return static_cast<MenuItem>(index); }
+
+SDL_Rect GameManager::MenuItemRect(int index) const
+{
+    SDL_Rect r = { MENU_X, MENU_Y + index * MENU_STEP, MENU_W, MENU_ITEM_H };
+    return r;
+}
+
+void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
+{
+    switch (item)
+    {
+    case MENU_PLAY:        PressEnterAction(); break;
+    case MENU_TUTORIAL:    StartTutorial(); break;
+    case MENU_RECIPES:     m_showRecipes = true; break;
+    case MENU_LEADERBOARD: m_showLeaderboard = true; break;
+    case MENU_SOUND:       ToggleMute(); break;
+    case MENU_QUIT:        PressEscapeAction(quit); break;
+    }
+}
+
+// One option per line with its key on the right; the highlighted line has a gold frame and a marker. TUTORIAL
+// pulses until it has been finished once.
+void GameManager::RenderMenu()
+{
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 140, 145, 160, 255 };
+    for (int i = 0; i < MenuItemCount(); ++i)
+    {
+        MenuItem item = MenuItemAt(i);
+        SDL_Rect r = MenuItemRect(i);
+        bool selected = i == m_menuIndex;
+        const char* label = "";
+        const char* key = "";
+        switch (item)
+        {
+        case MENU_PLAY:        label = "PLAY";        key = "ENTER"; break;
+        case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
+        case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
+        case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
+        case MENU_SOUND:       label = audio::IsMuted() ? "SOUND: OFF" : "SOUND: ON"; key = "M"; break;
+        case MENU_QUIT:        label = "QUIT";        key = "ESC"; break;
+        }
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 16, 18, 28, selected ? 235 : 170);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 120, selected ? 210 : 125, selected ? 90 : 140, 220);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        if (selected)
+            pixeltext::DrawShadowed(m_screen, ">", r.x + 10, r.y + 10, 2, gold);
+        pixeltext::DrawShadowed(m_screen, label, r.x + 30, r.y + 10, 2, selected ? gold : white);
+        if (!m_showTouchControls)  // keyboard hints mean nothing on a touch screen
+            pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + 13, 1, grey);
+        if (item == MENU_TUTORIAL && !m_tutorialDone)
+            RenderHighlight(r);
+    }
+}
+
+// The best three runs beside the menu; a tap on the panel opens the top 10.
+void GameManager::RenderTop3Panel()
+{
+    const SDL_Rect& panel = TOP3_PANEL_RECT;
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 140, 145, 160, 255 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 200);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 160);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    pixeltext::DrawShadowed(m_screen, "TOP 3  SURVIVAL", panel.x + 12, panel.y + 10, 2, gold);
+    char buf[48], time[16];
+    if (m_topRuns[0].survivalTime <= 0.0f)
+        pixeltext::DrawShadowed(m_screen, "NO RUNS YET", panel.x + 12, panel.y + 50, 2, grey);
+    for (int i = 0; i < 3 && m_topRuns[i].survivalTime > 0.0f; ++i)
+    {
+        FormatTime(time, sizeof(time), m_topRuns[i].survivalTime);
+        snprintf(buf, sizeof(buf), "%d.  %s", i + 1, time);
+        pixeltext::DrawShadowed(m_screen, buf, panel.x + 12, panel.y + 40 + i * 26, 2, i == 0 ? gold : white);
+        snprintf(buf, sizeof(buf), "SCORE %d", m_topRuns[i].score);
+        pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 1) - 12, panel.y + 44 + i * 26, 1, grey);
+    }
+    const char* more = m_showTouchControls ? "TAP FOR TOP 10" : "L / CLICK: TOP 10";
+    pixeltext::DrawShadowed(m_screen, more, panel.x + 12, panel.y + panel.h - 22, 2, grey);
+}
+
+// The top 10 by survival time, and the player's own records underneath. (Online boards come later: Google Play
+// Games on Android, a server for the web; this list is this device's.)
+void GameManager::RenderLeaderboard()
+{
+    DimScreen(190);
+    const SDL_Rect panel = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 235);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    pixeltext::DrawCentered(m_screen, "LEADERBOARD", SCREEN_WIDTH, panel.y + 16, 3, gold);
+    pixeltext::DrawCentered(m_screen, "SURVIVAL TIME  -  THIS DEVICE", SCREEN_WIDTH, panel.y + 48, 1, grey);
+
+    char buf[64], time[16];
+    for (int i = 0; i < practice::TOP_RUNS; ++i)
+    {
+        int y = panel.y + 72 + i * 28;
+        bool empty = m_topRuns[i].survivalTime <= 0.0f;
+        FormatTime(time, sizeof(time), m_topRuns[i].survivalTime);
+        snprintf(buf, sizeof(buf), "%2d.", i + 1);
+        SDL_Color c = empty ? grey : (i < 3 ? gold : white);
+        pixeltext::DrawShadowed(m_screen, buf, panel.x + 60, y, 2, c);
+        pixeltext::DrawShadowed(m_screen, empty ? "--:--" : time, panel.x + 130, y, 2, c);
+        if (!empty)
+        {
+            snprintf(buf, sizeof(buf), "SCORE %d", m_topRuns[i].score);
+            pixeltext::DrawShadowed(m_screen, buf, panel.x + 260, y, 2, grey);
+        }
+    }
+    FormatTime(time, sizeof(time), m_bests.survivalTime);
+    snprintf(buf, sizeof(buf), "MY BEST  TIME %s   SCORE %d   COMBO %d", time, m_bests.score, m_bests.combo);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, panel.y + panel.h - 62, 2, white);
+    pixeltext::DrawCentered(m_screen, "PRESS ANY KEY OR TAP TO CLOSE", SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
 }
 
 // The player: a magic ring turning under the feet, the loaded orbs circling the character (behind it on the far
@@ -1660,11 +1833,11 @@ void GameManager::DimScreen(Uint8 alpha)
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 }
 
+// The main menu screen: logo, name, the options, and the top 3 beside them (owner 2026-09-30: fewer things at
+// once, one option per line).
 void GameManager::RenderReadyScreen()
 {
-    const SDL_Color white = { 255, 255, 255, 255 };
     const SDL_Color gold = { 255, 210, 90, 255 };
-    const SDL_Color grey = { 200, 200, 210, 255 };
     DimScreen(150);
     // the logo (the app icon's art) and the name
     if (m_titleLogo.ImageHeight() > 0)
@@ -1673,21 +1846,8 @@ void GameManager::RenderReadyScreen()
         m_titleLogo.RenderScaled(m_screen, { (SCREEN_WIDTH - w) / 2, 14, w, TITLE_LOGO_H });
     }
     pixeltext::DrawCentered(m_screen, "INJOKER", SCREEN_WIDTH, 188, 5, gold);
-
-    // the persistent records (spec §13)
-    char time[16];
-    char buf[96];
-    FormatTime(time, sizeof(time), m_bests.survivalTime);
-    snprintf(buf, sizeof(buf), "BEST  SCORE %d   COMBO %d   TIME %s", m_bests.score, m_bests.combo, time);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 230, 2, gold);
-
-    pixeltext::DrawCentered(m_screen, "PRESS ENTER TO START", SCREEN_WIDTH, 270, 3, white);
-    pixeltext::DrawCentered(m_screen, "Q W E  ORBS     R  INVOKE     D F  CAST", SCREEN_WIDTH, 350, 2, grey);
-#ifndef __EMSCRIPTEN__
-    pixeltext::DrawCentered(m_screen, "ESC  QUIT", SCREEN_WIDTH, 385, 2, grey);  // nothing to quit on the web
-#endif
-    RenderRecipesButton(RECIPES_BUTTON_READY_RECT);
-    RenderButton(TUTORIAL_BUTTON_READY_RECT, "TUTORIAL  (T)", !m_tutorialDone);  // pulses until done once
+    RenderMenu();
+    RenderTop3Panel();
 }
 
 void GameManager::RenderGameOverScreen()
@@ -1719,15 +1879,16 @@ void GameManager::RenderGameOverScreen()
     snprintf(buf, sizeof(buf), "RECORDS  SCORE %d   COMBO %d   TIME %s", m_bests.score, m_bests.combo, value);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 282, 2, grey);
 
-    char topBuf[128];
-    int pos = snprintf(topBuf, sizeof(topBuf), "TOP 10");
-    for (int i = 0; i < 10 && pos < static_cast<int>(sizeof(topBuf)); ++i)
-        pos += snprintf(topBuf + pos, sizeof(topBuf) - pos, " %d", m_topScores[i]);
-    pixeltext::DrawCentered(m_screen, topBuf, SCREEN_WIDTH, 312, 2, white);
+    if (m_lastRank > 0)
+    {
+        snprintf(buf, sizeof(buf), "RANK #%d ON THIS DEVICE", m_lastRank);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 312, 2, gold);
+    }
 
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
     RenderRecipesButton(RECIPES_BUTTON_GAMEOVER_RECT);
+    RenderButton(LEADERBOARD_BUTTON_GAMEOVER_RECT, "LEADERBOARD  (L)", false);
 }
 
 // Shows which skill the active enemy requires. Owner decision (2026-09-23): always on for every player,
