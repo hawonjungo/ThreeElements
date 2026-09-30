@@ -172,6 +172,9 @@ const int BOSS_COMBO_TILE = 40;         // the combo strip at the top right: one
 const int BOSS_COMBO_GAP = 22;          // room for the ">" between two tiles
 const int BOSS_COMBO_Y = 84;            // under "NEXT: ..." (y 64), clear of the orb row (y 150) even with the hint orbs
 const int BOSS_HP_BAR_W = 220;
+const float BOSS_DAMAGE_SHOW = 1.5f;    // s the damage of a combo stays next to the HP bar
+const float BOSS_BAR_NOW_EARLY = 0.05f; // timing bars (hint): "NOW" from this long before the ideal moment ...
+const float BOSS_BAR_NOW_LATE = 0.25f;  // ... until this long after it (casting then still scores GREAT)
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
 const float FEEDBACK_TEXT_TIME = 0.7f;    // "+1" / "MISS" rise and vanish
@@ -251,7 +254,10 @@ protected:
 	bool m_showBossSelect = false;         // the boss list is open
 	int m_bossSelect = 0;                  // highlighted boss in the list
 	float m_bossBest[practice::BOSS_COUNT] = {};  // best fight time per boss in s (0 = not beaten yet), saved
-	bool m_bossNewBest = false;            // the fight that just ended set its boss's best time     // touch device (web media query) or any finger touch seen; PC keeps it off
+	bool m_bossNewBest = false;            // the fight that just ended set its boss's best time
+	float m_bossDamageLeft = 0.0f;         // s left of the "-60%" next to the boss's HP bar
+	int m_bossDamageShown = 0;
+	char m_bossComboText[24] = "";         // "COMBO -60%" rising above the boss (FloatText keeps a pointer)     // touch device (web media query) or any finger touch seen; PC keeps it off
 
 	// Sound for a key the Core has handled (orb, invoke, cast whoosh), the Ghost Walk aura and the skill effect;
 	// shared by Practice and the tutorial. The judged outcome (right / wrong) is handled by OnCastJudged.
@@ -354,7 +360,7 @@ private:
 	void ProcessBossAction(invoker::InputAction action);
 	void PresentBossUpdate(const practice::BossUpdateResult& result);
 	void OnBossFail(practice::ComboFail reason);
-	void BossText(const char* text, SDL_Color color);  // rises above the boss, like "+1" / "MISS"
+	void BossText(const char* text, SDL_Color color, int raise = 0);  // rises above the boss, like "+1" / "MISS"
 	void LoadBossTimes();
 	void SaveBossTimes();
 	SDL_Rect BossSelectRect(int index) const;

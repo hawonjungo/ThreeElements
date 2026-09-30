@@ -289,7 +289,8 @@ bool GameManager::RunFrame()
             audio::Play(audio::Sfx::Start);
     }
     if (m_bossActive)
-        PresentBossUpdate(m_boss.Update(dt));  // the fight's clock stops by itself once it is won or lost
+        PresentBossUpdate(m_boss.Update(dt));
+    m_bossDamageLeft -= dt;  // the fight's clock stops by itself once it is won or lost
     m_tutorialWrongFlash -= dt;
     m_orbFlash -= dt;
     m_tutorialSpawnFlash -= dt;
@@ -2143,6 +2144,7 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
     const SDL_Color gold = { 255, 215, 80, 255 };
     if (r.lifted)
         audio::Play(audio::Sfx::Cast);
+    bool missShown = false;
     for (int i = 0; i < r.impactCount; ++i)
     {
         const practice::BossImpact& impact = r.impacts[i];
@@ -2153,8 +2155,18 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
             at.x = impact.x - at.w * 0.5f;
             StartSkillVfx(impact.skill, true, at);
         }
-        if (impact.counted)
+        if (impact.grade == practice::HitGrade::Miss)  // a step missed: only its share is lost (B-7)
         {
+            OnBossFail(impact.miss);
+            missShown = true;
+        }
+        else if (impact.grade != practice::HitGrade::None)  // B-14: PERFECT! / GREAT / GOOD
+        {
+            const SDL_Color cyan = { 110, 210, 255, 255 };
+            const SDL_Color white = { 235, 235, 240, 255 };
+            bool perfect = impact.grade == practice::HitGrade::Perfect;
+            BossText(perfect ? "PERFECT!" : impact.grade == practice::HitGrade::Great ? "GREAT" : "GOOD",
+                perfect ? gold : impact.grade == practice::HitGrade::Great ? cyan : white);
             for (int k = 0; k < FEEDBACK_MAX_BURSTS; ++k)
             {
                 if (m_bursts[k].left <= 0.0f)
@@ -2166,13 +2178,16 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
             audio::Play(audio::Sfx::CastCorrect);
         }
     }
-    if (r.fail != practice::ComboFail::None)
+    if (r.fail != practice::ComboFail::None && !missShown)  // WRONG SPELL, a Tornado that missed, the window closing
         OnBossFail(r.fail);
     if (r.comboComplete)
     {
-        BossText("COMBO!", gold);
+        snprintf(m_bossComboText, sizeof(m_bossComboText), "COMBO -%d%%", r.damage);
+        BossText(m_bossComboText, gold, 40);
+        m_bossDamageShown = r.damage;
+        m_bossDamageLeft = BOSS_DAMAGE_SHOW;
         m_shakeLeft = FEEDBACK_SHAKE_TIME;
-        printf("[boss] combo complete: boss HP %d\n", m_boss.BossHp());
+        printf("[boss] combo: -%d%%, boss HP %d%%\n", r.damage, m_boss.BossHp());
     }
     if (r.playerHit)
     {
@@ -2211,13 +2226,13 @@ void GameManager::OnBossFail(practice::ComboFail reason)
     printf("[boss] combo failed: %s\n", text);
 }
 
-void GameManager::BossText(const char* text, SDL_Color color)
+void GameManager::BossText(const char* text, SDL_Color color, int raise)
 {
     practice::Bounds b = BossDrawnBody();
     int x = static_cast<int>(b.x + b.w * 0.5f);
     int half = pixeltext::Width(text, 3) / 2 + 8;
     x = x < half ? half : (x > SCREEN_WIDTH - half ? SCREEN_WIDTH - half : x);
-    int y = static_cast<int>(b.y) - 16;
+    int y = static_cast<int>(b.y) - 16 - raise;
     y = y < 150 ? 150 : y;  // below the HUD rows
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
     {
@@ -2413,18 +2428,22 @@ void GameManager::RenderBossHud()
 
     const practice::BossDefinition& def = m_boss.Def();
     pixeltext::DrawShadowed(m_screen, def.name, 190, 12, 2, gold);
+    // HP in % (B-4): the bar empties by each combo's damage, which shows beside it for a moment
     int barX = 190 + pixeltext::Width(def.name, 2) + 16;
-    int segment = BOSS_HP_BAR_W / def.hp;
-    for (int i = 0; i < def.hp; ++i)
+    SDL_Rect bar = { barX, 9, BOSS_HP_BAR_W, 20 };
+    SDL_Rect fill = { barX + 1, 10, (BOSS_HP_BAR_W - 2) * m_boss.BossHp() / practice::BOSS_FULL_HP, 18 };
+    SDL_SetRenderDrawColor(m_screen, 30, 20, 40, 255);
+    SDL_RenderFillRect(m_screen, &bar);
+    SDL_SetRenderDrawColor(m_screen, 170, 60, 220, 255);
+    SDL_RenderFillRect(m_screen, &fill);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+    SDL_RenderDrawRect(m_screen, &bar);
+    snprintf(buf, sizeof(buf), "%d%%", m_boss.BossHp());
+    pixeltext::DrawShadowed(m_screen, buf, barX + BOSS_HP_BAR_W + 10, 12, 2, white);
+    if (m_bossDamageLeft > 0.0f)
     {
-        SDL_Rect seg = { barX + i * segment, 9, segment - 4, 20 };
-        if (i < m_boss.BossHp())
-            SDL_SetRenderDrawColor(m_screen, 170, 60, 220, 255);
-        else
-            SDL_SetRenderDrawColor(m_screen, 30, 20, 40, 255);
-        SDL_RenderFillRect(m_screen, &seg);
-        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
-        SDL_RenderDrawRect(m_screen, &seg);
+        snprintf(buf, sizeof(buf), "-%d%%", m_bossDamageShown);
+        pixeltext::DrawShadowed(m_screen, buf, barX + BOSS_HP_BAR_W + 70, 12, 2, gold);
     }
 
     char value[16];
@@ -2453,6 +2472,7 @@ void GameManager::RenderBossCombo()
     int x0 = SCREEN_WIDTH - 16 - width;
     bool running = m_boss.AttemptRunning();
     int next = running ? m_boss.CastSteps() : 0;
+    int nowStep = -1;  // hint: the follow-up whose timing bar says NOW
 
     if (running && next >= n)
         snprintf(buf, sizeof(buf), "COMBO CAST - WAIT FOR IT");
@@ -2485,6 +2505,36 @@ void GameManager::RenderBossCombo()
             RenderHighlight(tile);
         if (i + 1 < n)
             pixeltext::DrawShadowed(m_screen, ">", tile.x + BOSS_COMBO_TILE + BOSS_COMBO_GAP / 2 - 5, tile.y + 13, 2, grey);
+        // B-15, hint only: the timing bar shrinks to empty at the ideal moment to cast this spell
+        float until = 0.0f, span = 0.0f;
+        if (m_recipeHint && m_boss.StepTiming(i, until, span))
+        {
+            SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
+            SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
+            SDL_RenderFillRect(m_screen, &back);
+            bool now = until <= BOSS_BAR_NOW_EARLY && until >= -BOSS_BAR_NOW_LATE;
+            if (now)
+            {
+                SDL_SetRenderDrawColor(m_screen, 90, 240, 110, 255);
+                SDL_RenderFillRect(m_screen, &back);
+                RenderHighlight(tile);
+                if (nowStep < 0)
+                    nowStep = i;
+            }
+            else if (until > 0.0f)
+            {
+                SDL_Rect bar = back;
+                float left = until / span;
+                bar.w = static_cast<int>(BOSS_COMBO_TILE * (left > 1.0f ? 1.0f : left));
+                SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 255);
+                SDL_RenderFillRect(m_screen, &bar);
+            }
+            else  // past it: late now, the bar stays red until the spell is cast
+            {
+                SDL_SetRenderDrawColor(m_screen, 220, 60, 60, 255);
+                SDL_RenderDrawRect(m_screen, &back);
+            }
+        }
         if (m_recipeHint)
         {
             const invoker::Recipe& r = invoker::GetSkillDefinition(def.combo[i]).recipe;
@@ -2510,7 +2560,15 @@ void GameManager::RenderBossCombo()
 
     if (def.guided)
         pixeltext::DrawCentered(m_screen, "TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", SCREEN_WIDTH, 100, 1, grey);
-    if (m_boss.CueNow())
+    if (nowStep > 0)
+    {
+        float t = SDL_GetTicks() / 1000.0f;
+        SDL_Color pulse = { 90, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 110, 255 };
+        snprintf(buf, sizeof(buf), "CAST %s NOW!", invoker::GetSkillDefinition(def.combo[nowStep]).name);
+        int scale = pixeltext::Width(buf, 3) <= 400 ? 3 : 2;  // long names: keep clear of the combo strip
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 116, scale, pulse);
+    }
+    else if (m_boss.CueNow())
     {
         float t = SDL_GetTicks() / 1000.0f;
         SDL_Color pulse = { 255, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 80, 255 };
@@ -2603,7 +2661,7 @@ void GameManager::RenderBossResult()
     }
     else
     {
-        snprintf(buf, sizeof(buf), "BOSS HP LEFT %d / %d", m_boss.BossHp(), m_boss.Def().hp);
+        snprintf(buf, sizeof(buf), "BOSS HP LEFT %d%%", m_boss.BossHp());
         pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 200, 3, white);
     }
     if (m_bossBest[i] > 0.0f)

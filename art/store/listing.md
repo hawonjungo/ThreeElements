@@ -30,7 +30,7 @@ FEATURES
 - A recipe list to look up any spell between runs.
 - An optional recipe hint while you learn (runs with the hint are not ranked).
 - Endless mode: 3 hearts, rising speed, score, combo, accuracy and survival time.
-- Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down.
+- Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Your 10 best runs by survival time, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs.
 - Chiptune sound effects, spell effects for all ten spells.
@@ -59,10 +59,10 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
-## Release notes (1.2.0, versionCode 2, max 500)
+## Release notes (1.2.1, versionCode 3, max 500)
 
 ```
-New: Boss fights! Three bosses that only take damage from a full combo with the right timing - Tornado, then Sun Strike, Chaos Meteor, EMP and Deafening Blast landing as the boss comes down. Start with the Stone Knight: it tells you when to cast.
+New: Boss fights! Lift a boss with Tornado, then land Sun Strike, Chaos Meteor, EMP and Deafening Blast as it comes down. Every spell is graded PERFECT, GREAT or GOOD - a perfect combo kills the boss at once. Turn on the recipe hint for timing bars that tell you when to cast. Start with the Stone Knight.
 ```
 
 ## Release notes (first closed test, 1.1.0 / versionCode 1, max 500)

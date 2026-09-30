@@ -1788,7 +1788,8 @@ struct BossTotals  // every flag seen while advancing, and the first failure
 {
 	bool lifted, landed, comboComplete, playerHit, won, lost;
 	ComboFail fail;
-	int counted;  // impacts that were a correct combo step
+	int damage;            // sum of the combos' damage
+	int perfect, great, good, missed;
 };
 
 static void BossKeys(BossSession& s, const char* keys, BossTotals* totals = NULL)
@@ -1813,9 +1814,18 @@ static void BossAdd(BossTotals& t, const BossUpdateResult& r)
 	t.playerHit |= r.playerHit; t.won |= r.won; t.lost |= r.lost;
 	if (t.fail == ComboFail::None)
 		t.fail = r.fail;
+	t.damage += r.damage;
 	for (int i = 0; i < r.impactCount; ++i)
-		if (r.impacts[i].counted)
-			++t.counted;
+	{
+		switch (r.impacts[i].grade)
+		{
+		case HitGrade::Perfect: ++t.perfect; break;
+		case HitGrade::Great:   ++t.great; break;
+		case HitGrade::Good:    ++t.good; break;
+		case HitGrade::Miss:    ++t.missed; break;
+		default: break;
+		}
+	}
 }
 
 // Advances in 10 ms steps until `stop` says so (or `limit` seconds pass); false on the time limit.
@@ -1836,10 +1846,22 @@ static void BossWait(BossSession& s, BossTotals& t, float seconds)
 		BossAdd(t, s.Update(0.01f));
 }
 
+// Advances until the ideal moment to cast combo step `step` (its timing bar is empty).
+static bool BossWaitIdeal(BossSession& s, BossTotals& t, int step)
+{
+	for (int i = 0; i < 600; ++i)
+	{
+		float until = 0.0f, span = 0.0f;
+		if (s.StepTiming(step, until, span) && until <= 0.005f)
+			return true;
+		BossAdd(t, s.Update(0.01f));
+	}
+	return false;
+}
+
 static bool Lifted(const BossSession& s, const BossTotals& t) { return t.lifted && s.Phase() == BossPhase::Airborne; }
 static bool AirAt(const BossSession& s, float airTime) { return s.Phase() == BossPhase::Airborne && s.AirTime() >= airTime; }
-static bool Air10(const BossSession& s, const BossTotals&) { return AirAt(s, 1.0f); }
-static bool Air12(const BossSession& s, const BossTotals&) { return AirAt(s, 1.2f); }
+static bool Air11(const BossSession& s, const BossTotals&) { return AirAt(s, 1.1f); }
 static bool Air15(const BossSession& s, const BossTotals&) { return AirAt(s, 1.5f); }
 static bool Air24(const BossSession& s, const BossTotals&) { return AirAt(s, 2.4f); }
 static bool ComboResolved(const BossSession&, const BossTotals& t) { return t.comboComplete || t.fail != ComboFail::None; }
@@ -1856,8 +1878,7 @@ static void TestBossDefinitions()
 		const BossDefinition& d = GetBossDefinition(i);
 		CHECK(d.comboLength >= 2 && d.comboLength <= BOSS_MAX_COMBO);
 		CHECK(d.combo[0] == SkillId::Tornado);  // B-6: every combo starts with Tornado
-		CHECK(d.hp == 3);
-		CHECK(d.speed > 0.0f && d.window > 0.0f);
+		CHECK(d.speed > 0.0f && d.window > BOSS_GREAT_TIME);
 		CHECK(d.enemyDefinition >= 0 && d.enemyDefinition < ENEMY_TYPE_COUNT);
 	}
 	CHECK(GetBossDefinition(0).guided && !GetBossDefinition(1).guided && !GetBossDefinition(2).guided);
@@ -1873,6 +1894,22 @@ static void TestBossDefinitions()
 	CHECK(BossLiftHeight(1.2f) > BOSS_LIFT_HEIGHT * 0.8f);
 }
 
+// B-14: the grade of a spell by how long after the landing it hit, and its score.
+static void TestBossGrades()
+{
+	CHECK(GradeHit(-0.01f, 1.0f) == HitGrade::Miss);   // still in the air
+	CHECK(GradeHit(0.0f, 1.0f) == HitGrade::Perfect);
+	CHECK(GradeHit(BOSS_PERFECT_TIME, 1.0f) == HitGrade::Perfect);
+	CHECK(GradeHit(BOSS_PERFECT_TIME + 0.01f, 1.0f) == HitGrade::Great);
+	CHECK(GradeHit(BOSS_GREAT_TIME, 1.0f) == HitGrade::Great);
+	CHECK(GradeHit(BOSS_GREAT_TIME + 0.01f, 1.0f) == HitGrade::Good);
+	CHECK(GradeHit(1.0f, 1.0f) == HitGrade::Good);
+	CHECK(GradeHit(1.01f, 1.0f) == HitGrade::Miss);    // the window has closed
+	CHECK(GradeScore(HitGrade::Perfect) == 100 && GradeScore(HitGrade::Great) == 60 && GradeScore(HitGrade::Good) == 35);
+	CHECK(GradeScore(HitGrade::Miss) == 0 && GradeScore(HitGrade::None) == 0);
+	CHECK(BOSS_IDEAL_AFTER_LANDING > 0.0f && BOSS_IDEAL_AFTER_LANDING < BOSS_PERFECT_TIME);
+}
+
 static void TestBossStart()
 {
 	BossSession s;
@@ -1880,8 +1917,10 @@ static void TestBossStart()
 	CHECK(!s.Input(InputAction::Q).accepted);
 	s.Start(1);
 	CHECK(s.State() == BossState::Fighting && s.BossIndex() == 1);
-	CHECK(s.BossHp() == 3 && s.PlayerHp() == START_HP && s.Elapsed() == 0.0f);
+	CHECK(s.BossHp() == BOSS_FULL_HP && s.PlayerHp() == START_HP && s.Elapsed() == 0.0f);
 	CHECK(s.X() == BOSS_START_X && s.Phase() == BossPhase::Walking && !s.AttemptRunning());
+	float until = 0.0f, span = 0.0f;
+	CHECK(!s.StepTiming(1, until, span));  // no attempt, no bar
 	float x = s.X();
 	s.Update(1.0f);  // clamped to MAX_FRAME_TIME
 	CHECK(NearF(s.X(), x - GetBossDefinition(1).speed * MAX_FRAME_TIME, 1e-3f));
@@ -1891,7 +1930,7 @@ static void TestBossStart()
 	CHECK(!s.Assisted());
 }
 
-// Boss 1: Tornado -> Sun Strike, cast at the right moment.
+// Boss 1: Tornado -> Sun Strike cast at the ideal moment: PERFECT, 100 % in one combo.
 static void TestBossPerfectCombo()
 {
 	BossSession s;
@@ -1902,23 +1941,59 @@ static void TestBossPerfectCombo()
 	BossInputResult r = s.Input(InputAction::F);
 	CHECK(r.attemptStarted && s.AttemptRunning() && s.CastSteps() == 1);
 	CHECK(s.ProjectileCount() == 1);
+	// the timing bar already runs while the Tornado flies (predicted landing) ...
+	float predicted = 0.0f, span = 0.0f;
+	CHECK(s.StepTiming(1, predicted, span) && span > 1.0f && predicted > 0.0f);
+	float castAtPredicted = s.Elapsed() + predicted;
 	CHECK(BossRunUntil(s, t, Lifted, 3.0f));
 	CHECK(s.StepDone(0) && !s.StepDone(1));
+	// ... and the real one after the hit agrees with the prediction
+	float until = 0.0f;
+	CHECK(s.StepTiming(1, until, span));
+	CHECK(NearF(s.Elapsed() + until, castAtPredicted, 0.03f));
+	CHECK(NearF(until, BOSS_LIFT_TIME + BOSS_IDEAL_AFTER_LANDING - BOSS_SUN_STRIKE_DELAY - s.AirTime(), 0.011f));
 	CHECK(!s.CueNow());  // right after the lift, 1.7 s later the boss is still in the air
-	CHECK(BossRunUntil(s, t, Air10, 3.0f));
-	CHECK(s.CueNow());   // 1.0 + 1.7 = 2.7: inside [2.5, 3.7]
+	CHECK(BossWaitIdeal(s, t, 1));
+	CHECK(s.CueNow());
 	float xAtCast = s.CenterX();
 	s.Input(InputAction::D);
+	CHECK(!s.StepTiming(1, until, span));  // cast: its bar is gone
 	CHECK(s.PendingCount() == 1 && NearF(s.GetPending(0).x, xAtCast, 1e-3f));
 	CHECK(BossRunUntil(s, t, ComboResolved, 4.0f));
-	CHECK(t.landed && t.comboComplete && t.fail == ComboFail::None && t.counted == 1);
-	CHECK(s.BossHp() == 2 && !s.AttemptRunning());
-	CHECK(s.Phase() == BossPhase::PushedBack);
-	float xDone = s.X();
-	BossWait(s, t, 1.0f);
-	// pushed back 200 px, but never past BOSS_RESET_X (a boss already beyond it stays where it is)
-	CHECK(s.Phase() == BossPhase::Walking && s.X() >= xDone - 50.0f);
-	CHECK(s.X() <= (xDone > BOSS_RESET_X ? xDone : BOSS_RESET_X));
+	CHECK(t.landed && t.comboComplete && t.fail == ComboFail::None);
+	CHECK(t.perfect == 1 && t.damage == 100);
+	CHECK(t.won && s.State() == BossState::Won && s.BossHp() == 0);
+}
+
+// GREAT and GOOD take part of the boss's HP; the boss is pushed back after a combo.
+static void TestBossPartialGrades()
+{
+	{
+		BossSession s;
+		s.Start(0);
+		BossTotals t = {};
+		BossKeys(s, "QWWR" "EEER" "F");
+		CHECK(BossRunUntil(s, t, Air11, 3.0f));   // lands 1.1 + 1.7 - 2.5 = 0.3 s after: GREAT
+		s.Input(InputAction::D);
+		CHECK(BossRunUntil(s, t, ComboResolved, 4.0f));
+		CHECK(t.great == 1 && t.damage == 60 && s.BossHp() == 40 && s.LastDamage() == 60);
+		CHECK(s.Phase() == BossPhase::PushedBack);
+		float xDone = s.X();
+		BossWait(s, t, 1.0f);
+		// pushed back 200 px, but never past BOSS_RESET_X (a boss already beyond it stays where it is)
+		CHECK(s.Phase() == BossPhase::Walking && s.X() >= xDone - 50.0f);
+		CHECK(s.X() <= (xDone > BOSS_RESET_X ? xDone : BOSS_RESET_X));
+	}
+	{
+		BossSession s;
+		s.Start(0);
+		BossTotals t = {};
+		BossKeys(s, "QWWR" "EEER" "F");
+		CHECK(BossRunUntil(s, t, Air15, 3.0f));   // 0.7 s after the landing: GOOD
+		s.Input(InputAction::D);
+		CHECK(BossRunUntil(s, t, ComboResolved, 4.0f));
+		CHECK(t.good == 1 && t.damage == 35 && s.BossHp() == 65);
+	}
 }
 
 static void TestBossTiming()
@@ -1932,8 +2007,8 @@ static void TestBossTiming()
 		CHECK(BossRunUntil(s, t, Lifted, 3.0f));
 		s.Input(InputAction::D);
 		BossWait(s, t, 2.0f);
-		CHECK(t.fail == ComboFail::TooEarly && s.LastFail() == ComboFail::TooEarly);
-		CHECK(s.BossHp() == 3 && !s.AttemptRunning() && !t.comboComplete);
+		CHECK(t.fail == ComboFail::TooEarly && s.LastFail() == ComboFail::TooEarly && t.missed == 1);
+		CHECK(s.BossHp() == BOSS_FULL_HP && !s.AttemptRunning() && !t.comboComplete);
 	}
 	// too late: cast just before landing; 1.7 s later the 1.2 s window has closed
 	{
@@ -1944,7 +2019,16 @@ static void TestBossTiming()
 		CHECK(BossRunUntil(s, t, Air24, 5.0f));
 		s.Input(InputAction::D);
 		BossWait(s, t, 2.0f);
-		CHECK(t.landed && t.fail == ComboFail::TooLate && s.BossHp() == 3);
+		CHECK(t.landed && t.fail == ComboFail::TooLate && s.BossHp() == BOSS_FULL_HP);
+	}
+	// nothing cast after the Tornado: the window closes, TOO LATE
+	{
+		BossSession s;
+		s.Start(0);
+		BossTotals t = {};
+		BossKeys(s, "QWWR" "EEER" "F");
+		BossWait(s, t, 5.0f);
+		CHECK(t.fail == ComboFail::TooLate && !s.AttemptRunning());
 	}
 	// a spell that lands before the attempt's Tornado has even hit is too early as well
 	{
@@ -1952,7 +2036,7 @@ static void TestBossTiming()
 		s.Start(0);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "FD");
-		BossWait(s, t, 2.0f);
+		BossWait(s, t, 5.0f);
 		CHECK(t.fail == ComboFail::TooEarly);
 	}
 	// the guided cue never shows on bosses 2 and 3
@@ -1978,7 +2062,7 @@ static void TestBossWrongSpell()
 	// a double tap of Tornado is ignored
 	BossKeys(s, "QWWR" "D" "D", &t);
 	CHECK(t.fail == ComboFail::None && s.AttemptRunning() && s.CastSteps() == 1);
-	// Cold Snap (now in F) out of order: WRONG SPELL
+	// Cold Snap (now in F) out of order: WRONG SPELL ends the attempt at once
 	BossInputResult r = s.Input(InputAction::F);
 	CHECK(r.fail == ComboFail::WrongSpell && !s.AttemptRunning() && s.LastFail() == ComboFail::WrongSpell);
 	// the failed attempt's Tornado still lifts the boss, but nothing counts
@@ -1992,7 +2076,7 @@ static void TestBossWrongSpell()
 	CHECK(s.Phase() == BossPhase::Airborne && NearF(s.AirTime(), air + 0.5f, 0.02f));
 }
 
-// Boss 3: Tornado -> EMP -> Chaos Meteor -> Deafening Blast, the classic.
+// Boss 3: Tornado -> EMP -> Chaos Meteor -> Deafening Blast, each cast when its timing bar runs out.
 static void TestBossFourSpellCombo()
 {
 	BossSession s;
@@ -2000,23 +2084,33 @@ static void TestBossFourSpellCombo()
 	BossTotals t = {};
 	BossKeys(s, "QWWR" "WWWR", &t);  // D = EMP, F = Tornado
 	s.Input(InputAction::F);
-	CHECK(BossRunUntil(s, t, Lifted, 3.0f));
-	BossWait(s, t, 0.1f);
-	BossKeys(s, "D", &t);            // EMP: 0.1 + 2.9 = 3.0, in [2.5, 3.5]
+	CHECK(BossWaitIdeal(s, t, 1));   // EMP (2.9 s) is cast while the Tornado is still flying
+	CHECK(!t.lifted);
+	BossKeys(s, "D", &t);
 	BossKeys(s, "WEER", &t);         // D = Chaos Meteor, F = EMP
-	CHECK(BossRunUntil(s, t, Air15, 3.0f));
-	BossKeys(s, "D", &t);            // Meteor: 1.5 + 1.3 = 2.8
+	CHECK(BossWaitIdeal(s, t, 2));
+	BossKeys(s, "D", &t);
 	BossKeys(s, "QWER", &t);         // D = Deafening Blast
-	float travel = (s.X() - PLAYER_CAST_X) / TORNADO_SPEED;
-	float castAt = BOSS_LIFT_TIME + 0.3f - travel;  // it reaches the boss 0.3 s after the landing
-	CHECK(castAt > 1.5f && castAt < 2.5f);
-	while (s.Phase() == BossPhase::Airborne && s.AirTime() < castAt)
-		BossAdd(t, s.Update(0.01f));
+	CHECK(BossWaitIdeal(s, t, 3));
 	BossKeys(s, "D", &t);
 	CHECK(t.fail == ComboFail::None && s.CastSteps() == 4);
 	CHECK(BossRunUntil(s, t, ComboResolved, 4.0f));
-	CHECK(t.comboComplete && t.fail == ComboFail::None && t.counted == 3);
-	CHECK(s.BossHp() == 2);
+	CHECK(t.comboComplete && t.perfect == 3 && t.damage == 100 && t.won);
+
+	// one spell too early only loses its own share: EMP and Blast perfect, Meteor in the air -> (100+0+100)/3
+	BossSession p;
+	p.Start(2);
+	BossTotals tp = {};
+	BossKeys(p, "QWWR" "WWWR", &tp);
+	p.Input(InputAction::F);
+	CHECK(BossWaitIdeal(p, tp, 1));
+	BossKeys(p, "D" "WEER" "D", &tp);  // Meteor at once: it lands long before the boss comes down
+	BossKeys(p, "QWER", &tp);
+	CHECK(p.AttemptRunning());
+	CHECK(BossWaitIdeal(p, tp, 3));
+	BossKeys(p, "D", &tp);
+	CHECK(BossRunUntil(p, tp, ComboResolved, 4.0f));
+	CHECK(tp.comboComplete && tp.missed == 1 && tp.perfect == 2 && tp.damage == 67 && p.BossHp() == 33);
 
 	// the same spells in the wrong order fail at once
 	BossSession w;
@@ -2026,6 +2120,7 @@ static void TestBossFourSpellCombo()
 	CHECK(tw.fail == ComboFail::WrongSpell);
 }
 
+// Three GOOD combos (35 % each) beat boss 1.
 static void TestBossWin()
 {
 	BossSession s;
@@ -2036,15 +2131,16 @@ static void TestBossWin()
 	{
 		CHECK(BossRunUntil(s, t, ReadyForTornado, 3.0f));
 		s.Input(InputAction::F);
-		CHECK(BossRunUntil(s, t, Air12, 3.0f));
+		CHECK(BossRunUntil(s, t, Air15, 3.0f));
 		s.Input(InputAction::D);
 		t.comboComplete = false;
 		CHECK(BossRunUntil(s, t, ComboOrEnd, 4.0f));
 	}
+	CHECK(t.good == 3 && t.damage == 105);
 	CHECK(t.won && s.State() == BossState::Won && s.BossHp() == 0);
 	CHECK(s.PlayerHp() == START_HP && t.fail == ComboFail::None);
 	float time = s.Elapsed();
-	CHECK(time > 10.0f && time < 20.0f);
+	CHECK(time > 10.0f && time < 25.0f);
 	CHECK(!s.Input(InputAction::Q).accepted);
 	s.Update(1.0f);
 	CHECK(s.Elapsed() == time);  // the clock stops with the fight
@@ -2062,8 +2158,8 @@ static void TestBossLose()
 	float slide = (BOSS_RESET_X - HIT_LINE_X) / BOSS_PUSH_SPEED;
 	CHECK(NearF(s.X(), BOSS_RESET_X - speed * (1.5f - slide), 3.0f));
 	CHECK(BossRunUntil(s, t, FightLost, 60.0f));
-	CHECK(t.lost && s.PlayerHp() == 0 && s.BossHp() == 3);
-	// a running attempt fails when the boss reaches the player
+	CHECK(t.lost && s.PlayerHp() == 0 && s.BossHp() == BOSS_FULL_HP);
+	// a running attempt ends (no damage) when the boss reaches the player
 	BossSession a;
 	a.Start(0);
 	BossTotals ta = {};
@@ -2115,8 +2211,10 @@ int main()
 	RunTest("tutorial: run", TestTutorialRun);
 	RunTest("tutorial: run leaks", TestTutorialRunLeaks);
 	RunTest("boss: definitions and timings", TestBossDefinitions);
+	RunTest("boss: timing grades", TestBossGrades);
 	RunTest("boss: start", TestBossStart);
 	RunTest("boss: perfect combo (boss 1)", TestBossPerfectCombo);
+	RunTest("boss: GREAT / GOOD damage", TestBossPartialGrades);
 	RunTest("boss: too early / too late", TestBossTiming);
 	RunTest("boss: wrong spell, double tap", TestBossWrongSpell);
 	RunTest("boss: four-spell combo (boss 3)", TestBossFourSpellCombo);

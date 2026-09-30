@@ -342,7 +342,7 @@ A short guided introduction for players who have never played Invoker. Owner dec
 ### The boss
 
 - **B-3 [CONFIRMED]** One boss per fight. It walks toward the player at its speed. When it reaches the player (the Practice hit line): **HP −1**, a running combo fails, and the boss is knocked back to `BOSS_RESET_X`. HP 0 = **defeat**.
-- **B-4 [CONFIRMED]** The boss has **combo HP**: it only loses 1 HP when its whole combo is completed (B-7). Single spells never damage it. HP 0 = **victory**.
+- **B-4 [CONFIRMED, revised 2026-09-30]** The boss has **100% HP**. Only a combo attempt damages it, by how well its spells were timed (B-7, B-14); a single spell outside an attempt never does. A perfectly timed combo takes all 100% at once; otherwise it takes 2-3 combos. HP 0% = **victory**.
 
 ### Spell timelines (Boss mode only)
 
@@ -365,9 +365,9 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **B-7 [CONFIRMED]** Judging (fixed combos, option (a) of the discussion):
   1. An **attempt** starts when Tornado is cast while the boss is on the ground and no attempt is running. Before that, other spells do nothing (not a failure).
   2. During an attempt the player must **cast** the remaining spells **in the shown order**. Casting a spell out of order **fails** the attempt (`WRONG SPELL`). Casting the spell just cast again, or anything after the whole list has been cast, is ignored (a double tap never fails a combo).
-  3. The boss lands `2.5 s` after the attempt's Tornado hit; the landing opens the **window** (1.2 s for boss 1, 1.0 s for bosses 2 and 3). **Every** follow-up spell must land on the boss **inside the window**: landing while the boss is still in the air (or before it was lifted) fails the attempt (`TOO EARLY`); landing outside its radius fails it (`MISSED`); the window closing before all have landed fails it (`TOO LATE`). A Tornado that never hits also fails it (`MISSED`).
-  4. All follow-ups land in the window: **combo complete**, boss HP −1, and the boss is pushed back 200 px (at most to `BOSS_RESET_X`).
-  5. After a failure, spells of that attempt still on their way do nothing. A new attempt starts with the next Tornado on a grounded boss.
+  3. The boss lands `2.5 s` after the attempt's Tornado hit; the landing opens the **window** (1.2 s for boss 1, 1.0 s for bosses 2 and 3). **Each** follow-up spell is **graded** by when it lands (B-14): landing while the boss is still in the air (or before it was lifted) is a miss (`TOO EARLY`), outside its radius a miss (`MISSED`), not landed when the window closes a miss (`TOO LATE`). **A missed spell only loses its own share; it does not end the attempt** (owner 2026-09-30). A Tornado that never hits fails the attempt (`MISSED`).
+  4. The attempt ends when every follow-up has been graded (or the window closes). **Damage = the average score of its follow-ups, in % of the boss's HP.** Damage above 0: **combo**, the boss is pushed back 200 px (at most to `BOSS_RESET_X`). Damage 0: the attempt failed (the reason of its first miss is shown).
+  5. After an attempt ends, spells of that attempt still on their way do nothing. A new attempt starts with the next Tornado on a grounded boss.
 - **B-8 [CONFIRMED]** Targeting v1: no free aiming; delayed spells land where the boss was when they were cast. The difficulty is the timing (free aiming is FUTURE).
 
 ### Bosses (v1)
@@ -376,14 +376,16 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 
 | # | Boss | Combo | HP | Speed | Window |
 |---|---|---|---|---|---|
-| 1 | Stone Knight | Tornado → Sun Strike | 3 | 40 px/s | 1.2 s |
-| 2 | Dark Wizard | Tornado → Chaos Meteor → Deafening Blast | 3 | 45 px/s | 1.0 s |
-| 3 | Kitsune Queen | Tornado → EMP → Chaos Meteor → Deafening Blast | 3 | 50 px/s | 1.0 s |
+| 1 | Stone Knight | Tornado → Sun Strike | 100% | 40 px/s | 1.2 s |
+| 2 | Dark Wizard | Tornado → Chaos Meteor → Deafening Blast | 100% | 45 px/s | 1.0 s |
+| 3 | Kitsune Queen | Tornado → EMP → Chaos Meteor → Deafening Blast | 100% | 50 px/s | 1.0 s |
 
-- **B-10 [CONFIRMED]** **Boss 1 is the lesson** (point 8 of the discussion, built into the first boss instead of a separate tutorial lesson): a line explains `TORNADO LIFTS IT. LAND THE NEXT SPELL AS IT COMES DOWN`, and while the boss is in the air a **`CAST NOW`** cue appears exactly when casting the next spell would make it land inside the window. Bosses 2 and 3 show no cue.
+- **B-10 [CONFIRMED]** **Boss 1 is the lesson** (point 8 of the discussion, built into the first boss instead of a separate tutorial lesson): a line explains `TORNADO LIFTS IT. LAND THE NEXT SPELL AS IT COMES DOWN`, and while the boss is in the air a **`CAST NOW`** cue appears exactly when casting the next spell would make it land at least `GREAT` (B-14). Bosses 2 and 3 show no cue.
+- **B-14 [CONFIRMED, owner 2026-09-30]** **Timing grades.** A follow-up spell that lands on the grounded boss inside the window is graded by how long after the landing it hit: **PERFECT** ≤ 0.15 s → score 100 · **GREAT** ≤ 0.4 s → 60 · **GOOD** later in the window → 35 · a miss → 0. The grade rises above the boss as it lands (`PERFECT!` / `GREAT` / `GOOD`, or the miss reason), and the damage (`-60%`) shows next to the boss's HP bar. The ideal moment is 0.1 s after the landing (inside PERFECT, with a little room for being early, since early is a miss).
+- **B-15 [CONFIRMED, owner 2026-09-30]** **Timing bars (RECIPE HINT on only).** With the hint on, each follow-up spell of the combo strip has a bar under its icon. From the attempt's Tornado cast (using the predicted landing while the Tornado flies, the real one once it hits) the bar **shrinks to empty at the ideal moment to cast that spell** (landing + 0.1 s − the spell's delay or flight time); around that moment the bar turns green and a line says `CAST <SPELL> NOW!`. Bars disappear once their spell is cast. As always with the hint, the fight gets no best time (B-12).
 - **B-11 [CONFIRMED]** Timing is visible for every boss: a ring on the ground shows where each delayed spell will land and closes as its impact nears; the boss's shadow shows it is in the air.
 
 ### Results
 
 - **B-12 [CONFIRMED]** Victory shows the fight time; the **best time per boss** is saved locally (like the records) and shown in the boss list. A fight with the recipe hint on at any moment (§17 H-1) is **assisted**: no best time. No leaderboard for Boss mode yet (FUTURE: its own board).
-- **B-13 [CONFIRMED]** Architecture: a `BossSession` in the Practice layer (`Practice/Boss.*`, no SDL, time passed in as `dt`, unit-tested like `TutorialSession`); the Core and `PracticeSession` are untouched. The presentation draws the boss (lift, shadow, HP bar), impact rings, the combo panel, the cue and the result screens.
+- **B-13 [CONFIRMED]** Architecture: a `BossSession` in the Practice layer (`Practice/Boss.*`, no SDL, time passed in as `dt`, unit-tested like `TutorialSession`); the Core and `PracticeSession` are untouched. The presentation draws the boss (lift, shadow, HP bar), impact rings, the combo panel, the grades, the timing bars (hint), the cue and the result screens.

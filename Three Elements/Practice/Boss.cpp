@@ -12,11 +12,11 @@ namespace practice
 		const BossDefinition kBosses[BOSS_COUNT] =
 		{
 			{ "STONE KNIGHT", 9, 3.0f, { 190, 200, 215 },
-				{ SkillId::Tornado, SkillId::SunStrike, SkillId::None, SkillId::None }, 2, 3, 40.0f, 1.2f, true },
+				{ SkillId::Tornado, SkillId::SunStrike, SkillId::None, SkillId::None }, 2, 40.0f, 1.2f, true },
 			{ "DARK WIZARD", 3, 2.5f, { 200, 150, 255 },
-				{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::None }, 3, 3, 45.0f, 1.0f, false },
+				{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::None }, 3, 45.0f, 1.0f, false },
 			{ "KITSUNE QUEEN", 8, 1.8f, { 255, 150, 120 },
-				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 4, 3, 50.0f, 1.0f, false },
+				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 4, 50.0f, 1.0f, false },
 		};
 
 		const float PROJECTILE_STEP_TIME = TORNADO_MAX_STEP / TORNADO_SPEED;  // hit test at least every 10 px
@@ -58,6 +58,28 @@ namespace practice
 		return BOSS_LIFT_HEIGHT + bob;
 	}
 
+	HitGrade GradeHit(float afterLanding, float window)
+	{
+		if (afterLanding < 0.0f || afterLanding > window)
+			return HitGrade::Miss;
+		if (afterLanding <= BOSS_PERFECT_TIME)
+			return HitGrade::Perfect;
+		if (afterLanding <= BOSS_GREAT_TIME)
+			return HitGrade::Great;
+		return HitGrade::Good;
+	}
+
+	int GradeScore(HitGrade grade)
+	{
+		switch (grade)
+		{
+		case HitGrade::Perfect: return BOSS_SCORE_PERFECT;
+		case HitGrade::Great:   return BOSS_SCORE_GREAT;
+		case HitGrade::Good:    return BOSS_SCORE_GOOD;
+		default:                return 0;
+		}
+	}
+
 	const BossDefinition& GetBossDefinition(int index)
 	{
 		if (index < 0 || index >= BOSS_COUNT)
@@ -75,7 +97,7 @@ namespace practice
 	{
 		m_boss = boss >= 0 && boss < BOSS_COUNT ? boss : 0;
 		m_state = BossState::Fighting;
-		m_bossHp = Def().hp;
+		m_bossHp = BOSS_FULL_HP;
 		m_playerHp = START_HP;
 		m_elapsed = 0.0f;
 		m_assisted = false;
@@ -86,14 +108,22 @@ namespace practice
 		m_airTime = 0.0f;
 		m_pushTarget = m_x;
 		m_liftAttempt = 0;
+		m_liftStart = 0.0f;
 
 		m_attempt = 0;
 		m_running = false;
+		m_attemptStart = 0.0f;
 		m_castIndex = 0;
-		m_doneMask = 0;
+		m_tornadoHit = false;
+		for (int i = 0; i < BOSS_MAX_COMBO; ++i)
+		{
+			m_grades[i] = HitGrade::None;
+			m_missReasons[i] = ComboFail::None;
+		}
 		m_landed = false;
 		m_landTime = 0.0f;
 		m_lastFail = ComboFail::None;
+		m_lastDamage = 0;
 
 		m_projectiles.clear();
 		m_pendingCount = 0;
@@ -119,7 +149,14 @@ namespace practice
 
 	bool BossSession::StepDone(int step) const
 	{
-		return step >= 0 && step < BOSS_MAX_COMBO && (m_doneMask & (1u << step)) != 0;
+		if (!m_running || step < 0 || step >= Def().comboLength)
+			return false;
+		return step == 0 ? m_tornadoHit : m_grades[step] != HitGrade::None;
+	}
+
+	HitGrade BossSession::StepGrade(int step) const
+	{
+		return m_running && step > 0 && step < Def().comboLength ? m_grades[step] : HitGrade::None;
 	}
 
 	float BossSession::ImpactDelay(SkillId skill) const
@@ -135,6 +172,48 @@ namespace practice
 		return -1.0f;
 	}
 
+	bool BossSession::LandingTime(float& when) const
+	{
+		if (!m_running)
+			return false;
+		if (m_tornadoHit)
+		{
+			when = m_liftStart + BOSS_LIFT_TIME;
+			return true;
+		}
+		// the attempt's Tornado is still on its way: predict when it meets the boss walking toward it
+		for (const BossProjectile& p : m_projectiles)
+		{
+			if (p.skill != SkillId::Tornado || p.attempt != m_attempt || p.resolved || !p.motion.active)
+				continue;
+			float closing = TORNADO_SPEED * p.motion.dirX + (m_phase == BossPhase::Walking ? Def().speed : 0.0f);
+			if (closing <= 0.0f)
+				return false;
+			float distance = Body().x - (p.motion.x + TORNADO_HIT_RADIUS);
+			when = m_elapsed + (distance > 0.0f ? distance : 0.0f) / closing + BOSS_LIFT_TIME;
+			return true;
+		}
+		return false;
+	}
+
+	bool BossSession::StepTiming(int step, float& untilIdeal, float& span) const
+	{
+		const BossDefinition& def = Def();
+		float landing = 0.0f;
+		if (m_state != BossState::Fighting || step < 1 || step >= def.comboLength || step < m_castIndex
+			|| !LandingTime(landing))
+			return false;
+		float delay = ImpactDelay(def.combo[step]);
+		if (delay < 0.0f)
+			return false;
+		float ideal = landing + BOSS_IDEAL_AFTER_LANDING - delay;
+		untilIdeal = ideal - m_elapsed;
+		span = ideal - m_attemptStart;
+		if (span < 0.1f)
+			span = 0.1f;
+		return true;
+	}
+
 	bool BossSession::CueNow() const
 	{
 		const BossDefinition& def = Def();
@@ -145,7 +224,7 @@ namespace practice
 		if (delay < 0.0f)
 			return false;
 		float impact = m_airTime + delay;  // in "air time", the boss lands at BOSS_LIFT_TIME
-		return impact >= BOSS_LIFT_TIME && impact <= BOSS_LIFT_TIME + def.window;
+		return impact >= BOSS_LIFT_TIME && impact <= BOSS_LIFT_TIME + BOSS_GREAT_TIME;
 	}
 
 	void BossSession::Fail(ComboFail reason, ComboFail& report)
@@ -154,6 +233,7 @@ namespace practice
 			return;
 		m_running = false;
 		m_lastFail = reason;
+		m_lastDamage = 0;
 		if (report == ComboFail::None)
 			report = reason;
 	}
@@ -191,8 +271,14 @@ namespace practice
 		{
 			++m_attempt;
 			m_running = true;
+			m_attemptStart = m_elapsed;
 			m_castIndex = 1;
-			m_doneMask = 0;
+			m_tornadoHit = false;
+			for (int i = 0; i < BOSS_MAX_COMBO; ++i)
+			{
+				m_grades[i] = HitGrade::None;
+				m_missReasons[i] = ComboFail::None;
+			}
 			m_landed = false;
 			m_lastFail = ComboFail::None;
 			tag = m_attempt;
@@ -220,38 +306,87 @@ namespace practice
 		}
 	}
 
-	// B-7 step 3: a follow-up spell reached the boss (or the ground near it).
+	// B-7 step 3 and B-14: a follow-up spell reached the boss (or the ground near it) and gets its grade.
 	void BossSession::JudgeImpact(SkillId skill, float x, int attempt, bool projectile, BossUpdateResult& result)
 	{
-		bool counted = false;
+		BossImpact impact = { skill, x, HitGrade::None, ComboFail::None };
 		if (m_running && attempt == m_attempt)
 		{
 			const BossDefinition& def = Def();
 			int step = -1;
 			for (int i = 1; i < def.comboLength; ++i)
-				if (def.combo[i] == skill && !StepDone(i))
+			{
+				if (def.combo[i] == skill && m_grades[i] == HitGrade::None)
 				{
 					step = i;
 					break;
 				}
-			Bounds b = Body();
-			float reach = BossSpellRadius(skill) + b.w * 0.5f;
-			if (step < 0)
-				;  // not a step still missing (cannot happen for a tagged cast): ignored
-			else if (!m_landed)
-				Fail(ComboFail::TooEarly, result.fail);
-			else if (m_elapsed > m_landTime + def.window)
-				Fail(ComboFail::TooLate, result.fail);
-			else if (!projectile && std::fabs(x - CenterX()) > reach)
-				Fail(ComboFail::Missed, result.fail);
-			else
+			}
+			if (step > 0)
 			{
-				m_doneMask |= 1u << step;
-				counted = true;
+				float reach = BossSpellRadius(skill) + Body().w * 0.5f;
+				if (!m_landed)
+				{
+					impact.grade = HitGrade::Miss;
+					impact.miss = ComboFail::TooEarly;
+				}
+				else if (!projectile && std::fabs(x - CenterX()) > reach)
+				{
+					impact.grade = HitGrade::Miss;
+					impact.miss = ComboFail::Missed;
+				}
+				else
+				{
+					impact.grade = GradeHit(m_elapsed - m_landTime, def.window);
+					if (impact.grade == HitGrade::Miss)
+						impact.miss = ComboFail::TooLate;
+				}
+				m_grades[step] = impact.grade;
+				m_missReasons[step] = impact.miss;
 			}
 		}
 		if (result.impactCount < 4)
-			result.impacts[result.impactCount++] = { skill, x, counted };
+			result.impacts[result.impactCount++] = impact;
+	}
+
+	// B-7 step 4: every follow-up has its grade (or the window has closed): the damage is their average score.
+	void BossSession::Resolve(BossUpdateResult& result)
+	{
+		const BossDefinition& def = Def();
+		int followUps = def.comboLength - 1;
+		int total = 0;
+		ComboFail firstMiss = ComboFail::None;
+		for (int i = 1; i < def.comboLength; ++i)
+		{
+			total += GradeScore(m_grades[i]);
+			if (m_grades[i] == HitGrade::Miss && firstMiss == ComboFail::None)
+				firstMiss = m_missReasons[i];
+		}
+		int damage = (total + followUps / 2) / followUps;
+		if (damage <= 0)
+		{
+			Fail(firstMiss != ComboFail::None ? firstMiss : ComboFail::TooLate, result.fail);
+			return;
+		}
+		m_running = false;
+		m_lastFail = ComboFail::None;
+		m_lastDamage = damage;
+		result.comboComplete = true;
+		result.damage = damage;
+		m_bossHp -= damage;
+		if (m_bossHp <= 0)
+		{
+			m_bossHp = 0;
+			m_state = BossState::Won;
+			result.won = true;
+			return;
+		}
+		if (m_phase == BossPhase::Walking)
+		{
+			float target = m_x + BOSS_PUSHBACK;
+			m_pushTarget = target > BOSS_RESET_X ? (m_x > BOSS_RESET_X ? m_x : BOSS_RESET_X) : target;
+			m_phase = BossPhase::PushedBack;
+		}
 	}
 
 	BossUpdateResult BossSession::Update(float dt)
@@ -294,7 +429,7 @@ namespace practice
 		else
 			m_x -= def.speed * dt;
 
-		// ---- projectiles: a Tornado lifts a grounded boss, a Deafening Blast is judged when it reaches it
+		// ---- projectiles: a Tornado lifts a grounded boss, a Deafening Blast is graded when it reaches it
 		for (size_t i = 0; i < m_projectiles.size(); ++i)
 		{
 			BossProjectile& p = m_projectiles[i];
@@ -317,18 +452,13 @@ namespace practice
 					m_liftAttempt = p.attempt;
 					result.lifted = true;
 					if (m_running && p.attempt == m_attempt)
-						m_doneMask |= 1u;
+					{
+						m_tornadoHit = true;
+						m_liftStart = m_elapsed;
+					}
 				}
 				else
-				{
-					if (m_phase == BossPhase::Airborne)
-					{
-						if (m_running && p.attempt == m_attempt)
-							Fail(ComboFail::TooEarly, result.fail);
-					}
-					else
-						JudgeImpact(p.skill, p.motion.x, p.attempt, true, result);
-				}
+					JudgeImpact(p.skill, p.motion.x, p.attempt, true, result);  // in the air: TOO EARLY
 			}
 			// the running attempt's Tornado left without lifting the boss
 			if (!p.motion.active && p.skill == SkillId::Tornado && !p.resolved && m_running && p.attempt == m_attempt)
@@ -347,41 +477,36 @@ namespace practice
 			PendingSpell p = m_pending[i];
 			p.left -= dt;
 			if (p.left > 0.0f)
-			{
 				m_pending[keptPending++] = p;
-				continue;
-			}
-			if (m_phase == BossPhase::Airborne && m_running && p.attempt == m_attempt)
-			{
-				Fail(ComboFail::TooEarly, result.fail);
-				if (result.impactCount < 4)
-					result.impacts[result.impactCount++] = { p.skill, p.x, false };
-			}
 			else
 				JudgeImpact(p.skill, p.x, p.attempt, false, result);
 		}
 		m_pendingCount = keptPending;
 
-		// ---- the window closes
-		if (m_running && m_landed && m_elapsed > m_landTime + def.window)
-			Fail(ComboFail::TooLate, result.fail);
-
-		// ---- a combo is complete (B-7 step 4)
-		unsigned all = (1u << def.comboLength) - 1u;
-		if (m_running && m_doneMask == all)
+		// ---- the attempt ends: every follow-up graded, or the window closed on the rest (TOO LATE)
+		if (m_running)
 		{
-			m_running = false;
-			result.comboComplete = true;
-			--m_bossHp;
-			if (m_bossHp <= 0)
+			bool allGraded = true;
+			for (int i = 1; i < def.comboLength; ++i)
+				allGraded = allGraded && m_grades[i] != HitGrade::None;
+			if (!allGraded && m_landed && m_elapsed > m_landTime + def.window)
 			{
-				m_state = BossState::Won;
-				result.won = true;
-				return result;
+				for (int i = 1; i < def.comboLength; ++i)
+				{
+					if (m_grades[i] == HitGrade::None)
+					{
+						m_grades[i] = HitGrade::Miss;
+						m_missReasons[i] = ComboFail::TooLate;
+					}
+				}
+				allGraded = true;
 			}
-			float target = m_x + BOSS_PUSHBACK;
-			m_pushTarget = target > BOSS_RESET_X ? (m_x > BOSS_RESET_X ? m_x : BOSS_RESET_X) : target;
-			m_phase = BossPhase::PushedBack;
+			if (allGraded)
+			{
+				Resolve(result);
+				if (m_state == BossState::Won)
+					return result;
+			}
 		}
 
 		// ---- the boss reaches the player (B-3)
