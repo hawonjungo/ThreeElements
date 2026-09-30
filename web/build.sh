@@ -41,6 +41,11 @@ em++ -O2 -std=c++14 \
 cp "$REPO_ROOT/web/manifest.webmanifest" "$REPO_ROOT/web/privacy.html" "$WEB_BUILD_DIR/"
 mkdir -p "$WEB_BUILD_DIR/icons"
 cp "$REPO_ROOT/web/icons/"*.png "$WEB_BUILD_DIR/icons/"
+# static pages: privacy policy, terms, support (served as /policy/, /terms/, /support/)
+for page in policy terms support; do
+	mkdir -p "$WEB_BUILD_DIR/$page"
+	cp "$REPO_ROOT/web/$page/index.html" "$WEB_BUILD_DIR/$page/"
+done
 echo "Build OK: $(ls "$WEB_BUILD_DIR" | tr '\n' ' ')"
 
 [ "${1:-}" = "--deploy" ] || exit 0
@@ -58,6 +63,10 @@ git -C "$WT" merge -q --ff-only origin/gh-pages
 cp "$WEB_BUILD_DIR"/{index.html,index.js,index.wasm,index.data,manifest.webmanifest,privacy.html} "$WT/"
 mkdir -p "$WT/icons"
 cp "$WEB_BUILD_DIR/icons/"*.png "$WT/icons/"
+for page in policy terms support; do
+	mkdir -p "$WT/$page"
+	cp "$WEB_BUILD_DIR/$page/index.html" "$WT/$page/"
+done
 SRC_SHA="$(git rev-parse --short HEAD)"
 git -C "$WT" add -A
 if git -C "$WT" diff --cached --quiet; then

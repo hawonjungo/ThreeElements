@@ -43,7 +43,7 @@ connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-t
   `android:appCategory="game"`; `android:enableOnBackInvokedCallback="false"` (with targetSdk 36, Android 16's predictive
   back would otherwise close the app instead of passing Back to the game as Esc).
 - Store listing texts, declarations and images: `art/store/` (`listing.md`, icon, feature graphic, screenshots).
-  Privacy policy: https://injoker.relifes.net/privacy.html (`web/privacy.html`).
+  Privacy policy: https://injoker.relifes.net/policy (`web/policy/index.html`); terms `/terms`, support `/support`; the old `/privacy.html` redirects to `/policy/`.
 
 ## Checking other screen shapes (emulator)
 

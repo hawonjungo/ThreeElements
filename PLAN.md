@@ -122,7 +122,7 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - [x] Code: logical 928×544 rendering with letterbox (`SDL_RenderSetLogicalSize`, all platforms), `TouchToGame`, landscape hint, touch buttons on from start, Back = Esc, save files in `SDL_GetPrefPath`, records saved when the app goes to the background.
 - [x] Launcher icon (now made by `art/make_injoker.py` from the Injoker art).
 - [x] First APK builds; layout / touch / Back checked on the emulator (20:9, 16:9, 4:3).
-- [x] Google Play release build: signed AAB (upload key outside git), targetSdk 36, 16 KB pages, adaptive icon, `appCategory=game`, predictive-back opt-out; store listing, declarations, feature graphic and screenshots in `art/store/`; privacy policy page.
+- [x] Google Play release build: signed AAB (upload key outside git), targetSdk 36, 16 KB pages, adaptive icon, `appCategory=game`, predictive-back opt-out; store listing, declarations, feature graphic and screenshots in `art/store/`; privacy policy, terms and support pages (`/policy`, `/terms`, `/support`); version 1.1.0 (recipe hint) ready for the closed test.
 - [ ] Owner: create the app in Play Console, fill the declarations, upload the AAB to a closed test, 12 testers × 14 days, then apply for production.
 - [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
@@ -131,11 +131,22 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - **Android: Google Play Games Services** sign-in and leaderboard (weekly by default + all-time). Needs the app created in Play Console (the owner has a developer account since 2026-09-30).
 - **Web: a server of our own** (to choose: hosting, how web players are identified, anti-cheat basics). Note: two separate boards unless the server also serves Android.
 
-### Combo / Boss mode — owner idea 2026-09-30  *(not started; after the first Google Play release, planned as update 1.1)*
-A separate mode on top of Practice: a boss appears and only takes damage from a real Invoker **combo executed with Dota-like timing**, e.g. Tornado lifts it → Chaos Meteor / Sun Strike timed to land as it comes down → Deafening Blast pushes it back. The boss loses exactly the combo's HP only when the combo is completed correctly.
-- Needs (not in the game today): per-spell cast→impact delays (Dota values as reference: Sun Strike ~1.7 s, Chaos Meteor ~1.3 s fall, EMP ~2.9 s, Tornado lift ~2 s during which the boss is invulnerable), boss states (grounded / airborne / knocked back / slowed), damage only when the boss is in the right state and place at impact, boss HP bar, boss sprite, a combo tutorial.
-- Architecture: a `ComboSession` in the Practice layer (pure timeline simulation, unit-tested), like `TutorialSession`; Practice untouched.
-- Open decisions to settle in a spec first: the first 3–4 combos (proposed: Tornado→Sun Strike, Tornado→Meteor→Blast, Tornado→EMP→Meteor→Blast "TEMB", Cold Snap→Forge Spirit), whether the combo's spell order is shown, targeting (proposed v1: spells land where the boss is at cast time, the skill is the timing; free aiming later), what a failed / mistimed combo does, boss art.
+### Combo / Boss mode — owner idea 2026-09-30  *(not started; planned as update **1.2**, after 1.1 is in the Google Play closed test)*
+A separate mode on top of Practice: a boss appears and only takes damage from a real Invoker **combo executed with Dota-like timing**, e.g. Tornado lifts it → Chaos Meteor / Sun Strike timed to land as it comes down → Deafening Blast pushes it back.
+
+**Discussion 2026-09-30 (proposals, to be confirmed by the owner in a spec before any code):**
+- **Timing is the core.** Every spell gets a cast→impact timeline in Boss mode only; **Practice stays instant** (no rule change). Reference values from Dota (max level, to re-check when writing the spec; all in one tunable table): Tornado lift ~2.5–2.9 s, boss **invulnerable while airborne**, falls where it was lifted · Sun Strike lands after **1.7 s** at the boss's position at cast time · Chaos Meteor lands after **1.3 s**, then rolls forward and burns · EMP detonates after **2.9 s** · Deafening Blast travels and knocks back · Cold Snap short stun per hit · Ice Wall slow · Forge Spirit / Alacrity / Ghost Walk: little role in v1 combos.
+- **The skill trained:** cast the delayed spells early so they land the moment the boss touches down (landing while airborne = miss), and invoke 3–4 spells with only two D/F slots (pre-invoke two, invoke the rest during the lift). No cooldowns needed.
+- **Proposed decisions (owner to answer point by point):**
+  1. Show the required combo as spell names in order (e.g. `TORNADO → EMP → METEOR → BLAST`), like the TARGET hint; keys only with RECIPE HINT (same not-ranked rule).
+  2. Judging: **(a) fixed combos** — the boss loses HP only when the whole combo is done in order and on time — for 1.2; (b) free simulation where any hit deals damage, later.
+  3. Targeting: spells land at the boss's position at cast time (no free aiming in v1; timing is the skill).
+  4. Failure: wrong order / bad timing resets the combo, the boss keeps walking; boss reaching the player = HP −1 and the boss is knocked back (not removed); HP 0 = defeat.
+  5. Three bosses, one combo each, rising difficulty: Tornado → Sun Strike; Tornado → Chaos Meteor → Deafening Blast; Tornado → EMP → Chaos Meteor → Deafening Blast. Each needs the combo ~3 times.
+  6. Boss art: owner-made sprites, or scaled/tinted existing enemy sprites (knight, dark_wiz) + HP bar as a first version.
+  7. Menu line **BOSS**, all three selectable (no unlocks), best kill time per boss saved locally; a separate leaderboard later.
+  8. A short guided lesson "Tornado → Sun Strike", like the Sun Strike tutorial lesson.
+- **Implementation order:** spec section in GAMEPLAY_SPEC → `ComboSession` in the Practice layer (pure timeline simulation, unit-tested, like `TutorialSession`; Practice and Core untouched) → presentation (lifted/falling boss, delayed VFX reusing `SkillVfx`, boss HP bar, impact countdown markers) → PC + web + Android + docs in one round. Larger than the tutorial.
 - Later: **items** (Refresher, Eul's, Blink...). Refresher only makes sense with cooldowns, which the game does not have: a design decision for then.
 - Pulls part of Phase 8 (combat) forward, by owner decision.
 

@@ -61,7 +61,7 @@ android {
         targetSdk 36
         // versionCode must grow with every upload to Play; versionName is what players see.
         versionCode 1
-        versionName '1.0.0'
+        versionName '1.1.0'
         externalNativeBuild {
             cmake {
                 // FLEXIBLE_PAGE_SIZES: native libraries aligned for 16 KB memory pages, required by Google Play for
