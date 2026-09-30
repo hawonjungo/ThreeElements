@@ -1460,7 +1460,7 @@ void GameManager::RenderTutorial()
     if (run && m_tutorialSpawnFlash <= 0.0f)
         flags = practice::HIGHLIGHT_NONE;
     if (flags & practice::HIGHLIGHT_ORBS)
-        RenderHighlight({ elementPos[0].first - 26, elementPos[0].second - 26, elementPos[2].first - elementPos[0].first + 52, 52 });
+        RenderHighlight({ (elementPos[0].first + HudShiftX()) - 26, elementPos[0].second - 26, (elementPos[2].first + HudShiftX()) - (elementPos[0].first + HudShiftX()) + 52, 52 });
     if ((flags & practice::HIGHLIGHT_ENEMY) && enemy.active)
     {
         practice::Bounds b = practice::EnemyBounds(enemy);
@@ -1475,7 +1475,7 @@ void GameManager::RenderTutorial()
     {
         int bit = i == 0 ? practice::HIGHLIGHT_SLOT_D : practice::HIGHLIGHT_SLOT_F;
         if (flags & bit)
-            RenderHighlight({ skillPos[i].first - 2, skillPos[i].second - 38, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 40 });
+            RenderHighlight({ (skillPos[i].first + HudShiftX()) - 2, skillPos[i].second - 38, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 40 });
     }
 
     // ---- the panel
@@ -1720,19 +1720,19 @@ void GameManager::RenderInvokerHud()
     for (int i = inv.OrbCount(); i < 3; ++i)
     {
         SDL_SetRenderDrawColor(m_screen, 200, 200, 210, 90);
-        draw::FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 20);
+        draw::FillCircle(m_screen, (elementPos[i].first + HudShiftX()), elementPos[i].second, 20);
         SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 140);
-        draw::FillCircle(m_screen, elementPos[i].first, elementPos[i].second, 17);
+        draw::FillCircle(m_screen, (elementPos[i].first + HudShiftX()), elementPos[i].second, 17);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     for (int i = 0; i < inv.OrbCount(); ++i)
-        RenderOrb(inv.GetOrb(i), elementPos[i].first, elementPos[i].second);
+        RenderOrb(inv.GetOrb(i), (elementPos[i].first + HudShiftX()), elementPos[i].second);
 
     // frames for the two slots, so an empty slot is visible too (the icons are cut-outs, the frame is their tile)
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     for (int i = 0; i < 2; ++i)
     {
-        SDL_Rect frame = { skillPos[i].first - 2, skillPos[i].second - 2, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 4 };
+        SDL_Rect frame = { (skillPos[i].first + HudShiftX()) - 2, skillPos[i].second - 2, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 4 };
         SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
         SDL_RenderFillRect(m_screen, &frame);
         SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 70);
@@ -1740,17 +1740,17 @@ void GameManager::RenderInvokerHud()
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
-    m_keyD.SetPos(skillPos[0].first + 16, skillPos[0].second - 36);
+    m_keyD.SetPos((skillPos[0].first + HudShiftX()) + 16, skillPos[0].second - 36);
     m_keyD.Render(m_screen);
-    m_keyF.SetPos(skillPos[1].first + 16, skillPos[1].second - 36);
+    m_keyF.SetPos((skillPos[1].first + HudShiftX()) + 16, skillPos[1].second - 36);
     m_keyF.Render(m_screen);
 
     invoker::SkillId spellD = inv.GetSlot(invoker::Slot::D);
     invoker::SkillId spellF = inv.GetSlot(invoker::Slot::F);
     if (spellD != invoker::SkillId::None)
-        m_skillIcons[static_cast<int>(spellD)].RenderAt(m_screen, skillPos[0].first, skillPos[0].second, SKILL_SLOT_SIZE);
+        m_skillIcons[static_cast<int>(spellD)].RenderAt(m_screen, (skillPos[0].first + HudShiftX()), skillPos[0].second, SKILL_SLOT_SIZE);
     if (spellF != invoker::SkillId::None)
-        m_skillIcons[static_cast<int>(spellF)].RenderAt(m_screen, skillPos[1].first, skillPos[1].second, SKILL_SLOT_SIZE);
+        m_skillIcons[static_cast<int>(spellF)].RenderAt(m_screen, (skillPos[1].first + HudShiftX()), skillPos[1].second, SKILL_SLOT_SIZE);
 }
 
 // "83%" or "--" until the first judged cast, and "mm:ss": shared by the HUD and the Game Over screen

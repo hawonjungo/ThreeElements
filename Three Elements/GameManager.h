@@ -107,7 +107,11 @@ const int TOUCH_BUTTON_SIZE = 88;
 const int TOUCH_BUTTON_GAP = 8;
 const int TOUCH_BUTTON_STEP = TOUCH_BUTTON_SIZE + TOUCH_BUTTON_GAP;  // 96: centre-to-centre spacing within a row
 const int TOUCH_CLUSTER_LEFT = 16;   // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
-const int TOUCH_CLUSTER_TOP  = 344;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below (ends y528)
+// Raised 344 -> 184 (owner 2026-09-30): mid-height on the left edge is where a thumb rests when a phone is held
+// sideways, and the buttons no longer cover the Injoker character and its orbs at the bottom left.
+const int TOUCH_CLUSTER_TOP  = 184;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below (ends y368)
+// With the touch buttons on screen the orb row and the D/F slots move right by this much, clear of the buttons.
+const int TOUCH_HUD_SHIFT_X = 160;
 // Element colours, indexed by invoker::Orb (owner 2026-09-23): Quas = ice, Wex = lightning, Exort = fire. Used
 // for the HUD orbs and the colour band on the Q/W/E touch buttons, so an active orb is recognisable at a glance.
 const SDL_Color kOrbColors[3] =
@@ -300,6 +304,7 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
+	int HudShiftX() const { return m_showTouchControls ? TOUCH_HUD_SHIFT_X : 0; }  // orb row / D-F slots
 	// main menu and leaderboard
 	int MenuItemCount() const;
 	MenuItem MenuItemAt(int index) const;
