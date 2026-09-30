@@ -69,9 +69,7 @@ const int PLAYER_DRAW_H = 120;           // on-screen height (the file is 2x, dr
 const int PLAYER_DRAW_X = 44;            // left edge; the feet stand on practice::GROUND_LINE_Y
 const float PLAYER_BOB_PX = 3.0f;        // glide: up-and-down amplitude
 const float PLAYER_BOB_SPEED = 3.5f;     // rad/s
-// the magic ring under the feet and the orbit of the loaded orbs (an ellipse around the hat and shoulders)
-const int PLAYER_RING_RX = 58;
-const int PLAYER_RING_RY = 12;
+// the orbit of the loaded orbs (an ellipse around the hat and shoulders)
 const int PLAYER_ORBIT_Y = 414;      // shoulders of the 90 % running Injoker
 const int PLAYER_ORBIT_RX = 62;
 const int PLAYER_ORBIT_RY = 14;
@@ -87,7 +85,7 @@ const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run-v1.png";
 const int PLAYER_RUN_COLUMNS = 4;
 const int PLAYER_RUN_FRAME = 256;
 const int PLAYER_RUN_FRAMES = 16;
-const float PLAYER_RUN_FPS = 5.5f;    // owner 2026-10-01: 14, 9, 7 all looked hurried (one stride cycle = 16 frames = 2.9 s)
+const float PLAYER_RUN_FPS = 6.0f;    // owner 2026-10-01 after trying 14, 9, 7 and 5.5 (one stride cycle = 16 frames = 2.7 s)
 const int PLAYER_RUN_DRAW = 223;     // 90 % of the first size (owner 2026-10-01)
 const int PLAYER_RUN_FEET_ROW = 190;   // in the 256 px frame
 const int PLAYER_RUN_BODY_LEFT = 65;
@@ -403,7 +401,7 @@ private:
 	void RenderMenu();
 	void RenderTop3Panel();
 	void RenderLeaderboard();
-	void RenderPlayer();          // magic ring, orbiting orbs and the gliding Injoker
+	void RenderPlayer();          // the running Injoker and its orbiting orbs
 	// tutorial (spec §24)
 	void StartTutorial();
 	void ExitTutorial(bool startPractice);

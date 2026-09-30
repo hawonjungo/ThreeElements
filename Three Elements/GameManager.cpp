@@ -1390,7 +1390,7 @@ void GameManager::RenderLeaderboard()
     pixeltext::DrawCentered(m_screen, "PRESS ANY KEY OR TAP TO CLOSE", SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
 }
 
-// The player: a magic ring turning under the feet, the loaded orbs circling the character (behind it on the far
+// The player (no magic ring under the feet any more, owner 2026-10-01): the loaded orbs circling the character (behind it on the far
 // half of the orbit, in front on the near half) and the Injoker picture gliding up and down between them.
 void GameManager::RenderPlayer()
 {
@@ -1399,30 +1399,6 @@ void GameManager::RenderPlayer()
     int bob = m_playerRunSheet != NULL ? 0 : static_cast<int>(PLAYER_BOB_PX * std::sin(t * PLAYER_BOB_SPEED));
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
     const int cx = PLAYER_BODY_CENTER_X;
-
-    // magic ring: two thin ellipses and six runes going round, in the three element colours
-    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_ADD);
-    for (int ring = 0; ring < 2; ++ring)
-    {
-        int rx = PLAYER_RING_RX - ring * 14, ry = PLAYER_RING_RY - ring * 3;
-        SDL_Point pts[49];
-        for (int i = 0; i <= 48; ++i)
-        {
-            float a = 6.2831853f * i / 48.0f;
-            pts[i] = { cx + static_cast<int>(rx * std::cos(a)), ground + static_cast<int>(ry * std::sin(a)) };
-        }
-        SDL_SetRenderDrawColor(m_screen, 150, 120, 220, 120);
-        SDL_RenderDrawLines(m_screen, pts, 49);
-    }
-    for (int i = 0; i < 6; ++i)
-    {
-        float a = t * 0.9f + 6.2831853f * i / 6.0f;
-        SDL_Color c = kOrbColors[i % 3];
-        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 170);
-        draw::FillCircle(m_screen, cx + static_cast<int>((PLAYER_RING_RX - 7) * std::cos(a)),
-            ground + static_cast<int>((PLAYER_RING_RY - 1) * std::sin(a)), 2);
-    }
-    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
     // the orbs the player has loaded (0..3), spaced evenly on the orbit; sin(angle) < 0 is the far side
     const invoker::InvokerState& inv = ShownInvoker();
