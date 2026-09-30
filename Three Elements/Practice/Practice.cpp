@@ -206,6 +206,10 @@ namespace practice
 		m_enemy = { false, 0, SkillId::None, 0.0f, 0.0f };
 		m_frostLeft = m_doubleLeft = 0.0f;       // PLAY runes end with the session
 		m_shield = false;
+		for (int i = 0; i < ITEM_COUNT; ++i)     // item cooldowns and effects restart with every run
+			m_itemCooldown[i] = m_itemCooldownTotal[i] = 0.0f;
+		m_backLeft = m_stillLeft = m_bkbLeft = m_smokeLeft = 0.0f;
+		m_runeChoiceCount = 0;
 		m_tornadoes.clear();                     // projectiles in flight disappear with the session
 		m_invoker.Reset();                       // orbs and D/F slots
 		m_lastTarget = SkillId::None;
@@ -252,7 +256,7 @@ namespace practice
 		result.tornadoLaunched = false;
 		result.kill = {};
 
-		if (m_state != GameState::Playing)
+		if (m_state != GameState::Playing || m_runeChoiceCount > 0)  // the rune choice pauses the run
 			return result;
 
 		result.accepted = true;
@@ -310,15 +314,34 @@ namespace practice
 					: m_enemy.kind == EnemyKind::Elite ? PLAY_POINTS_ELITE : PLAY_POINTS_NORMAL;
 				if (m_doubleLeft > 0.0f)
 					m_kill.points *= 2;
-				m_kill.gold = m_enemy.kind == EnemyKind::Boss ? PLAY_GOLD_BOSS
-					: m_enemy.kind == EnemyKind::Elite ? PLAY_GOLD_ELITE : 0;
-				m_stats.gold += m_kill.gold;
+				m_kill.gold = AddGold(m_enemy.kind == EnemyKind::Boss ? PLAY_GOLD_BOSS
+					: m_enemy.kind == EnemyKind::Elite ? PLAY_GOLD_ELITE : 0);
 				if (m_enemy.kind == EnemyKind::Boss)
 				{
 					++m_stats.bossesDefeated;
-					int before = m_stats.gold;
-					m_kill.rune = ApplyRune(PickRune());
-					m_kill.gold += m_stats.gold - before;  // Bounty
+					int choices = static_cast<int>(GetItemDefinition(ItemId::Aghanim).level[0].value);
+					int aghanim = EquippedLevel(m_inv, ItemId::Aghanim);
+					if (aghanim > 0)  // §27 I-5: the player chooses (the run waits)
+					{
+						choices = static_cast<int>(GetItemDefinition(ItemId::Aghanim).level[aghanim - 1].value);
+						m_runeChoiceCount = 0;
+						for (int guard = 0; guard < 50 && m_runeChoiceCount < choices; ++guard)
+						{
+							Rune r = PickRune();
+							bool seen = false;
+							for (int k = 0; k < m_runeChoiceCount; ++k)
+								seen = seen || m_runeChoices[k] == r;
+							if (!seen)
+								m_runeChoices[m_runeChoiceCount++] = r;
+						}
+						m_kill.runeChoice = true;
+					}
+					else
+					{
+						int before = m_stats.gold;
+						m_kill.rune = ApplyRune(PickRune());
+						m_kill.gold += m_stats.gold - before;  // Bounty
+					}
 				}
 			}
 			m_stats.score += m_kill.points;          // Survival: +1 per enemy, as always
@@ -357,11 +380,102 @@ namespace practice
 			break;
 		case Rune::Frost:        m_frostLeft = PLAY_FROST_TIME; break;
 		case Rune::DoubleDamage: m_doubleLeft = PLAY_DOUBLE_TIME; break;
-		case Rune::Bounty:       m_stats.gold += PLAY_BOUNTY_GOLD; break;
+		case Rune::Bounty:       AddGold(PLAY_BOUNTY_GOLD); break;
 		case Rune::Shield:       m_shield = true; break;
 		default: break;
 		}
 		return rune;
+	}
+
+	int PracticeSession::AddGold(int gold)
+	{
+		int midas = EquippedLevel(m_inv, ItemId::Midas);
+		if (midas > 0 && gold > 0)
+			gold = static_cast<int>(gold * (1.0f + GetItemDefinition(ItemId::Midas).level[midas - 1].value) + 0.5f);
+		m_stats.gold += gold;
+		return gold;
+	}
+
+	Rune PracticeSession::ChooseRune(int i)
+	{
+		if (m_runeChoiceCount <= 0 || i < 0 || i >= m_runeChoiceCount)
+			return Rune::None;
+		Rune r = m_runeChoices[i];
+		m_runeChoiceCount = 0;
+		return ApplyRune(r);
+	}
+
+	// §27 I-4 / I-5: an item in a slot is used when it is ready and has something to do; nothing is spent otherwise.
+	ItemUseResult PracticeSession::UseItem(int slot)
+	{
+		ItemUseResult result = { false, ItemId::Blink };
+		if (m_mode != SessionMode::Play || m_state != GameState::Playing || m_runeChoiceCount > 0
+			|| slot < 0 || slot >= ITEM_SLOTS || m_inv.slot[slot] == ITEM_NONE)
+			return result;
+		int index = m_inv.slot[slot];
+		ItemId item = static_cast<ItemId>(index);
+		const ItemDefinition& def = GetItemDefinition(item);
+		int level = CurrentLevel(m_inv, item);
+		result.item = item;
+		if (def.kind == ItemKind::Passive || level <= 0 || m_itemCooldown[index] > 0.0f)
+			return result;
+		const ItemLevel& lv = def.level[level - 1];
+		int left = m_enemy.chainLength - m_enemy.chainStep;  // skills of the chain still to break
+		switch (item)
+		{
+		case ItemId::Blink:
+			if (!m_enemy.active)
+				return result;
+			m_backLeft = lv.value;
+			m_stillLeft = 0.0f;
+			break;
+		case ItemId::Euls:
+			if (!m_enemy.active)
+				return result;
+			m_stillLeft = lv.value;
+			m_backLeft = 0.0f;
+			if (level >= 2)  // Wind Waker
+				m_enemy.x = m_enemy.x + PLAY_EULS_PUSHBACK < SPAWN_X ? m_enemy.x + PLAY_EULS_PUSHBACK : SPAWN_X;
+			break;
+		case ItemId::Refresher:
+		{
+			if (!m_enemy.active || left <= 1)
+				return result;
+			int n = static_cast<int>(lv.value) < left - 1 ? static_cast<int>(lv.value) : left - 1;
+			m_enemy.chainStep += n;
+			m_enemy.target = m_enemy.chain[m_enemy.chainStep];
+			break;
+		}
+		case ItemId::Bkb:
+			m_bkbLeft = lv.value;
+			break;
+		case ItemId::Salve:
+		case ItemId::Cheese:
+			if (m_stats.hp >= PLAY_MAX_HP)
+				return result;
+			m_stats.hp += static_cast<int>(lv.value);
+			if (m_stats.hp > PLAY_MAX_HP)
+				m_stats.hp = PLAY_MAX_HP;
+			if (m_stats.hp > m_stats.maxHp)
+				m_stats.maxHp = m_stats.hp;
+			break;
+		case ItemId::Smoke:
+		case ItemId::GreaterSmoke:
+			m_smokeLeft = lv.value;
+			break;
+		default:
+			return result;
+		}
+		if (def.kind == ItemKind::Consumable)
+			--m_inv.count[index];
+		else
+		{
+			int octarine = EquippedLevel(m_inv, ItemId::Octarine);
+			float cut = octarine > 0 ? GetItemDefinition(ItemId::Octarine).level[octarine - 1].value : 0.0f;
+			m_itemCooldown[index] = m_itemCooldownTotal[index] = lv.cooldown * (1.0f - cut);
+		}
+		result.used = true;
+		return result;
 	}
 
 	bool PracticeSession::LaunchTornado(float dx, float dy)
@@ -420,9 +534,18 @@ namespace practice
 		if (dt > MAX_FRAME_TIME)
 			dt = MAX_FRAME_TIME;
 
+		if (m_runeChoiceCount > 0)  // Aghanim: nothing moves until the rune is chosen
+			return result;
+
 		m_stats.survivalTime += dt;
 		m_frostLeft = m_frostLeft > dt ? m_frostLeft - dt : 0.0f;
 		m_doubleLeft = m_doubleLeft > dt ? m_doubleLeft - dt : 0.0f;
+		m_backLeft = m_backLeft > dt ? m_backLeft - dt : 0.0f;
+		m_stillLeft = m_stillLeft > dt ? m_stillLeft - dt : 0.0f;
+		m_bkbLeft = m_bkbLeft > dt ? m_bkbLeft - dt : 0.0f;
+		m_smokeLeft = m_smokeLeft > dt ? m_smokeLeft - dt : 0.0f;
+		for (int i = 0; i < ITEM_COUNT; ++i)
+			m_itemCooldown[i] = m_itemCooldown[i] > dt ? m_itemCooldown[i] - dt : 0.0f;
 
 		if (!m_enemy.active)
 		{
@@ -435,7 +558,15 @@ namespace practice
 		}
 		else
 		{
-			m_enemy.x -= m_enemy.speed * (m_frostLeft > 0.0f ? PLAY_FROST_SPEED : 1.0f) * dt;
+			float speed = m_enemy.speed * (m_frostLeft > 0.0f ? PLAY_FROST_SPEED : 1.0f)
+				* (m_smokeLeft > 0.0f ? PLAY_SMOKE_SPEED : 1.0f);
+			if (m_stillLeft > 0.0f)
+				speed = 0.0f;                    // Eul's: it stands still
+			else if (m_backLeft > 0.0f)
+				speed = -speed;                  // Blink: it walks back, never past its spawn point
+			m_enemy.x -= speed * dt;
+			if (m_enemy.x > SPAWN_X)
+				m_enemy.x = SPAWN_X;
 		}
 
 		// Projectiles are resolved before the leak test: a Tornado that reaches the enemy on the same update wins.
@@ -446,7 +577,12 @@ namespace practice
 			m_enemy.active = false;              // the enemy disappears
 			int damage = m_mode != SessionMode::Play ? 1 : m_enemy.kind == EnemyKind::Boss ? PLAY_LEAK_BOSS
 				: m_enemy.kind == EnemyKind::Elite ? PLAY_LEAK_ELITE : PLAY_LEAK_NORMAL;
-			if (m_shield)                        // PLAY Shield rune: this leak costs nothing
+			if (m_bkbLeft > 0.0f)                // Black King Bar running: this leak costs nothing (§27 I-5)
+			{
+				damage = 0;
+				result.shieldUsed = true;
+			}
+			else if (m_shield)                   // PLAY Shield rune: this leak costs nothing
 			{
 				m_shield = false;
 				damage = 0;

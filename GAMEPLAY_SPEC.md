@@ -410,3 +410,30 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **P3-6 [CONFIRMED]** **Stages.** Every boss defeated starts a new stage: the background changes (tinted placeholder until the owner's background art arrives). Difficulty (speed, delay) follows the survival clock as in §14; tuning together with the new backgrounds is still open (PLAN.md).
 - **P3-7 [CONFIRMED]** Lives start at 3 (as Survival), max 5. Game Over at 0 shows score, gold earned (and the bank), stage reached and time, and the rank on the PLAY board.
 - **P3-8 [RECOMMENDED]** Architecture: the same `PracticeSession` with a mode (`Survival` / `Play`); Survival behaviour is exactly the previous Practice (its tests are unchanged). Chains, kinds, runes and gold live in the Practice layer (tested); drawing, saving the gold bank and the PLAY leaderboard in the presentation.
+
+## 27. Shop and items (update 1.4)
+
+**Status: CONFIRMED by the owner 2026-10-01** ("Ok làm đi" on the plan in PLAN.md "Next steps — planned 2026-10-01"). Items are bought with the PLAY gold (§26 P3-5) and **only work in PLAY**; Survival, Boss Fights and the Tutorial stay pure training. The effects are this game's, inspired by Dota 2 items, not copies of them; the icons are drawn from scratch.
+
+- **I-1 [CONFIRMED]** **Shop** (Home, small button SHOP): every item with its icon, level, effect, cooldown and price; BUY / UPGRADE; EQUIP / UNEQUIP. Gold is spent from the bank at once and saved with it. No real money, ever.
+- **I-2 [CONFIRMED]** **Permanent items** have two levels: buying gives level 1, an UPGRADE (a higher price) gives level 2 with its own name. **Consumables** are bought one unit at a time (at most 9 of each) and used up; the stronger consumables are their own items.
+
+| Item | Level 1: effect · cooldown · price | Level 2: name · effect · cooldown · price |
+|---|---|---|
+| Blink Dagger (active) | the enemy walks back for 3 s · 40 s · 1500 | Swift Blink · 4 s · 30 s · 4000 |
+| Refresher Orb (active) | the current chain loses 2 skills, at least 1 is left · 90 s · 3000 | Refresher Orb II · same · 60 s · 7000 |
+| Eul's Scepter (active) | the enemy stands still for 2 s · 25 s · 1200 | Wind Waker · 3 s and pushed back 150 px · 20 s · 3500 |
+| Black King Bar (active) | no life lost for 5 s · 120 s · 2500 | BKB II · 7 s · 90 s · 6000 |
+| Hand of Midas (passive) | +50 % gold · — · 2000 | Midas II · +100 % gold · — · 6000 |
+| Octarine Core (passive) | item cooldowns −25 % · — · 3500 | Octarine II · −40 % · — · 8000 |
+| Aghanim's Scepter (passive) | after a boss, **choose** 1 of 2 runes · — · 4000 | Aghanim's Blessing · 1 of 3 · — · 9000 |
+| Healing Salve (consumable) | +1 life (max 5) · — · 60 | — |
+| Cheese (consumable) | +2 lives (max 5) · — · 300 | — |
+| Smoke of Deceit (consumable) | enemies at 50 % speed for 8 s · — · 80 | — |
+| Greater Smoke (consumable) | enemies at 50 % speed for 12 s · — · 200 | — |
+
+- **I-3 [CONFIRMED]** **Six item slots in 2 rows of 3**, like the Dota 2 inventory, for the **right hand** while the left hand types Q/W/E/R/D/F: keys **U I O / J K L** (also numpad 7 8 9 / 4 5 6); on a touch screen the 2 × 3 slots on the right edge are buttons. The loadout is chosen in the shop and kept for every run; passive items work only while equipped.
+- **I-4 [CONFIRMED]** **Using an item** (PLAY, Playing): an active item or consumable in a slot is used when its key / button is pressed and it is ready: off cooldown, and it has something to do (Blink / Eul's / Refresher need an enemy, Refresher a chain with more than one skill left, Salve / Cheese a missing life). Otherwise nothing happens and nothing is spent. Cooldowns run on the PLAY clock and restart with every run; Octarine shortens them when the item is used. A used consumable is gone from the inventory for good.
+- **I-5 [CONFIRMED]** Effects in detail: Blink — the current enemy walks backwards at its own speed (never past its spawn point). Eul's — the current enemy does not move (Wind Waker also pushes it back 150 px at once). Refresher — counts as breaking skills of the chain (no points, no combo). BKB — while it lasts a leak costs no life (the enemy is still removed). Smoke — stacks with Frost. Midas — multiplies every gold gain (rounded). Aghanim — after a boss the game pauses on the rune choice; the player picks with 1 / 2 / 3 or a tap.
+- **I-6 [CONFIRMED]** Items change what a run can reach; the PLAY leaderboard accepts it (owner 2026-09-30: everyone can buy them by playing).
+- **I-7 [RECOMMENDED]** Architecture: `Practice/Items.*` (item table, inventory, buying and equipping — pure, tested) and the item effects inside `PracticeSession` in PLAY mode (tested); the shop screen, the in-game item bar, the icons and saving the inventory are presentation.

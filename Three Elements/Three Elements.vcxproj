@@ -168,6 +168,7 @@
     <ClCompile Include="Practice\Practice.cpp" />
     <ClCompile Include="Practice\Tutorial.cpp" />
     <ClCompile Include="Practice\Boss.cpp" />
+    <ClCompile Include="Practice\Items.cpp" />
     <ClCompile Include="PixelText.cpp" />
     <ClCompile Include="Draw.cpp" />
     <ClCompile Include="SkillVfx.cpp" />
@@ -186,6 +187,7 @@
     <ClInclude Include="Practice\Practice.h" />
     <ClInclude Include="Practice\Tutorial.h" />
     <ClInclude Include="Practice\Boss.h" />
+    <ClInclude Include="Practice\Items.h" />
     <ClInclude Include="PixelText.h" />
     <ClInclude Include="Draw.h" />
     <ClInclude Include="SkillVfx.h" />

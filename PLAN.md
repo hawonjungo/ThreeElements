@@ -154,7 +154,7 @@ A separate mode on top of Practice: a boss appears and only takes damage from a 
 
 Status: 1.3.7 is uploaded to the Google Play closed test by the owner (14-day clock running). Every later version is uploaded to the same test track (versionCode +1). Other open items (stage backgrounds, tutorial card for PLAY, online boards, enemy art) wait until these two are done.
 
-#### 1.4.0 — Shop and items (PLAY only)
+#### 1.4.0 — Shop and items (PLAY only)  *(done 2026-10-01, spec §27)*
 
 Owner decisions: items only work in PLAY; mix of permanent and consumable items; **6 slots in 2 rows of 3, like the Dota 2 inventory**, used with the **right hand** while the left hand types Q/W/E/R/D/F; every item has a **cooldown suited to the game** and its own **upgraded version at a higher price**; prices high (grinding); gold only from elites, bosses and Bounty; simple pixel icons in the spirit of the Dota items (drawn from scratch, not Valve art); no real-money purchases.
 
@@ -238,4 +238,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-10-01 — **1.3.5:** magic ring under the Injoker's feet removed; run animation 6 fps (owner); versionCode 10.
 - 2026-10-01 — **1.3.6:** new Home: no logo picture, the four modes as big buttons, RECIPES / LEADERBOARD / SETTINGS (/ QUIT) as small ones, SETTINGS panel for sound and the recipe hint; versionCode 11.
 - 2026-10-01 — **1.3.7:** the owner's second Injoker art: new run sheet and a cast sheet played on every D / F cast (drawn at 50 %); versionCode 12.
+- 2026-10-01 — **1.4.0 Shop and items** (spec §27): `Practice/Items.*` + item effects in PLAY, SHOP screen, 2 x 3 item bar (U I O / J K L), Aghanim rune choice, pixel icons (`art/make_item_icons.py`), inventory saved; 83 new test checks → Practice tests 1231; versionCode 13.
 - Next (owner): **shop** for the gold (Invoker-only items with Dota-like pixel icons, 6 activatable item slots, mix of permanent and consumable, high prices; Refresher Orb removes 2 skills of a chain, Blink Dagger makes enemies walk back for 3 s) — to be confirmed again with the owner before any code; then Boss Fights with all 10 skills; then stage backgrounds (owner looking for art) with difficulty tuning.

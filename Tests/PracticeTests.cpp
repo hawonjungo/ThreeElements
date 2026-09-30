@@ -2387,6 +2387,193 @@ static void TestPlayRunes()
 }
 
 
+// ---------------------------------------------------------------- shop and items (spec §27)
+
+static Inventory LoadoutWith(ItemId a, int levelA, ItemId b = ItemId::Salve, int countB = 0)
+{
+	Inventory inv = EmptyInventory();
+	int gold = 1000000;
+	for (int i = 0; i < levelA; ++i)
+		Buy(inv, a, gold);
+	for (int i = 0; i < countB; ++i)
+		Buy(inv, b, gold);
+	return inv;
+}
+
+static void PlayStartWith(PracticeSession& s, unsigned seed, const Inventory& inv)
+{
+	s.SetMode(SessionMode::Play);
+	s.SetLoadout(inv);
+	s.Start(seed);
+	PlayWaitSpawn(s);
+}
+
+static void PlayToBossWith(PracticeSession& s, unsigned seed, const Inventory& inv)
+{
+	PlayStartWith(s, seed, inv);
+	while (s.Enemy().kind != EnemyKind::Boss && s.State() == GameState::Playing)
+	{
+		PlayKill(s);
+		PlayWaitSpawn(s);
+	}
+}
+
+static void TestItemShop()
+{
+	CHECK(GetItemDefinition(ItemId::Blink).levels == 2 && GetItemDefinition(ItemId::Salve).levels == 1);
+	for (int i = 0; i < ITEM_COUNT; ++i)
+	{
+		const ItemDefinition& d = GetItemDefinition(i);
+		CHECK(static_cast<int>(d.id) == i && d.level[0].price > 0);
+		if (d.levels == 2)
+			CHECK(d.level[1].price > d.level[0].price);  // the upgrade costs more (I-2)
+		CHECK((d.kind == ItemKind::Active) == (d.level[0].cooldown > 0.0f));
+	}
+	Inventory inv = EmptyInventory();
+	int gold = 1000;
+	CHECK(NextPrice(inv, ItemId::Blink) == 1500 && !Buy(inv, ItemId::Blink, gold) && gold == 1000);
+	gold = 2000;
+	CHECK(Buy(inv, ItemId::Blink, gold) && gold == 500 && inv.level[static_cast<int>(ItemId::Blink)] == 1);
+	CHECK(SlotOf(inv, ItemId::Blink) == 0);  // a new item goes into the first free slot
+	CHECK(NextPrice(inv, ItemId::Blink) == 4000);
+	gold = 4000;
+	CHECK(Buy(inv, ItemId::Blink, gold) && gold == 0 && CurrentLevel(inv, ItemId::Blink) == 2);
+	gold = 100000;
+	CHECK(NextPrice(inv, ItemId::Blink) == 0 && !Buy(inv, ItemId::Blink, gold) && gold == 100000);  // maxed
+	for (int i = 0; i < ITEM_MAX_STACK; ++i)
+		CHECK(Buy(inv, ItemId::Salve, gold));
+	CHECK(inv.count[static_cast<int>(ItemId::Salve)] == ITEM_MAX_STACK && NextPrice(inv, ItemId::Salve) == 0);
+	CHECK(!Buy(inv, ItemId::Salve, gold));
+	CHECK(SlotOf(inv, ItemId::Salve) == 1);
+	// six slots at most; unequip frees one; passives only count while equipped
+	Buy(inv, ItemId::Euls, gold); Buy(inv, ItemId::Bkb, gold); Buy(inv, ItemId::Midas, gold); Buy(inv, ItemId::Octarine, gold);
+	CHECK(Buy(inv, ItemId::Aghanim, gold) && !IsEquipped(inv, ItemId::Aghanim) && EquippedLevel(inv, ItemId::Aghanim) == 0);
+	Unequip(inv, ItemId::Salve);
+	CHECK(SlotOf(inv, ItemId::Salve) == ITEM_NONE && Equip(inv, ItemId::Aghanim) && SlotOf(inv, ItemId::Aghanim) == 1);
+	CHECK(EquippedLevel(inv, ItemId::Aghanim) == 1 && EquippedLevel(inv, ItemId::Midas) == 1);
+	CHECK(!Equip(inv, ItemId::Cheese));  // not owned
+}
+
+static void TestItemUse()
+{
+	// only in PLAY
+	PracticeSession sv;
+	sv.SetLoadout(LoadoutWith(ItemId::Blink, 1));
+	sv.Start(3);
+	PlayWaitSpawn(sv);
+	CHECK(!sv.UseItem(0).used);
+
+	// Blink: the enemy walks back; the cooldown runs; a second use waits for it
+	PracticeSession s;
+	PlayStartWith(s, 5, LoadoutWith(ItemId::Blink, 1));
+	CHECK(!s.UseItem(1).used && !s.UseItem(-1).used);  // an empty slot / no slot
+	float x0 = s.Enemy().x;
+	s.Update(0.2f);
+	CHECK(s.Enemy().x < x0);
+	CHECK(s.UseItem(0).used && s.ItemCooldown(ItemId::Blink) == 40.0f);
+	x0 = s.Enemy().x;
+	s.Update(0.1f); s.Update(0.1f);
+	CHECK(s.Enemy().x > x0 && s.Enemy().x <= SPAWN_X);
+	CHECK(!s.UseItem(0).used && NearF(s.ItemCooldown(ItemId::Blink), 39.8f, 1e-3f));
+
+	// Eul's: still; Wind Waker pushes back 150 px
+	PracticeSession e;
+	PlayStartWith(e, 5, LoadoutWith(ItemId::Euls, 1));
+	e.Update(0.3f); e.Update(0.3f); e.Update(0.3f);
+	x0 = e.Enemy().x;
+	CHECK(e.UseItem(0).used);
+	e.Update(0.1f); e.Update(0.1f);
+	CHECK(e.Enemy().x == x0);
+	PracticeSession w;
+	PlayStartWith(w, 5, LoadoutWith(ItemId::Euls, 2));
+	for (int i = 0; i < 30; ++i)  // far enough from the spawn point for the whole push
+		w.Update(0.1f);
+	x0 = w.Enemy().x;
+	CHECK(w.UseItem(0).used && NearF(w.Enemy().x, x0 + PLAY_EULS_PUSHBACK, 1e-3f) && w.ItemCooldown(ItemId::Euls) == 20.0f);
+
+	// Octarine cuts the cooldown by 25 %
+	Inventory oct = LoadoutWith(ItemId::Blink, 1);
+	int gold = 100000;
+	Buy(oct, ItemId::Octarine, gold);
+	PracticeSession o;
+	PlayStartWith(o, 5, oct);
+	CHECK(o.UseItem(0).used && NearF(o.ItemCooldown(ItemId::Blink), 30.0f, 1e-3f));
+	CHECK(!o.UseItem(1).used);  // a passive in a slot does nothing when pressed
+
+	// Salve / Cheese: lives up to 5, units used up; nothing is spent at 5
+	PracticeSession h;
+	PlayStartWith(h, 5, LoadoutWith(ItemId::Cheese, 2, ItemId::Salve, 2));
+	CHECK(h.Loadout().slot[0] == static_cast<int>(ItemId::Cheese));
+	CHECK(h.UseItem(0).used && h.GetStats().hp == PLAY_MAX_HP && h.Loadout().count[static_cast<int>(ItemId::Cheese)] == 1);
+	CHECK(!h.UseItem(0).used && h.Loadout().count[static_cast<int>(ItemId::Cheese)] == 1);  // 5 lives: nothing spent
+	CHECK(!h.UseItem(1).used && h.Loadout().count[static_cast<int>(ItemId::Salve)] == 2);
+
+	// Smoke: half speed
+	PracticeSession m;
+	PlayStartWith(m, 5, LoadoutWith(ItemId::Smoke, 1, ItemId::Smoke, 0));
+	x0 = m.Enemy().x;
+	m.Update(0.05f);
+	float normal = x0 - m.Enemy().x;
+	CHECK(m.UseItem(0).used && m.SmokeLeft() == 8.0f);
+	x0 = m.Enemy().x;
+	m.Update(0.05f);
+	CHECK(NearF(x0 - m.Enemy().x, normal * PLAY_SMOKE_SPEED, 0.05f));
+}
+
+static void TestItemBossItems()
+{
+	// Refresher: a boss chain of 3 goes to its last skill; not usable on a single skill
+	PracticeSession r;
+	PlayStartWith(r, 21, LoadoutWith(ItemId::Refresher, 1));
+	CHECK(!r.UseItem(0).used);  // the first enemy needs one skill
+	PlayToBossWith(r, 21, LoadoutWith(ItemId::Refresher, 1));
+	CHECK(r.Enemy().kind == EnemyKind::Boss);
+	CHECK(r.UseItem(0).used && r.Enemy().chainStep == 2 && r.Enemy().target == r.Enemy().chain[2]);
+	KillReport kill = PlayKill(r);
+	CHECK(kill.killed && kill.kind == EnemyKind::Boss);
+
+	// Black King Bar: a boss reaching the player costs nothing while it lasts
+	PracticeSession b;
+	PlayToBossWith(b, 31, LoadoutWith(ItemId::Bkb, 1));
+	float x = b.Enemy().x;
+	UpdateResult leak = {};
+	// wait until the boss is about 2 s from the player, then BKB (5 s)
+	while (!leak.leaked && (b.Enemy().x - HIT_LINE_X) / b.Enemy().speed > 2.0f)
+		leak = b.Update(0.01f);
+	CHECK(b.UseItem(0).used && b.BkbLeft() == 5.0f);
+	for (int i = 0; i < 500 && !leak.leaked; ++i)
+		leak = b.Update(0.01f);
+	CHECK(x > HIT_LINE_X && leak.leaked && leak.shieldUsed && leak.leakDamage == 0 && b.GetStats().hp == START_HP);
+
+	// Hand of Midas: +50 % gold (a boss gives 20 -> 30)
+	PracticeSession g;
+	PlayToBossWith(g, 21, LoadoutWith(ItemId::Midas, 1));
+	int before = g.GetStats().gold;
+	kill = PlayKill(g);
+	CHECK(kill.killed);
+	CHECK(kill.gold >= 30 && g.GetStats().gold - before == kill.gold);
+
+	// Aghanim's Scepter: the run waits for a rune choice (1 of 2)
+	PracticeSession a;
+	PlayToBossWith(a, 21, LoadoutWith(ItemId::Aghanim, 1));
+	kill = PlayKill(a);
+	CHECK(kill.killed && kill.runeChoice && kill.rune == Rune::None);
+	CHECK(a.RuneChoiceCount() == 2 && a.RuneChoice(0) != a.RuneChoice(1));
+	float t = a.GetStats().survivalTime;
+	a.Update(0.1f);
+	CHECK(a.GetStats().survivalTime == t && !a.Input(InputAction::Q).accepted && !a.UseItem(0).used);
+	Rune chosen = a.RuneChoice(1);
+	CHECK(a.ChooseRune(1) == chosen && a.RuneChoiceCount() == 0 && a.ChooseRune(0) == Rune::None);
+	a.Update(0.1f);
+	CHECK(a.GetStats().survivalTime > t);
+	// Aghanim's Blessing: 1 of 3
+	PracticeSession ab;
+	PlayToBossWith(ab, 21, LoadoutWith(ItemId::Aghanim, 2));
+	PlayKill(ab);
+	CHECK(ab.RuneChoiceCount() == 3);
+}
+
+
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
@@ -2441,6 +2628,9 @@ int main()
 	RunTest("play: chains", TestPlayChain);
 	RunTest("play: leak damage, shield", TestPlayLeakDamage);
 	RunTest("play: runes", TestPlayRunes);
+	RunTest("items: shop, upgrades, slots", TestItemShop);
+	RunTest("items: use and cooldowns", TestItemUse);
+	RunTest("items: refresher, bkb, midas, aghanim", TestItemBossItems);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;

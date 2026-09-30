@@ -33,6 +33,7 @@ FEATURES
 - A recipe list to look up any spell between runs.
 - An optional recipe hint while you learn (runs with the hint are not ranked).
 - PLAY: elites, bosses, runes, stages and gold.
+- A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
 - SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
 - Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Your 10 best runs by survival time, plus your personal records.
@@ -62,6 +63,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.4.0, versionCode 13, max 500)
+
+```
+New: the SHOP! Spend the gold from elites and bosses on items - Blink Dagger, Refresher Orb, Eul's Scepter, Black King Bar, Hand of Midas, Octarine Core, Aghanim's Scepter and consumables - each with an upgrade. Six item slots in PLAY, keys U I O / J K L or tap. Also: new Injoker art with a cast animation, new Home screen and settings.
+```
 
 ## Release notes (1.3.0, versionCode 5, max 500)
 

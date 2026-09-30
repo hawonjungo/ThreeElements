@@ -13,6 +13,7 @@
 // and an enemy that reaches the player costs 1 HP.
 
 #include "../Core/Invoker.h"
+#include "Items.h"
 
 #include <vector>
 
@@ -158,6 +159,9 @@ namespace practice
 	const float PLAY_FROST_TIME = 15.0f;            // s of Frost: enemies at PLAY_FROST_SPEED
 	const float PLAY_FROST_SPEED = 0.6f;
 	const float PLAY_DOUBLE_TIME = 20.0f;           // s of Double Damage: points x2
+	const float PLAY_EULS_PUSHBACK = 150.0f;        // px, Wind Waker (Eul's level 2) pushes the enemy back (§27 I-5)
+	const float PLAY_SMOKE_SPEED = 0.5f;            // Smoke of Deceit: enemies at 50 % speed
+	const int   PLAY_MAX_RUNE_CHOICES = 3;          // Aghanim's Blessing
 
 	float EliteChance(float elapsedSeconds);        // 0 .. PLAY_ELITE_CHANCE_MAX
 
@@ -192,6 +196,13 @@ namespace practice
 		int points;
 		int gold;
 		Rune rune;
+		bool runeChoice;   // a boss with Aghanim equipped: the game waits for ChooseRune() instead of a random rune
+	};
+
+	struct ItemUseResult
+	{
+		bool used;         // the item did something (and started its cooldown / used a unit up)
+		ItemId item;
 	};
 
 	// Axis-aligned box in field pixels.
@@ -255,7 +266,7 @@ namespace practice
 		CastOutcome cast;  // a Tornado hit was judged this update (None if no projectile hit)
 		KillReport kill;   // that hit finished the enemy
 		int leakDamage;    // lives lost by the leak (PLAY: 1 / 2 / 3)
-		bool shieldUsed;   // a Shield rune took the leak instead
+		bool shieldUsed;   // a Shield rune or a Black King Bar took the leak instead
 	};
 
 	class PracticeSession
@@ -298,6 +309,19 @@ namespace practice
 
 		// PLAY runes (P3-4): the reward a boss gives, also callable directly (tests). Returns the rune applied.
 		Rune ApplyRune(Rune rune);
+		// PLAY items (§27): the loadout is copied in before a run (ignored while Playing); UseItem uses the item in a
+		// slot (0..5) when it is ready. Consumables used up here are gone from Loadout() too (the caller saves it).
+		void SetLoadout(const Inventory& inv) { if (m_state != GameState::Playing) m_inv = inv; }
+		const Inventory& Loadout() const { return m_inv; }
+		ItemUseResult UseItem(int slot);
+		float ItemCooldown(ItemId id) const { return m_itemCooldown[static_cast<int>(id)]; }       // s left
+		float ItemCooldownTotal(ItemId id) const { return m_itemCooldownTotal[static_cast<int>(id)]; } // s at use
+		float BkbLeft() const { return m_bkbLeft; }
+		float SmokeLeft() const { return m_smokeLeft; }
+		// Aghanim (§27 I-5): after a boss the run waits (enemies stop, keys do nothing) until a rune is chosen.
+		int RuneChoiceCount() const { return m_runeChoiceCount; }
+		Rune RuneChoice(int i) const { return m_runeChoices[i]; }
+		Rune ChooseRune(int i);                  // applies choice i; Rune::None when nothing is being chosen
 		float FrostLeft() const { return m_frostLeft; }
 		float DoubleLeft() const { return m_doubleLeft; }
 		bool HasShield() const { return m_shield; }
@@ -332,6 +356,16 @@ namespace practice
 		bool m_shield = false;
 		KillReport m_kill = {};           // filled by JudgeCast when it finishes an enemy
 		Rune PickRune();
+		int AddGold(int gold);            // Hand of Midas applied; returns the gold actually gained
+		Inventory m_inv = EmptyInventory();
+		float m_itemCooldown[ITEM_COUNT] = {};
+		float m_itemCooldownTotal[ITEM_COUNT] = {};
+		float m_backLeft = 0.0f;          // Blink: the enemy walks back
+		float m_stillLeft = 0.0f;         // Eul's: the enemy stands still
+		float m_bkbLeft = 0.0f;
+		float m_smokeLeft = 0.0f;
+		Rune m_runeChoices[PLAY_MAX_RUNE_CHOICES] = {};
+		int m_runeChoiceCount = 0;
 	};
 }
 

@@ -203,6 +203,8 @@ void GameManager::LoadAssets()
     LoadBossTimes();
     LoadPlayRuns();
     LoadGold();
+    LoadInventory();
+    LoadItemIcons();
     LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
@@ -365,6 +367,7 @@ bool GameManager::RunFrame()
     RenderStatsHud();
     RenderTargetHint();
     RenderBossCombo();
+    RenderItemBar();
 
     if (m_tutorialActive)
         RenderTutorial();
@@ -386,6 +389,9 @@ bool GameManager::RunFrame()
         RenderBossSelect();
     if (m_showSettings)
         RenderSettings();
+    if (m_showShop)
+        RenderShop();
+    RenderRuneChoice();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -411,6 +417,11 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         HandleSettingsKey(sym);
         return;
     }
+    if (m_showShop)
+    {
+        HandleShopKey(sym);
+        return;
+    }
     if (m_tutorialActive)
     {
         HandleTutorialKey(sym, e);
@@ -427,6 +438,31 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
     }
     bool menu = m_session.State() == practice::GameState::Ready;
+    if (m_session.State() == practice::GameState::Playing && m_session.Mode() == practice::SessionMode::Play)
+    {
+        if (m_session.RuneChoiceCount() > 0)  // Aghanim: 1 / 2 / 3 pick the rune; the run waits
+        {
+            if (sym >= SDLK_1 && sym <= SDLK_3)
+            {
+                ChooseRuneAction(static_cast<int>(sym - SDLK_1));
+                return;
+            }
+            if (sym != SDLK_ESCAPE && sym != SDLK_AC_BACK && sym != SDLK_m && sym != SDLK_g)
+                return;
+        }
+        // the items, 2 rows of 3 under the right hand (spec §27 I-3)
+        const SDL_Keycode itemKeys[2][practice::ITEM_SLOTS] = {
+            { SDLK_u, SDLK_i, SDLK_o, SDLK_j, SDLK_k, SDLK_l },
+            { SDLK_KP_7, SDLK_KP_8, SDLK_KP_9, SDLK_KP_4, SDLK_KP_5, SDLK_KP_6 } };
+        for (int row = 0; row < 2; ++row)
+            for (int slot = 0; slot < practice::ITEM_SLOTS; ++slot)
+                if (sym == itemKeys[row][slot])
+                {
+                    UseItemSlot(slot);
+                    return;
+                }
+    }
+    if (menu && sym == SDLK_p) { m_showShop = true; return; }
     if (menu && (sym == SDLK_UP || sym == SDLK_DOWN || sym == SDLK_LEFT || sym == SDLK_RIGHT))  // through the menu, wrapping
     {
         int n = MenuItemCount();
@@ -459,6 +495,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
 void GameManager::PressEnterAction()
 {
     unsigned seed = static_cast<unsigned>(std::time(NULL)) ^ (SDL_GetTicks() << 8);
+    m_session.SetLoadout(m_inventory);  // PLAY items (spec §27); ignored by Survival
     if (m_session.PressEnter(seed))
     {
         ResetVisualEffects();
@@ -507,6 +544,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (m_showSettings)
     {
         HandleSettingsPointer(x, y);
+        return;
+    }
+    if (m_showShop)
+    {
+        HandleShopPointer(x, y);
         return;
     }
     if (m_showBossSelect)  // the boss list: a tap on a boss starts the fight, anywhere else closes the list
@@ -581,6 +623,28 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         {
             PressEscapeAction(quit);
             return;
+        }
+        if (m_session.Mode() == practice::SessionMode::Play)
+        {
+            for (int i = 0; i < m_session.RuneChoiceCount(); ++i)  // Aghanim's choice
+            {
+                SDL_Rect row = { RUNE_CHOICE_RECT.x + 20, RUNE_CHOICE_RECT.y + 60 + i * 56, RUNE_CHOICE_RECT.w - 40, 46 };
+                if (hit(row))
+                {
+                    ChooseRuneAction(i);
+                    return;
+                }
+            }
+            if (m_session.RuneChoiceCount() > 0)
+                return;
+            for (int slot = 0; slot < practice::ITEM_SLOTS; ++slot)  // the item bar
+            {
+                if (hit(LoadoutSlotRect(slot, ITEM_BAR_X, ITEM_BAR_Y)))
+                {
+                    UseItemSlot(slot);
+                    return;
+                }
+            }
         }
         for (int i = 0; i < 6 && m_showTouchControls; ++i)  // hidden buttons are not clickable either
         {
@@ -928,6 +992,8 @@ void GameManager::UpdateFeedback(float dt)
 {
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
         m_floatTexts[i].left -= dt;
+    for (int i = 0; i < practice::ITEM_SLOTS; ++i)
+        m_itemFlash[i] -= dt;
     for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
         m_bursts[i].left -= dt;
     m_enemyFlashLeft -= dt;
@@ -1293,6 +1359,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
     case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
+    case MENU_SHOP:        m_showShop = true; break;
     case MENU_QUIT:        PressEscapeAction(quit); break;
     }
 }
@@ -1321,6 +1388,7 @@ void GameManager::RenderMenu()
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
         case MENU_SETTINGS:    label = "SETTINGS";    key = ""; break;
+        case MENU_SHOP:        label = "SHOP";        key = "P"; break;
         case MENU_QUIT:        label = "QUIT";        key = "ESC"; break;
         }
         // the modes stand out: brighter, larger, PLAY framed in gold; the rest is small and quiet
@@ -1344,7 +1412,8 @@ void GameManager::RenderMenu()
         int scale = main ? 3 : 2;
         int textH = 7 * scale;
         int textX = r.x + (r.w - pixeltext::Width(label, scale)) / 2;
-        pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - textH) / 2, scale, selected || accent ? gold : (main ? white : grey));
+        bool shop = item == MENU_SHOP;  // the shop's label is gold: the place the gold goes
+        pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - textH) / 2, scale, selected || accent || shop ? gold : (main ? white : grey));
         if (main && selected)
             pixeltext::DrawShadowed(m_screen, ">", r.x + 14, r.y + (r.h - textH) / 2, scale, gold);
         if (main && !m_showTouchControls && key[0] != '\0')  // keyboard hints mean nothing on a touch screen
@@ -2224,7 +2293,11 @@ void GameManager::RenderStatsHud()
         if (m_session.DoubleLeft() > 0.0f)
             snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "X2 %d  ", static_cast<int>(m_session.DoubleLeft()) + 1);
         if (m_session.HasShield())
-            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "SHIELD");
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "SHIELD  ");
+        if (m_session.BkbLeft() > 0.0f)
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "BKB %d  ", static_cast<int>(m_session.BkbLeft()) + 1);
+        if (m_session.SmokeLeft() > 0.0f)
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "SMOKE %d", static_cast<int>(m_session.SmokeLeft()) + 1);
         const SDL_Color cyan = { 110, 210, 255, 255 };
         pixeltext::DrawShadowed(m_screen, runes, 190, 68, 2, cyan);
     }
@@ -2438,6 +2511,7 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         snprintf(m_stageText, sizeof(m_stageText), "BOSS DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
         switch (kill.rune)
         {
+        case practice::Rune::None:         m_announce = kill.runeChoice ? "CHOOSE YOUR RUNE" : NULL; break;
         case practice::Rune::Regeneration: m_announce = "RUNE: REGENERATION  +1 LIFE"; break;
         case practice::Rune::Frost:        m_announce = "RUNE: FROST  ENEMIES SLOWED"; break;
         case practice::Rune::DoubleDamage: m_announce = "RUNE: DOUBLE DAMAGE  SCORE X2"; break;
@@ -2593,6 +2667,500 @@ void GameManager::RenderPlayGameOver()
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
     RenderRecipesButton(RECIPES_BUTTON_GAMEOVER_RECT);
     RenderButton(LEADERBOARD_BUTTON_GAMEOVER_RECT, "LEADERBOARD  (L)", false);
+}
+
+// ------------------------------------------------------------------ shop and items (spec §27)
+
+static const char* const kItemFiles[practice::ITEM_COUNT] = {
+    "blink", "refresher", "euls", "bkb", "midas", "octarine", "aghanim", "salve", "cheese", "smoke", "greatersmoke" };
+
+void GameManager::LoadItemIcons()
+{
+    char path[96];
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+    {
+        for (int l = 0; l < practice::GetItemDefinition(i).levels; ++l)
+        {
+            snprintf(path, sizeof(path), "assets/items/%s%d.png", kItemFiles[i], l + 1);
+            m_itemIcons[i][l] = LoadSheet(path, ITEM_ICON);  // 48 x 48, drawn 1:1
+        }
+    }
+}
+
+// The inventory: items.txt next to the gold (11 levels, 11 counts, 6 slots), localStorage on the web. Anything
+// damaged or missing counts as nothing owned; slots only keep items that are owned, each once.
+void GameManager::LoadInventory()
+{
+    const int n = practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS;
+    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS];
+    for (int i = 0; i < n; ++i)
+        raw[i] = i < practice::ITEM_COUNT * 2 ? 0 : practice::ITEM_NONE;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var text = localStorage.getItem('threeElements_items');
+            if (!text) return;
+            var values = String(text).split(',').map(Number);
+            for (var i = 0; i < $1 && i < values.length; ++i)
+                HEAP32[($0 >> 2) + i] = values[i] | 0;
+        } catch (e) {}
+    }, raw, n);
+#else
+    FILE* f = fopen(SavePath("items.txt").c_str(), "r");
+    if (f != NULL)
+    {
+        for (int i = 0; i < n; ++i)
+            if (fscanf(f, "%d", &raw[i]) != 1)
+                break;
+        fclose(f);
+    }
+#endif
+    m_inventory = practice::EmptyInventory();
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+    {
+        int maxLevel = practice::GetItemDefinition(i).levels;
+        bool consumable = practice::GetItemDefinition(i).kind == practice::ItemKind::Consumable;
+        int level = raw[i], count = raw[practice::ITEM_COUNT + i];
+        m_inventory.level[i] = consumable ? 0 : (level < 0 ? 0 : (level > maxLevel ? maxLevel : level));
+        m_inventory.count[i] = consumable ? (count < 0 ? 0 : (count > practice::ITEM_MAX_STACK ? practice::ITEM_MAX_STACK : count)) : 0;
+    }
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+    {
+        int id = raw[practice::ITEM_COUNT * 2 + s];
+        if (id >= 0 && id < practice::ITEM_COUNT && !practice::IsEquipped(m_inventory, static_cast<practice::ItemId>(id))
+            && practice::Owns(m_inventory, static_cast<practice::ItemId>(id)))
+            m_inventory.slot[s] = id;
+    }
+}
+
+void GameManager::SaveInventory()
+{
+    const int n = practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS;
+    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS];
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+    {
+        raw[i] = m_inventory.level[i];
+        raw[practice::ITEM_COUNT + i] = m_inventory.count[i];
+    }
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+        raw[practice::ITEM_COUNT * 2 + s] = m_inventory.slot[s];
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var values = [];
+            for (var i = 0; i < $1; ++i)
+                values.push(HEAP32[($0 >> 2) + i]);
+            localStorage.setItem('threeElements_items', values.join(','));
+        } catch (e) {}
+    }, raw, n);
+#else
+    FILE* f = fopen(SavePath("items.txt").c_str(), "w");
+    if (f != NULL)
+    {
+        for (int i = 0; i < n; ++i)
+            fprintf(f, "%d ", raw[i]);
+        fprintf(f, "\n");
+        fclose(f);
+    }
+#endif
+}
+
+void GameManager::RenderItemIcon(practice::ItemId id, int level, int x, int y)
+{
+    int i = static_cast<int>(id);
+    int l = level >= 2 ? 1 : 0;
+    SDL_Texture* icon = m_itemIcons[i][l] != NULL ? m_itemIcons[i][l] : m_itemIcons[i][0];
+    if (icon == NULL)
+        return;
+    SDL_Rect dst = { x, y, ITEM_ICON, ITEM_ICON };
+    SDL_RenderCopy(m_screen, icon, NULL, &dst);
+}
+
+SDL_Rect GameManager::ShopCardRect(int index) const
+{
+    SDL_Rect r = { SHOP_GRID_X + (index % SHOP_COLUMNS) * (SHOP_CARD_W + SHOP_CARD_GAP),
+        SHOP_GRID_Y + (index / SHOP_COLUMNS) * (SHOP_CARD_H + SHOP_CARD_GAP), SHOP_CARD_W, SHOP_CARD_H };
+    return r;
+}
+
+SDL_Rect GameManager::LoadoutSlotRect(int slot, int x0, int y0) const
+{
+    SDL_Rect r = { x0 + (slot % 3) * (ITEM_SLOT + ITEM_SLOT_GAP), y0 + (slot / 3) * (ITEM_SLOT + ITEM_SLOT_GAP), ITEM_SLOT, ITEM_SLOT };
+    return r;
+}
+
+void GameManager::ShopBuy()
+{
+    practice::ItemId id = static_cast<practice::ItemId>(m_shopSelect);
+    if (practice::Buy(m_inventory, id, m_goldBank))
+    {
+        SaveGold();
+        SaveInventory();
+        audio::Play(audio::Sfx::CastCorrect);
+        printf("[shop] bought %s (gold left %d)\n", practice::GetItemDefinition(id).level[0].name, m_goldBank);
+    }
+    else
+        audio::Play(audio::Sfx::CastWrong);
+}
+
+void GameManager::ShopToggleEquip()
+{
+    practice::ItemId id = static_cast<practice::ItemId>(m_shopSelect);
+    if (practice::IsEquipped(m_inventory, id))
+        practice::Unequip(m_inventory, id);
+    else if (!practice::Equip(m_inventory, id))
+    {
+        audio::Play(audio::Sfx::CastWrong);  // not owned, or all six slots taken
+        return;
+    }
+    SaveInventory();
+    audio::Play(audio::Sfx::Cast);
+}
+
+// Arrows move through the grid, Enter / B buys, E equips or unequips, Esc closes.
+void GameManager::HandleShopKey(SDL_Keycode sym)
+{
+    int n = practice::ITEM_COUNT;
+    if (sym == SDLK_LEFT)
+        m_shopSelect = (m_shopSelect + n - 1) % n;
+    else if (sym == SDLK_RIGHT)
+        m_shopSelect = (m_shopSelect + 1) % n;
+    else if (sym == SDLK_UP)
+        m_shopSelect = m_shopSelect >= SHOP_COLUMNS ? m_shopSelect - SHOP_COLUMNS : m_shopSelect;
+    else if (sym == SDLK_DOWN)
+        m_shopSelect = m_shopSelect + SHOP_COLUMNS < n ? m_shopSelect + SHOP_COLUMNS : m_shopSelect;
+    else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE || sym == SDLK_b)
+        ShopBuy();
+    else if (sym == SDLK_e)
+        ShopToggleEquip();
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK || sym == SDLK_p)
+        m_showShop = false;
+    else if (sym == SDLK_m)
+        ToggleMute();
+}
+
+void GameManager::HandleShopPointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+    {
+        if (hit(ShopCardRect(i)))
+        {
+            m_shopSelect = i;
+            return;
+        }
+    }
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)  // a tap on a loadout slot takes its item off
+    {
+        if (hit(LoadoutSlotRect(s, SHOP_LOADOUT_X, SHOP_LOADOUT_Y)) && m_inventory.slot[s] != practice::ITEM_NONE)
+        {
+            m_shopSelect = m_inventory.slot[s];
+            m_inventory.slot[s] = practice::ITEM_NONE;
+            SaveInventory();
+            audio::Play(audio::Sfx::Cast);
+            return;
+        }
+    }
+    if (hit(SHOP_BUY_RECT))
+        ShopBuy();
+    else if (hit(SHOP_EQUIP_RECT))
+        ShopToggleEquip();
+    else if (hit(SHOP_CLOSE_RECT) || !hit(SHOP_PANEL_RECT))
+        m_showShop = false;
+}
+
+void GameManager::RenderShop()
+{
+    DimScreen(190);
+    const SDL_Rect& panel = SHOP_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    const SDL_Color green = { 120, 230, 130, 255 };
+    char buf[96];
+    pixeltext::DrawShadowed(m_screen, "SHOP", panel.x + 20, panel.y + 18, 3, gold);
+    pixeltext::DrawShadowed(m_screen, "ITEMS WORK IN PLAY", panel.x + 110, panel.y + 26, 1, grey);
+    snprintf(buf, sizeof(buf), "GOLD %d", m_goldBank);
+    pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 3) - 20, panel.y + 18, 3, gold);
+
+    // ---- the item cards
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+    {
+        practice::ItemId id = static_cast<practice::ItemId>(i);
+        const practice::ItemDefinition& def = practice::GetItemDefinition(id);
+        SDL_Rect r = ShopCardRect(i);
+        bool selected = i == m_shopSelect;
+        int level = practice::CurrentLevel(m_inventory, id);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 28, 30, 46, selected ? 250 : 200);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 90, selected ? 210 : 95, selected ? 90 : 115, 230);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        RenderItemIcon(id, level > 0 ? level : 1, r.x + (r.w - ITEM_ICON) / 2, r.y + 6);
+        const char* name = def.level[level >= 2 ? 1 : 0].name;
+        pixeltext::DrawShadowed(m_screen, name, r.x + (r.w - pixeltext::Width(name, 1)) / 2, r.y + 60, 1, selected ? gold : white);
+        int price = practice::NextPrice(m_inventory, id);
+        SDL_Color status = grey;
+        if (def.kind == practice::ItemKind::Consumable)
+            snprintf(buf, sizeof(buf), "OWNED %d", m_inventory.count[i]);
+        else if (level >= def.levels)
+        {
+            snprintf(buf, sizeof(buf), "MAX");
+            status = green;
+        }
+        else if (level > 0)
+            snprintf(buf, sizeof(buf), "LV %d  UP %d", level, price);
+        else
+        {
+            snprintf(buf, sizeof(buf), "%d GOLD", price);
+            status = price <= m_goldBank ? gold : grey;
+        }
+        pixeltext::DrawShadowed(m_screen, buf, r.x + (r.w - pixeltext::Width(buf, 1)) / 2, r.y + 76, 1, status);
+        if (practice::IsEquipped(m_inventory, id))
+            pixeltext::DrawShadowed(m_screen, "E", r.x + r.w - 12, r.y + 5, 1, green);  // equipped
+        if (selected)
+            RenderHighlight(r);
+    }
+
+    // ---- the selected item's details
+    practice::ItemId sel = static_cast<practice::ItemId>(m_shopSelect);
+    const practice::ItemDefinition& def = practice::GetItemDefinition(sel);
+    int level = practice::CurrentLevel(m_inventory, sel);
+    const SDL_Rect& d = SHOP_DETAIL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 24, 26, 40, 240);
+    SDL_RenderFillRect(m_screen, &d);
+    SDL_SetRenderDrawColor(m_screen, 110, 115, 135, 220);
+    SDL_RenderDrawRect(m_screen, &d);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    RenderItemIcon(sel, level > 0 ? level : 1, d.x + 12, d.y + 12);
+    const char* kind = def.kind == practice::ItemKind::Active ? "ACTIVE" : def.kind == practice::ItemKind::Passive ? "PASSIVE" : "CONSUMABLE";
+    pixeltext::DrawShadowed(m_screen, def.level[level >= 2 ? 1 : 0].name, d.x + 70, d.y + 16, 2, gold);
+    pixeltext::DrawShadowed(m_screen, kind, d.x + 70, d.y + 40, 1, grey);
+    int y = d.y + 76;
+    for (int l = 0; l < def.levels; ++l)
+    {
+        const practice::ItemLevel& lv = def.level[l];
+        bool owned = def.kind == practice::ItemKind::Consumable ? level > 0 : level > l;
+        if (def.levels > 1)
+            snprintf(buf, sizeof(buf), "LV %d  %s", l + 1, lv.name);
+        else
+            snprintf(buf, sizeof(buf), "%s", lv.name);
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y, 1, owned ? green : white);
+        pixeltext::DrawShadowed(m_screen, lv.effect, d.x + 12, y + 14, 1, grey);
+        if (lv.cooldown > 0.0f)
+            snprintf(buf, sizeof(buf), "COOLDOWN %d S   PRICE %d", static_cast<int>(lv.cooldown), lv.price);
+        else
+            snprintf(buf, sizeof(buf), def.kind == practice::ItemKind::Consumable ? "PRICE %d EACH" : "PRICE %d", lv.price);
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y + 28, 1, grey);
+        y += 56;
+    }
+    if (def.kind == practice::ItemKind::Consumable)
+    {
+        snprintf(buf, sizeof(buf), "OWNED %d / %d", m_inventory.count[m_shopSelect], practice::ITEM_MAX_STACK);
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y, 1, white);
+    }
+
+    int price = practice::NextPrice(m_inventory, sel);
+    if (price <= 0)
+        snprintf(buf, sizeof(buf), def.kind == practice::ItemKind::Consumable ? "FULL" : "MAXED");
+    else
+        snprintf(buf, sizeof(buf), level > 0 && def.kind != practice::ItemKind::Consumable ? "UPGRADE" : "BUY");
+    RenderButton(SHOP_BUY_RECT, buf, price > 0 && price <= m_goldBank);
+    bool owned = practice::Owns(m_inventory, sel);
+    RenderButton(SHOP_EQUIP_RECT, !owned ? "-" : practice::IsEquipped(m_inventory, sel) ? "UNEQUIP" : "EQUIP", false);
+    if (price > 0)
+    {
+        snprintf(buf, sizeof(buf), "%d GOLD", price);
+        pixeltext::DrawShadowed(m_screen, buf, SHOP_BUY_RECT.x + (SHOP_BUY_RECT.w - pixeltext::Width(buf, 1)) / 2,
+            SHOP_BUY_RECT.y + SHOP_BUY_RECT.h + 4, 1, price <= m_goldBank ? gold : grey);
+    }
+
+    // ---- the loadout (2 x 3) with its keys
+    pixeltext::DrawShadowed(m_screen, "LOADOUT", SHOP_LOADOUT_X, SHOP_LOADOUT_Y - 18, 2, gold);
+    const char* keys[practice::ITEM_SLOTS] = { "U", "I", "O", "J", "K", "L" };
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+    {
+        SDL_Rect r = LoadoutSlotRect(s, SHOP_LOADOUT_X, SHOP_LOADOUT_Y);
+        SDL_SetRenderDrawColor(m_screen, 30, 32, 46, 255);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, 110, 115, 135, 255);
+        SDL_RenderDrawRect(m_screen, &r);
+        int id = m_inventory.slot[s];
+        if (id != practice::ITEM_NONE)
+            RenderItemIcon(static_cast<practice::ItemId>(id), practice::CurrentLevel(m_inventory, static_cast<practice::ItemId>(id)), r.x + 2, r.y + 2);
+        if (!m_showTouchControls)
+            pixeltext::DrawShadowed(m_screen, keys[s], r.x + 3, r.y + 3, 1, white);
+    }
+    const char* help1 = m_showTouchControls ? "TAP AN ITEM, THEN BUY OR EQUIP." : "ARROWS: CHOOSE   ENTER: BUY   E: EQUIP";
+    const char* help2 = m_showTouchControls ? "TAP A SLOT TO TAKE ITS ITEM OFF." : "IN PLAY: U I O / J K L USE THE SLOTS";
+    pixeltext::DrawShadowed(m_screen, help1, SHOP_LOADOUT_X + 190, SHOP_LOADOUT_Y + 10, 1, grey);
+    pixeltext::DrawShadowed(m_screen, help2, SHOP_LOADOUT_X + 190, SHOP_LOADOUT_Y + 28, 1, grey);
+    pixeltext::DrawShadowed(m_screen, "NO REAL MONEY: GOLD COMES FROM ELITES AND BOSSES IN PLAY.", SHOP_LOADOUT_X + 190,
+        SHOP_LOADOUT_Y + 60, 1, grey);
+    RenderButton(SHOP_CLOSE_RECT, "CLOSE", false);
+}
+
+// While PLAY runs: the six slots on the right, each with its icon, its key, a cooldown shade with the seconds left,
+// the units left of a consumable, and a glow when it was just used.
+void GameManager::RenderItemBar()
+{
+    if (m_tutorialActive || m_bossActive || m_session.Mode() != practice::SessionMode::Play
+        || m_session.State() != practice::GameState::Playing)
+        return;
+    const practice::Inventory& inv = m_session.Loadout();
+    bool any = false;
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+        any = any || inv.slot[s] != practice::ITEM_NONE;
+    if (!any)
+        return;
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const char* keys[practice::ITEM_SLOTS] = { "U", "I", "O", "J", "K", "L" };
+    char buf[16];
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+    {
+        SDL_Rect r = LoadoutSlotRect(s, ITEM_BAR_X, ITEM_BAR_Y);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 190);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, 150, 155, 175, 200);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        int index = inv.slot[s];
+        if (index == practice::ITEM_NONE)
+            continue;
+        practice::ItemId id = static_cast<practice::ItemId>(index);
+        const practice::ItemDefinition& def = practice::GetItemDefinition(id);
+        RenderItemIcon(id, practice::CurrentLevel(inv, id) > 0 ? practice::CurrentLevel(inv, id) : 1, r.x + 2, r.y + 2);
+        bool empty = def.kind == practice::ItemKind::Consumable && inv.count[index] <= 0;
+        float cd = m_session.ItemCooldown(id), total = m_session.ItemCooldownTotal(id);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        if (empty)
+        {
+            SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 170);
+            SDL_RenderFillRect(m_screen, &r);
+        }
+        else if (cd > 0.0f && total > 0.0f)  // the cooldown shade shrinks from the top
+        {
+            int h = static_cast<int>(r.h * cd / total);
+            SDL_Rect shade = { r.x, r.y, r.w, h };
+            SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 170);
+            SDL_RenderFillRect(m_screen, &shade);
+        }
+        if (m_itemFlash[s] > 0.0f)
+        {
+            SDL_SetRenderDrawColor(m_screen, 255, 215, 90, static_cast<Uint8>(255 * m_itemFlash[s] / ITEM_FLASH_TIME));
+            for (int k = 0; k < 3; ++k)
+            {
+                SDL_Rect f = { r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k };
+                SDL_RenderDrawRect(m_screen, &f);
+            }
+        }
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        if (cd > 0.0f)
+        {
+            snprintf(buf, sizeof(buf), "%d", static_cast<int>(cd) + 1);
+            pixeltext::DrawShadowed(m_screen, buf, r.x + (r.w - pixeltext::Width(buf, 2)) / 2, r.y + (r.h - 14) / 2, 2, white);
+        }
+        if (def.kind == practice::ItemKind::Consumable)
+        {
+            snprintf(buf, sizeof(buf), "%d", inv.count[index]);
+            pixeltext::DrawShadowed(m_screen, buf, r.x + r.w - pixeltext::Width(buf, 1) - 3, r.y + r.h - 10, 1, white);
+        }
+        if (!m_showTouchControls)
+            pixeltext::DrawShadowed(m_screen, keys[s], r.x + 3, r.y + 3, 1, white);
+    }
+}
+
+void GameManager::UseItemSlot(int slot)
+{
+    practice::ItemUseResult r = m_session.UseItem(slot);
+    if (!r.used)
+    {
+        if (m_session.Loadout().slot[slot] != practice::ITEM_NONE)
+            audio::Play(audio::Sfx::CastWrong);  // not ready, or nothing to do
+        return;
+    }
+    m_itemFlash[slot] = ITEM_FLASH_TIME;
+    audio::Play(audio::Sfx::Invoke);
+    if (practice::GetItemDefinition(r.item).kind == practice::ItemKind::Consumable)
+    {
+        int i = static_cast<int>(r.item);  // a used unit is gone for good (§27 I-4)
+        m_inventory.count[i] = m_session.Loadout().count[i];
+        SaveInventory();
+    }
+    printf("[play] item used: %s\n", practice::GetItemDefinition(r.item).level[0].name);
+}
+
+void GameManager::ChooseRuneAction(int index)
+{
+    int goldBefore = m_session.GetStats().gold;
+    practice::Rune rune = m_session.ChooseRune(index);
+    if (rune == practice::Rune::None)
+        return;
+    int gained = m_session.GetStats().gold - goldBefore;  // Bounty (Midas included)
+    if (gained > 0)
+    {
+        m_goldBank += gained;
+        SaveGold();
+    }
+    switch (rune)
+    {
+    case practice::Rune::Regeneration: m_announce = "RUNE: REGENERATION  +1 LIFE"; break;
+    case practice::Rune::Frost:        m_announce = "RUNE: FROST  ENEMIES SLOWED"; break;
+    case practice::Rune::DoubleDamage: m_announce = "RUNE: DOUBLE DAMAGE  SCORE X2"; break;
+    case practice::Rune::Bounty:       m_announce = "RUNE: BOUNTY  GOLD"; break;
+    case practice::Rune::Shield:       m_announce = "RUNE: SHIELD  NEXT HIT BLOCKED"; break;
+    default: break;
+    }
+    m_announceLeft = ANNOUNCE_TIME;
+    audio::Play(audio::Sfx::CastCorrect);
+}
+
+// Aghanim's choice (§27 I-5): the run waits; one row per rune, 1 / 2 / 3 or a tap.
+void GameManager::RenderRuneChoice()
+{
+    int n = m_session.RuneChoiceCount();
+    if (n <= 0 || m_session.State() != practice::GameState::Playing)
+        return;
+    DimScreen(150);
+    const SDL_Rect& panel = RUNE_CHOICE_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 120, 170, 255, 220);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const SDL_Color blue = { 150, 200, 255, 255 };
+    pixeltext::DrawCentered(m_screen, "AGHANIM: CHOOSE A RUNE", SCREEN_WIDTH, panel.y + 18, 2, blue);
+    char buf[64];
+    for (int i = 0; i < n; ++i)
+    {
+        SDL_Rect row = { panel.x + 20, panel.y + 60 + i * 56, panel.w - 40, 46 };
+        const char* text = "";
+        switch (m_session.RuneChoice(i))
+        {
+        case practice::Rune::Regeneration: text = "REGENERATION  +1 LIFE"; break;
+        case practice::Rune::Frost:        text = "FROST  ENEMIES SLOWED"; break;
+        case practice::Rune::DoubleDamage: text = "DOUBLE DAMAGE  SCORE X2"; break;
+        case practice::Rune::Bounty:       text = "BOUNTY  +GOLD"; break;
+        case practice::Rune::Shield:       text = "SHIELD  NEXT HIT BLOCKED"; break;
+        default: break;
+        }
+        if (m_showTouchControls)
+            snprintf(buf, sizeof(buf), "%s", text);
+        else
+            snprintf(buf, sizeof(buf), "%d  %s", i + 1, text);
+        RenderButton(row, buf, false);
+    }
 }
 
 // ------------------------------------------------------------------ boss mode (spec §25)
@@ -3318,6 +3886,13 @@ void GameManager::Close()
         SDL_DestroyTexture(m_ghostWalkSheet);
         m_ghostWalkSheet = NULL;
     }
+    for (int i = 0; i < practice::ITEM_COUNT; ++i)
+        for (int l = 0; l < 2; ++l)
+            if (m_itemIcons[i][l] != NULL)
+            {
+                SDL_DestroyTexture(m_itemIcons[i][l]);
+                m_itemIcons[i][l] = NULL;
+            }
     SDL_Texture** sheets[4] = { &m_playerRunSheet, &m_playerCastSheet, &m_meteorSheet, &m_forgeSheet };
     for (SDL_Texture** sheet : sheets)
     {

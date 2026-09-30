@@ -187,18 +187,41 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Home (the Ready screen, owner 2026-10-01): no logo picture; the four modes are big buttons in a column, the rest
 // (RECIPES, LEADERBOARD, SETTINGS, QUIT on desktop) small buttons in a row below. Arrows + Enter, hotkeys, or a tap.
 // PLAY = the main game (spec §26); SURVIVAL = the former Practice. SETTINGS holds sound and the recipe hint.
-enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
+enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_SHOP, MENU_RECIPES, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
 const int MENU_MAIN_COUNT = 4;           // the big buttons: the modes
 const int MENU_MAIN_W = 300;
 const int MENU_MAIN_H = 50;
 const int MENU_MAIN_Y = 116;
 const int MENU_MAIN_STEP = 60;
-const int MENU_SMALL_W = 150;            // the small buttons, in one centred row
+const int MENU_SMALL_W = 140;            // the small buttons, in one centred row
 const int MENU_SMALL_H = 30;
 const int MENU_SMALL_GAP = 12;
 const int MENU_SMALL_Y = 362;            // ends above the running Injoker's head
 // SETTINGS: sound and the recipe hint in one panel (M / G still toggle them anywhere).
 const SDL_Rect SETTINGS_PANEL_RECT = { 234, 110, 460, 300 };
+// SHOP (spec §27): the items in a 4-column grid, the selected item's details, the 2 x 3 loadout, CLOSE.
+const SDL_Rect SHOP_PANEL_RECT = { 24, 16, 880, 512 };
+const int SHOP_COLUMNS = 4;
+const int SHOP_CARD_W = 128;
+const int SHOP_CARD_H = 96;
+const int SHOP_CARD_GAP = 8;
+const int SHOP_GRID_X = 44;
+const int SHOP_GRID_Y = 76;
+const SDL_Rect SHOP_DETAIL_RECT = { 600, 76, 284, 300 };
+const SDL_Rect SHOP_BUY_RECT = { 612, 312, 124, 36 };
+const SDL_Rect SHOP_EQUIP_RECT = { 748, 312, 124, 36 };
+const SDL_Rect SHOP_CLOSE_RECT = { 748, 474, 136, 36 };
+const int SHOP_LOADOUT_X = 44;          // the 2 x 3 loadout under the grid
+const int SHOP_LOADOUT_Y = 408;
+const int ITEM_ICON = 48;               // assets/items/*.png (art/make_item_icons.py), drawn 1:1
+const int ITEM_SLOT = 52;               // a slot: the icon with a 2 px border
+const int ITEM_SLOT_GAP = 6;
+// The item bar while playing PLAY: 2 rows of 3 on the right edge, for the right hand (keys U I O / J K L).
+const int ITEM_BAR_X = SCREEN_WIDTH - 16 - (3 * 52 + 2 * 6);
+const int ITEM_BAR_Y = 292;
+const float ITEM_FLASH_TIME = 0.35f;    // s the slot glows after a use
+// Aghanim's rune choice (§27 I-5): a panel with one row per rune.
+const SDL_Rect RUNE_CHOICE_RECT = { 234, 150, 460, 250 };
 const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune) stays on screen
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
@@ -284,6 +307,11 @@ protected:
 	int m_menuIndex = 0;                 // highlighted line of the main menu
 	bool m_showLeaderboard = false;      // the top 10 is open (Ready / Game Over)
 	bool m_showSettings = false;         // the SETTINGS panel is open (Home)
+	bool m_showShop = false;             // the SHOP is open (Home)
+	int m_shopSelect = 0;                // the selected item in the shop (an ItemId as int)
+	practice::Inventory m_inventory = practice::EmptyInventory();  // items owned and equipped (spec §27), saved
+	SDL_Texture* m_itemIcons[practice::ITEM_COUNT][2] = {};  // level 1 / 2 icons (NULL when missing)
+	float m_itemFlash[practice::ITEM_SLOTS] = {};
 	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint
 	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topRuns
 	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
@@ -416,6 +444,22 @@ private:
 	void RenderTop3Panel();
 	void RenderLeaderboard();
 	void RenderSettings();
+	// shop and items (spec §27)
+	void LoadInventory();
+	void SaveInventory();
+	void LoadItemIcons();
+	void RenderItemIcon(practice::ItemId id, int level, int x, int y);
+	SDL_Rect ShopCardRect(int index) const;
+	SDL_Rect LoadoutSlotRect(int slot, int x0, int y0) const;
+	void HandleShopKey(SDL_Keycode sym);
+	void HandleShopPointer(int x, int y);
+	void ShopBuy();
+	void ShopToggleEquip();
+	void RenderShop();
+	void RenderItemBar();
+	void UseItemSlot(int slot);
+	void ChooseRuneAction(int index);
+	void RenderRuneChoice();
 	SDL_Rect SettingsRowRect(int row) const;
 	SDL_Rect SettingsCloseRect() const;
 	void HandleSettingsKey(SDL_Keycode sym);
