@@ -79,6 +79,46 @@ const float PLAYER_ORBIT_SPEED = 1.8f;   // rad/s
 const int PLAYER_ORB_RADIUS = 9;
 const float PLAYER_ORB_FLASH = 0.35f;    // s: the orbs flare when R invokes
 
+// The running Injoker (owner 2026-10-01, assets/player/Injoker-run-v1.png): 4 x 4 frames of 256 px, the character
+// facing right inside x 61..213, y 68..191 of each frame (measured). Drawn smoothed at DRAW px so it is about as tall
+// as the standing picture was, feet on the ground and the body's left edge at PLAYER_DRAW_X. The standing picture
+// (PLAYER_SPRITE_PATH) is the fallback when the sheet cannot be loaded.
+const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run-v1.png";
+const int PLAYER_RUN_COLUMNS = 4;
+const int PLAYER_RUN_FRAME = 256;
+const int PLAYER_RUN_FRAMES = 16;
+const float PLAYER_RUN_FPS = 14.0f;
+const int PLAYER_RUN_DRAW = 248;
+const int PLAYER_RUN_FEET_ROW = 190;   // in the 256 px frame
+const int PLAYER_RUN_BODY_LEFT = 65;
+
+// Chaos Meteor and Forge Spirit sprites (owner 2026-10-01). They replace the code-drawn effects of these two skills
+// (SkillVfx) when their sheets load. Meteor: 5 x 5 frames of 256 px, 0..15 falling (the rock), 16..24 the blast;
+// the rock and the blast are centred on (178, 185) of a frame (measured), which is put on the impact point.
+const char* const METEOR_SHEET_PATH = "assets/Skills/Meteor-spritesheet.png";
+const int METEOR_COLUMNS = 5;
+const int METEOR_FRAME = 256;
+const int METEOR_FALL_FRAMES = 16;
+const int METEOR_BLAST_FRAMES = 9;
+const int METEOR_ANCHOR_X = 178;
+const int METEOR_ANCHOR_Y = 185;
+const int METEOR_DRAW = 180;
+const float METEOR_FALL_TIME = 0.35f;   // s from the sky to the impact
+const float METEOR_BLAST_TIME = 0.6f;
+const int METEOR_FROM_X = -300;         // where the fall starts, relative to the impact (the tail points up-left)
+const int METEOR_FROM_Y = -330;
+// Forge Spirit: 4 x 4 frames of 256 px, 0..7 standing / walking, 8..15 the lunge and its fiery blast; the spirit's
+// feet are at row 243 of a frame. It walks from the player to the enemy, then attacks.
+const char* const FORGE_SHEET_PATH = "assets/Skills/Forge Sprit-spritesheet.png";
+const int FORGE_COLUMNS = 4;
+const int FORGE_FRAME = 256;
+const int FORGE_WALK_FRAMES = 8;
+const int FORGE_ATTACK_FRAMES = 8;
+const int FORGE_FEET_ROW = 243;
+const int FORGE_DRAW = 104;
+const float FORGE_WALK_TIME = 0.5f;
+const float FORGE_ATTACK_TIME = 0.7f;
+
 // Centre of the player's visible body; shared by every effect drawn on the player (Ghost Walk, Alacrity...).
 const int PLAYER_BODY_CENTER_X = 86;
 const int PLAYER_BODY_CENTER_Y = 440;
@@ -215,6 +255,9 @@ protected:
 	EnemyObject m_enemySprites[practice::ENEMY_TYPE_COUNT];  // one sprite sheet per enemy definition, loaded once
 	SDL_Texture* m_tornadoSheet = NULL;                      // Tornado spell effect, loaded once (NULL = not available)
 	SDL_Texture* m_ghostWalkSheet = NULL;                    // Ghost Walk aura, loaded once (NULL = not available)
+	SDL_Texture* m_playerRunSheet = NULL;                    // the running Injoker (NULL: the standing picture glides)
+	SDL_Texture* m_meteorSheet = NULL;                       // Chaos Meteor sprite (NULL: drawn in code)
+	SDL_Texture* m_forgeSheet = NULL;                        // Forge Spirit sprite (NULL: drawn in code)
 	float m_ghostWalkLeft = 0.0f;                            // seconds of aura left; 0 = no aura
 
 	skillvfx::Effect m_skillVfx[invoker::SKILL_COUNT] = {};  // code-drawn skill effects, one per SkillId (left <= 0 = off)
@@ -308,6 +351,9 @@ private:
 	void LogOutcome(practice::CastOutcome outcome);
 	bool LoadTornadoSheet();
 	bool LoadGhostWalkSheet();
+	SDL_Texture* LoadSheet(const char* path, int size);  // a square RGBA sprite sheet, smoothed; NULL if missing
+	void RenderMeteorSprite(float age, int x, int y);    // age from the start of the fall; (x, y) = impact point
+	void RenderForgeSprite(float age, const skillvfx::Effect& e);
 	void StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody);
 	void ResetVisualEffects();
 	void LoadTopRuns();

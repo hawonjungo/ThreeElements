@@ -195,6 +195,9 @@ void GameManager::LoadAssets()
 
     LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
+    m_playerRunSheet = LoadSheet(PLAYER_RUN_SHEET_PATH, PLAYER_RUN_COLUMNS * PLAYER_RUN_FRAME);
+    m_meteorSheet = LoadSheet(METEOR_SHEET_PATH, METEOR_COLUMNS * METEOR_FRAME);
+    m_forgeSheet = LoadSheet(FORGE_SHEET_PATH, FORGE_COLUMNS * FORGE_FRAME);
     LoadTopRuns();
     LoadBests();
     LoadBossTimes();
@@ -1392,7 +1395,8 @@ void GameManager::RenderLeaderboard()
 void GameManager::RenderPlayer()
 {
     float t = SDL_GetTicks() / 1000.0f;
-    int bob = static_cast<int>(PLAYER_BOB_PX * std::sin(t * PLAYER_BOB_SPEED));
+    // the running sheet carries its own motion; only the standing picture glides up and down
+    int bob = m_playerRunSheet != NULL ? 0 : static_cast<int>(PLAYER_BOB_PX * std::sin(t * PLAYER_BOB_SPEED));
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
     const int cx = PLAYER_BODY_CENTER_X;
 
@@ -1446,7 +1450,16 @@ void GameManager::RenderPlayer()
         if (std::sin(t * PLAYER_ORBIT_SPEED + 6.2831853f * i / 3.0f) < 0.0f)
             drawOrb(i);
 
-    if (m_hasPlayer)
+    if (m_playerRunSheet != NULL)  // the running Injoker (owner 2026-10-01)
+    {
+        int frame = static_cast<int>(t * PLAYER_RUN_FPS) % PLAYER_RUN_FRAMES;
+        SDL_Rect src = { (frame % PLAYER_RUN_COLUMNS) * PLAYER_RUN_FRAME, (frame / PLAYER_RUN_COLUMNS) * PLAYER_RUN_FRAME,
+            PLAYER_RUN_FRAME, PLAYER_RUN_FRAME };
+        SDL_Rect dst = { PLAYER_DRAW_X - PLAYER_RUN_BODY_LEFT * PLAYER_RUN_DRAW / PLAYER_RUN_FRAME,
+            ground - PLAYER_RUN_FEET_ROW * PLAYER_RUN_DRAW / PLAYER_RUN_FRAME - 2, PLAYER_RUN_DRAW, PLAYER_RUN_DRAW };
+        SDL_RenderCopy(m_screen, m_playerRunSheet, &src, &dst);
+    }
+    else if (m_hasPlayer)
     {
         int w = m_player.ImageWidth() * PLAYER_DRAW_H / m_player.ImageHeight();
         m_player.RenderScaled(m_screen, { PLAYER_DRAW_X, ground - PLAYER_DRAW_H - 2 + bob, w, PLAYER_DRAW_H });
@@ -1801,6 +1814,12 @@ void GameManager::StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const pra
     e.seed = ++m_skillVfxCount;
     e.dirX = 1.0f;
     e.dirY = 0.0f;
+    e.tx = static_cast<int>(enemyBody.x);           // the Forge Spirit sprite walks up to the enemy's front
+    e.ty = static_cast<int>(enemyBody.y + enemyBody.h);
+    if (skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL)
+        e.left = METEOR_FALL_TIME + METEOR_BLAST_TIME;
+    if (skill == invoker::SkillId::ForgeSpirit && m_forgeSheet != NULL)
+        e.left = FORGE_WALK_TIME + FORGE_ATTACK_TIME;
     if (hadEnemy)
     {
         float dx = static_cast<float>(enemyX - e.x);
@@ -1855,7 +1874,107 @@ void GameManager::RenderGhostWalk()
 void GameManager::RenderSkillVfx()
 {
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
-        skillvfx::Render(m_screen, static_cast<invoker::SkillId>(i), m_skillVfx[i]);
+    {
+        invoker::SkillId skill = static_cast<invoker::SkillId>(i);
+        const skillvfx::Effect& e = m_skillVfx[i];
+        if (skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL)
+        {
+            if (e.left > 0.0f)
+                RenderMeteorSprite(METEOR_FALL_TIME + METEOR_BLAST_TIME - e.left, e.x, e.y);
+        }
+        else if (skill == invoker::SkillId::ForgeSpirit && m_forgeSheet != NULL)
+        {
+            if (e.left > 0.0f)
+                RenderForgeSprite(FORGE_WALK_TIME + FORGE_ATTACK_TIME - e.left, e);
+        }
+        else
+            skillvfx::Render(m_screen, skill, e);
+    }
+}
+
+SDL_Texture* GameManager::LoadSheet(const char* path, int size)
+{
+    SDL_Surface* surface = IMG_Load(path);
+    if (surface == NULL)
+    {
+        printf("Failed to load %s: %s\n", path, IMG_GetError());
+        return NULL;
+    }
+    SDL_Texture* texture = NULL;
+    if (surface->w == size && surface->h == size)
+    {
+        SDL_Surface* rgba = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);  // palette + transparency -> RGBA
+        if (rgba != NULL)
+        {
+            texture = SDL_CreateTextureFromSurface(m_screen, rgba);
+            SDL_FreeSurface(rgba);
+        }
+    }
+    else
+        printf("%s is %dx%d, expected %dx%d: not used\n", path, surface->w, surface->h, size, size);
+    SDL_FreeSurface(surface);
+    if (texture != NULL)
+    {
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);  // drawn smaller than the 256 px frames: smoothed
+    }
+    return texture;
+}
+
+// Chaos Meteor: the burning rock comes down from the upper left onto (x, y), then the blast plays there.
+void GameManager::RenderMeteorSprite(float age, int x, int y)
+{
+    if (age < 0.0f)
+        return;
+    int frame;
+    int cx = x, cy = y;
+    if (age < METEOR_FALL_TIME)
+    {
+        float f = age / METEOR_FALL_TIME;
+        frame = static_cast<int>(f * METEOR_FALL_FRAMES);
+        cx = x + static_cast<int>(METEOR_FROM_X * (1.0f - f));
+        cy = y + static_cast<int>(METEOR_FROM_Y * (1.0f - f));
+    }
+    else
+    {
+        float b = (age - METEOR_FALL_TIME) / METEOR_BLAST_TIME;
+        frame = METEOR_FALL_FRAMES + static_cast<int>(b * METEOR_BLAST_FRAMES);
+    }
+    const int last = METEOR_FALL_FRAMES + METEOR_BLAST_FRAMES - 1;
+    frame = frame < 0 ? 0 : (frame > last ? last : frame);
+    SDL_Rect src = { (frame % METEOR_COLUMNS) * METEOR_FRAME, (frame / METEOR_COLUMNS) * METEOR_FRAME, METEOR_FRAME, METEOR_FRAME };
+    SDL_Rect dst = { cx - METEOR_ANCHOR_X * METEOR_DRAW / METEOR_FRAME, cy - METEOR_ANCHOR_Y * METEOR_DRAW / METEOR_FRAME,
+        METEOR_DRAW, METEOR_DRAW };
+    SDL_RenderCopy(m_screen, m_meteorSheet, &src, &dst);
+}
+
+// Forge Spirit: the fire spirit walks from the player to the enemy (e.tx, e.ty = the enemy's front, on the ground),
+// then lunges and bursts into flames.
+void GameManager::RenderForgeSprite(float age, const skillvfx::Effect& e)
+{
+    if (age < 0.0f)
+        return;
+    const int ground = static_cast<int>(practice::GROUND_LINE_Y);
+    const int fromX = PLAYER_BODY_CENTER_X + 40;
+    const int toX = e.tx - FORGE_DRAW / 3;
+    int frame, footX;
+    if (age < FORGE_WALK_TIME)
+    {
+        float f = age / FORGE_WALK_TIME;
+        footX = fromX + static_cast<int>((toX - fromX) * f);
+        frame = static_cast<int>(age * 16.0f) % FORGE_WALK_FRAMES;
+    }
+    else
+    {
+        float a = (age - FORGE_WALK_TIME) / FORGE_ATTACK_TIME;
+        footX = toX;
+        frame = FORGE_WALK_FRAMES + static_cast<int>(a * FORGE_ATTACK_FRAMES);
+        if (frame > FORGE_WALK_FRAMES + FORGE_ATTACK_FRAMES - 1)
+            frame = FORGE_WALK_FRAMES + FORGE_ATTACK_FRAMES - 1;
+    }
+    SDL_Rect src = { (frame % FORGE_COLUMNS) * FORGE_FRAME, (frame / FORGE_COLUMNS) * FORGE_FRAME, FORGE_FRAME, FORGE_FRAME };
+    SDL_Rect dst = { footX - FORGE_DRAW / 2, ground - FORGE_FEET_ROW * FORGE_DRAW / FORGE_FRAME, FORGE_DRAW, FORGE_DRAW };
+    SDL_RenderCopy(m_screen, m_forgeSheet, &src, &dst);
 }
 
 // Current Q/W/E orbs and the two invoked spells (D = newest, F = previous). Never shows recipes or targets.
@@ -2476,6 +2595,8 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
             practice::Bounds at = body;
             at.x = impact.x - at.w * 0.5f;
             StartSkillVfx(impact.skill, true, at);
+            if (impact.skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL)
+                m_skillVfx[static_cast<int>(invoker::SkillId::ChaosMeteor)].left = METEOR_BLAST_TIME;  // it already fell
         }
         if (impact.grade == practice::HitGrade::Miss)  // a step missed: only its share is lost (B-7)
         {
@@ -2714,6 +2835,12 @@ void GameManager::RenderBossImpacts()
         float radius = practice::BossSpellRadius(p.skill);
         float progress = p.delay > 0.0f ? 1.0f - p.left / p.delay : 1.0f;  // 0 at the cast, 1 at the impact
         int cx = static_cast<int>(p.x);
+        if (p.skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL && p.left < METEOR_FALL_TIME)
+        {
+            practice::Bounds body = m_boss.Body();  // the rock is seen falling onto its impact point
+            RenderMeteorSprite(METEOR_FALL_TIME - p.left, cx, static_cast<int>(body.y + body.h * 0.5f));
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        }
         SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 70);
         DrawEllipse(m_screen, cx, ground, static_cast<int>(radius), static_cast<int>(radius * 0.22f));
         int rx = static_cast<int>(radius * (1.0f - progress)) + 4;
@@ -3078,6 +3205,15 @@ void GameManager::Close()
     {
         SDL_DestroyTexture(m_ghostWalkSheet);
         m_ghostWalkSheet = NULL;
+    }
+    SDL_Texture** sheets[3] = { &m_playerRunSheet, &m_meteorSheet, &m_forgeSheet };
+    for (SDL_Texture** sheet : sheets)
+    {
+        if (*sheet != NULL)
+        {
+            SDL_DestroyTexture(*sheet);
+            *sheet = NULL;
+        }
     }
     audio::Shutdown();
     for (int i = 0; i < 12; ++i)

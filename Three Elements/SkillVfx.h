@@ -18,6 +18,7 @@ namespace skillvfx
 		float dirX;   // unit vector toward the enemy, fixed at cast time (projectiles and the blast wave)
 		float dirY;
 		int seed;     // varies the particles from one cast to the next
+		int tx, ty;   // where it is going (the Forge Spirit sprite walks from x, y to here)
 	};
 
 	bool HasEffect(invoker::SkillId skill);      // the 8 skills drawn here
