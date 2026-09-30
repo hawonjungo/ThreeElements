@@ -195,6 +195,7 @@ void GameManager::LoadAssets()
     LoadTornadoSheet();  // if it is missing the game still plays, the Tornado is just not drawn
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
     m_playerRunSheet = LoadSheet(PLAYER_RUN_SHEET_PATH, PLAYER_RUN_COLUMNS * PLAYER_RUN_FRAME);
+    m_playerCastSheet = LoadSheet(PLAYER_CAST_SHEET_PATH, PLAYER_RUN_COLUMNS * PLAYER_RUN_FRAME);
     m_meteorSheet = LoadSheet(METEOR_SHEET_PATH, METEOR_COLUMNS * METEOR_FRAME);
     m_forgeSheet = LoadSheet(FORGE_SHEET_PATH, FORGE_COLUMNS * FORGE_FRAME);
     LoadTopRuns();
@@ -309,6 +310,12 @@ bool GameManager::RunFrame()
     m_announceLeft -= dt;  // the fight's clock stops by itself once it is won or lost
     m_tutorialWrongFlash -= dt;
     m_orbFlash -= dt;
+    if (m_castAnim >= 0.0f)
+    {
+        m_castAnim += dt;
+        if (m_castAnim * PLAYER_CAST_FPS >= PLAYER_CAST_FRAMES - PLAYER_CAST_START)
+            m_castAnim = -1.0f;  // back to running
+    }
     m_tutorialSpawnFlash -= dt;
     UpdateFeedback(dt);
     m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
@@ -650,6 +657,8 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
     else if (result.event == invoker::InvokerEvent::Cast && cast == practice::CastOutcome::None)
         audio::Play(audio::Sfx::Cast);
 
+    if (result.event == invoker::InvokerEvent::Cast)
+        m_castAnim = 0.0f;  // the Injoker casts (a new cast restarts the animation)
     if (result.event == invoker::InvokerEvent::Cast && result.skill == invoker::SkillId::GhostWalk)
         m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
     // no-op for Tornado / Ghost Walk (own effects); in a boss fight Sun Strike, Chaos Meteor and EMP are drawn when
@@ -853,6 +862,7 @@ void GameManager::RenderTornadoes()
 void GameManager::ResetVisualEffects()
 {
     m_ghostWalkLeft = 0.0f;
+    m_castAnim = -1.0f;
     for (int i = 0; i < invoker::SKILL_COUNT; ++i)
         m_skillVfx[i].left = 0.0f;
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
@@ -1552,14 +1562,18 @@ void GameManager::RenderPlayer()
         if (std::sin(t * PLAYER_ORBIT_SPEED + 6.2831853f * i / 3.0f) < 0.0f)
             drawOrb(i);
 
-    if (m_playerRunSheet != NULL)  // the running Injoker (owner 2026-10-01)
+    if (m_playerRunSheet != NULL)  // the Injoker running, or casting just after D / F (owner 2026-10-01)
     {
-        int frame = static_cast<int>(t * PLAYER_RUN_FPS) % PLAYER_RUN_FRAMES;
+        bool casting = m_castAnim >= 0.0f && m_playerCastSheet != NULL;
+        int frame = casting ? PLAYER_CAST_START + static_cast<int>(m_castAnim * PLAYER_CAST_FPS)
+                            : static_cast<int>(t * PLAYER_RUN_FPS) % PLAYER_RUN_FRAMES;
+        if (frame > PLAYER_CAST_FRAMES - 1)
+            frame = PLAYER_CAST_FRAMES - 1;
         SDL_Rect src = { (frame % PLAYER_RUN_COLUMNS) * PLAYER_RUN_FRAME, (frame / PLAYER_RUN_COLUMNS) * PLAYER_RUN_FRAME,
             PLAYER_RUN_FRAME, PLAYER_RUN_FRAME };
-        SDL_Rect dst = { PLAYER_DRAW_X - PLAYER_RUN_BODY_LEFT * PLAYER_RUN_DRAW / PLAYER_RUN_FRAME,
+        SDL_Rect dst = { cx - PLAYER_RUN_BODY_CENTER * PLAYER_RUN_DRAW / PLAYER_RUN_FRAME,
             ground - PLAYER_RUN_FEET_ROW * PLAYER_RUN_DRAW / PLAYER_RUN_FRAME - 2, PLAYER_RUN_DRAW, PLAYER_RUN_DRAW };
-        SDL_RenderCopy(m_screen, m_playerRunSheet, &src, &dst);
+        SDL_RenderCopy(m_screen, casting ? m_playerCastSheet : m_playerRunSheet, &src, &dst);
     }
     else if (m_hasPlayer)
     {
@@ -3304,7 +3318,7 @@ void GameManager::Close()
         SDL_DestroyTexture(m_ghostWalkSheet);
         m_ghostWalkSheet = NULL;
     }
-    SDL_Texture** sheets[3] = { &m_playerRunSheet, &m_meteorSheet, &m_forgeSheet };
+    SDL_Texture** sheets[4] = { &m_playerRunSheet, &m_playerCastSheet, &m_meteorSheet, &m_forgeSheet };
     for (SDL_Texture** sheet : sheets)
     {
         if (*sheet != NULL)

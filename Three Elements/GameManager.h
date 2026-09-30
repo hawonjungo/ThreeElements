@@ -70,25 +70,33 @@ const int PLAYER_DRAW_X = 44;            // left edge; the feet stand on practic
 const float PLAYER_BOB_PX = 3.0f;        // glide: up-and-down amplitude
 const float PLAYER_BOB_SPEED = 3.5f;     // rad/s
 // the orbit of the loaded orbs (an ellipse around the hat and shoulders)
-const int PLAYER_ORBIT_Y = 414;      // shoulders of the 90 % running Injoker
+const int PLAYER_ORBIT_Y = 426;      // shoulders of the Injoker (second art version)
 const int PLAYER_ORBIT_RX = 62;
 const int PLAYER_ORBIT_RY = 14;
 const float PLAYER_ORBIT_SPEED = 1.8f;   // rad/s
 const int PLAYER_ORB_RADIUS = 9;
 const float PLAYER_ORB_FLASH = 0.35f;    // s: the orbs flare when R invokes
 
-// The running Injoker (owner 2026-10-01, assets/player/Injoker-run-v1.png): 4 x 4 frames of 256 px, the character
-// facing right inside x 61..213, y 68..191 of each frame (measured). Drawn smoothed at DRAW px so it is about as tall
-// as the standing picture was, feet on the ground and the body's left edge at PLAYER_DRAW_X. The standing picture
-// (PLAYER_SPRITE_PATH) is the fallback when the sheet cannot be loaded.
-const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run-v1.png";
+// The Injoker (owner 2026-10-01, second version of the art): two 4 x 4 sheets of 256 px frames, facing right, feet on
+// row 237 and the body centred on column 125 of every frame (measured). The character is about 212 px tall in a
+// frame, so the frames are drawn at exactly half size (DRAW = 128 px: about 106 px tall on screen, crisp) with the
+// body centred on PLAYER_BODY_CENTER_X and the feet on the ground.
+//  - run: 16 frames, looping while nothing else happens;
+//  - cast: 16 frames (0..6 gathering, 7..11 the hand thrust out, 12..15 back); played once whenever D / F casts a
+//    spell, from CAST_START so the thrust comes quickly; a new cast restarts it.
+// The standing picture (PLAYER_SPRITE_PATH) is the fallback when the run sheet cannot be loaded.
+const char* const PLAYER_RUN_SHEET_PATH = "assets/player/Injoker-run.png";
+const char* const PLAYER_CAST_SHEET_PATH = "assets/player/Injoker-cast.png";
 const int PLAYER_RUN_COLUMNS = 4;
 const int PLAYER_RUN_FRAME = 256;
 const int PLAYER_RUN_FRAMES = 16;
 const float PLAYER_RUN_FPS = 6.0f;    // owner 2026-10-01 after trying 14, 9, 7 and 5.5 (one stride cycle = 16 frames = 2.7 s)
-const int PLAYER_RUN_DRAW = 223;     // 90 % of the first size (owner 2026-10-01)
-const int PLAYER_RUN_FEET_ROW = 190;   // in the 256 px frame
-const int PLAYER_RUN_BODY_LEFT = 65;
+const int PLAYER_RUN_DRAW = 128;
+const int PLAYER_RUN_FEET_ROW = 237;  // in the 256 px frame (both sheets)
+const int PLAYER_RUN_BODY_CENTER = 125;
+const int PLAYER_CAST_FRAMES = 16;
+const int PLAYER_CAST_START = 3;      // the hands are already together: the thrust (frame 7) comes after ~0.15 s
+const float PLAYER_CAST_FPS = 26.0f;  // frames 3..15 in about half a second
 
 // Chaos Meteor and Forge Spirit sprites (owner 2026-10-01). They replace the code-drawn effects of these two skills
 // (SkillVfx) when their sheets load. Meteor: 5 x 5 frames of 256 px, 0..15 falling (the rock), 16..24 the blast;
@@ -256,6 +264,8 @@ protected:
 	SDL_Texture* m_tornadoSheet = NULL;                      // Tornado spell effect, loaded once (NULL = not available)
 	SDL_Texture* m_ghostWalkSheet = NULL;                    // Ghost Walk aura, loaded once (NULL = not available)
 	SDL_Texture* m_playerRunSheet = NULL;                    // the running Injoker (NULL: the standing picture glides)
+	SDL_Texture* m_playerCastSheet = NULL;                   // the Injoker casting (NULL: it keeps running)
+	float m_castAnim = -1.0f;                                // s since the last cast started; < 0 = not casting
 	SDL_Texture* m_meteorSheet = NULL;                       // Chaos Meteor sprite (NULL: drawn in code)
 	SDL_Texture* m_forgeSheet = NULL;                        // Forge Spirit sprite (NULL: drawn in code)
 	float m_ghostWalkLeft = 0.0f;                            // seconds of aura left; 0 = no aura

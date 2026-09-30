@@ -187,4 +187,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-10-01 — **1.3.4:** run animation 5.5 fps (owner: still hurried); versionCode 9.
 - 2026-10-01 — **1.3.5:** magic ring under the Injoker's feet removed; run animation 6 fps (owner); versionCode 10.
 - 2026-10-01 — **1.3.6:** new Home: no logo picture, the four modes as big buttons, RECIPES / LEADERBOARD / SETTINGS (/ QUIT) as small ones, SETTINGS panel for sound and the recipe hint; versionCode 11.
+- 2026-10-01 — **1.3.7:** the owner's second Injoker art: new run sheet and a cast sheet played on every D / F cast (drawn at 50 %); versionCode 12.
 - Next (owner): **shop** for the gold (Invoker-only items with Dota-like pixel icons, 6 activatable item slots, mix of permanent and consumable, high prices; Refresher Orb removes 2 skills of a chain, Blink Dagger makes enemies walk back for 3 s) — to be confirmed again with the owner before any code; then Boss Fights with all 10 skills; then stage backgrounds (owner looking for art) with difficulty tuning.
