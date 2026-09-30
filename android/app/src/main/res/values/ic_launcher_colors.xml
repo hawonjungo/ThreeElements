@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- same dark tile as the other icons (TILE_COLOUR in art/make_injoker.py) -->
+    <color name="ic_launcher_background">#11141C</color>
+</resources>

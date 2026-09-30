@@ -36,9 +36,18 @@ task copyGameAssets(type: Copy) {
 }
 preBuild.dependsOn copyGameAssets
 
+// ---- release signing (Google Play upload key). The keystore and its passwords never enter git: local.properties
+// points at a properties file kept outside the repo (injoker.signing=D:/Dev/Keys/injoker-keystore.properties) that
+// holds storeFile / storePassword / keyAlias / keyPassword. Without it, release builds are simply left unsigned.
+def signingProps = new Properties()
+def signingPath = localProps.getProperty('injoker.signing')
+if (signingPath != null && new File(signingPath).exists()) {
+    new File(signingPath).withInputStream { signingProps.load(it) }
+}
+
 android {
     namespace 'net.relifes.threeelements'
-    compileSdk 35
+    compileSdk 36
     if (installedNdk != null) {
         ndkVersion installedNdk
     }
@@ -48,12 +57,16 @@ android {
         // (net.relifes.threeelements, where ThreeElementsActivity lives) is internal and may stay as it is.
         applicationId 'net.relifes.injoker'
         minSdk 21
-        targetSdk 35
+        // Google Play requires a recent target (Android 15 = 35 from Aug 2025, Android 16 = 36 expected from Aug 2026).
+        targetSdk 36
+        // versionCode must grow with every upload to Play; versionName is what players see.
         versionCode 1
-        versionName '0.1'
+        versionName '1.0.0'
         externalNativeBuild {
             cmake {
-                arguments '-DANDROID_STL=c++_shared'
+                // FLEXIBLE_PAGE_SIZES: native libraries aligned for 16 KB memory pages, required by Google Play for
+                // apps targeting Android 15+ (NDK 27 needs the flag; NDK 28+ does it by default).
+                arguments '-DANDROID_STL=c++_shared', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
                 // phones (32 and 64-bit ARM) and x86_64 for the Android Studio emulator, which is how layouts are
                 // checked on many screen shapes (cutouts, 20:9, tablets) without owning those devices
                 abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
@@ -61,9 +74,23 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            if (signingProps.getProperty('storeFile') != null) {
+                storeFile file(signingProps.getProperty('storeFile'))
+                storePassword signingProps.getProperty('storePassword')
+                keyAlias signingProps.getProperty('keyAlias')
+                keyPassword signingProps.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (signingProps.getProperty('storeFile') != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

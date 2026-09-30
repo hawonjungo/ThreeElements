@@ -120,6 +120,65 @@ def main():
     save(tile(logo, 32, True, 0.96), 'web', 'icons', 'favicon-32.png')
     save(tile(logo, 512, False), 'art', 'store', 'icon-512.png')
 
+    # Adaptive launcher icon (Android 8+): the launcher masks a 108 dp layer to a circle / squircle; everything that
+    # must stay visible sits in the centre 66 dp. Background = TILE_COLOUR (res/values/ic_launcher_colors.xml).
+    for density, size in {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}.items():
+        fg = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        inner = round(size * 0.60)
+        a = logo.convert('RGBa')
+        scale = inner / max(a.width, a.height)
+        a = a.resize((round(a.width * scale), round(a.height * scale)), Image.LANCZOS).convert('RGBA')
+        fg.alpha_composite(a, ((size - a.width) // 2, (size - a.height) // 2))
+        save(fg, 'android', 'app', 'src', 'main', 'res', 'mipmap-' + density, 'ic_launcher_foreground.png')
+
+    save(feature_graphic(logo), 'art', 'store', 'feature-graphic-1024x500.png')
+
+
+def pixel_font():
+    """The game's own 5x7 font, read from PixelText.cpp so the store art uses the same letters as the game."""
+    import re
+    src = open(os.path.join(REPO, 'Three Elements', 'PixelText.cpp'), encoding='utf-8').read()
+    glyphs = {}
+    for ch, rows in re.findall(r"\{\s*'(.)',\s*\{([^}]*)\}", src):
+        glyphs[ch] = [int(r.strip(), 2) for r in rows.split(',')]
+    return glyphs
+
+
+def draw_pixel_text(img, text, x, y, scale, colour, shadow=True):
+    glyphs = pixel_font()
+    d = ImageDraw.Draw(img)
+    for pass_, (dx, col) in enumerate(((scale, (0, 0, 0, 255)), (0, colour)) if shadow else ((0, colour),)):
+        for i, ch in enumerate(text):
+            rows = glyphs.get(ch, glyphs.get('?'))
+            for r, bits in enumerate(rows):
+                for c in range(5):
+                    if bits & (1 << (4 - c)):
+                        px, py = x + (i * 6 + c) * scale + dx, y + r * scale + dx
+                        d.rectangle((px, py, px + scale - 1, py + scale - 1), fill=col)
+
+
+def feature_graphic(logo):
+    """1024 x 500 Google Play feature graphic: the game's forest, the Injoker art, the name and a tagline."""
+    w, h = 1024, 500
+    bg_dir = os.path.join(REPO, 'Three Elements', 'assets', 'background')
+    layers = sorted(f for f in os.listdir(bg_dir) if f.endswith('.png'))
+    layers.sort(key=lambda f: int(f.split('_')[1][:4]), reverse=True)  # Layer_0011 (sky) first, 0000 last
+    canvas = Image.new('RGBA', (w, h), (10, 12, 20, 255))
+    for f in layers:
+        layer = Image.open(os.path.join(bg_dir, f)).convert('RGBA')   # 928 x 793
+        scale = w / layer.width
+        layer = layer.resize((w, round(layer.height * scale)), Image.NEAREST)
+        canvas.alpha_composite(layer, (0, h - layer.height + 40))
+    shade = Image.new('RGBA', (w, h), (8, 10, 18, 120))
+    canvas.alpha_composite(shade)
+    art = fit_height(logo, 440)
+    canvas.alpha_composite(art, (60, (h - art.height) // 2))
+    gold, white = (255, 210, 90, 255), (235, 235, 240, 255)
+    draw_pixel_text(canvas, 'INJOKER', 470, 150, 12, gold)
+    draw_pixel_text(canvas, 'INVOKE THE ELEMENTS.', 474, 270, 4, white)
+    draw_pixel_text(canvas, 'BEAT THE CLOCK.', 474, 310, 4, white)
+    return canvas.convert('RGB')
+
 
 if __name__ == '__main__':
     main()

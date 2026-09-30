@@ -38,7 +38,7 @@ em++ -O2 -std=c++14 \
 	main.cpp GameManager.cpp MainPlayer.cpp BaseObject.cpp Enemy.cpp Keyboard.cpp Skill.cpp PixelText.cpp \
 	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp \
 	-o "$WEB_BUILD_DIR/index.html"
-cp "$REPO_ROOT/web/manifest.webmanifest" "$WEB_BUILD_DIR/"
+cp "$REPO_ROOT/web/manifest.webmanifest" "$REPO_ROOT/web/privacy.html" "$WEB_BUILD_DIR/"
 mkdir -p "$WEB_BUILD_DIR/icons"
 cp "$REPO_ROOT/web/icons/"*.png "$WEB_BUILD_DIR/icons/"
 echo "Build OK: $(ls "$WEB_BUILD_DIR" | tr '\n' ' ')"
@@ -55,7 +55,7 @@ git worktree add -q "$WT" gh-pages
 trap 'git -C "$REPO_ROOT" worktree remove --force "$WT" 2> /dev/null || true' EXIT
 git -C "$WT" merge -q --ff-only origin/gh-pages
 
-cp "$WEB_BUILD_DIR"/{index.html,index.js,index.wasm,index.data,manifest.webmanifest} "$WT/"
+cp "$WEB_BUILD_DIR"/{index.html,index.js,index.wasm,index.data,manifest.webmanifest,privacy.html} "$WT/"
 mkdir -p "$WT/icons"
 cp "$WEB_BUILD_DIR/icons/"*.png "$WT/icons/"
 SRC_SHA="$(git rev-parse --short HEAD)"

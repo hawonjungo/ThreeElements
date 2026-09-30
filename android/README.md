@@ -31,6 +31,20 @@ Or open the `android/` folder in Android Studio and press Run.
 On the phone: *Settings → About phone → tap Build number 7 times*, then *Developer options → USB debugging* on,
 connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-tools`) should list it.
 
+## Google Play release
+
+- **Upload key:** `D:/Dev/Keys/injoker-upload.jks` (alias `upload`), passwords in `D:/Dev/Keys/injoker-keystore.properties`.
+  Neither is in git; `local.properties` points at the properties file (`injoker.signing=...`). **Back both up** somewhere
+  safe: losing the upload key means asking Google to reset it. Google Play App Signing holds the real app-signing key.
+- **Build the bundle:** `./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab` (signed with the
+  upload key). Raise `versionCode` in `app/build.gradle` for every upload.
+- Play requirements already handled: targetSdk 36; native libraries 16 KB page aligned
+  (`ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES`, verify with `llvm-readelf -lW lib*.so` → LOAD align `0x4000`); no permissions;
+  `android:appCategory="game"`; `android:enableOnBackInvokedCallback="false"` (with targetSdk 36, Android 16's predictive
+  back would otherwise close the app instead of passing Back to the game as Esc).
+- Store listing texts, declarations and images: `art/store/` (`listing.md`, icon, feature graphic, screenshots).
+  Privacy policy: https://injoker.relifes.net/privacy.html (`web/privacy.html`).
+
 ## Checking other screen shapes (emulator)
 
 The APK also contains `x86_64`, so it runs in the Android Studio emulator (AVD `Medium_Phone_API_36.0`, 1080×2400).

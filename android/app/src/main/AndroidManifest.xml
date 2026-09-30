@@ -14,7 +14,9 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:theme="@style/AppTheme"
-        android:hardwareAccelerated="true">
+        android:hardwareAccelerated="true"
+        android:appCategory="game"
+        android:enableOnBackInvokedCallback="false">
 
         <activity
             android:name=".ThreeElementsActivity"

@@ -121,7 +121,9 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - [x] Gradle project `android/` from SDL 2.32's template (AGP 8.7.3 / Gradle 8.9 / JDK 21), SDL sources fetched by `android/fetch_deps.sh` (not in git), `app/jni/CMakeLists.txt` building SDL2, SDL2_image (PNG via stb, BMP) and the game as `libmain.so`.
 - [x] Code: logical 928×544 rendering with letterbox (`SDL_RenderSetLogicalSize`, all platforms), `TouchToGame`, landscape hint, touch buttons on from start, Back = Esc, save files in `SDL_GetPrefPath`, records saved when the app goes to the background.
 - [x] Launcher icon (now made by `art/make_injoker.py` from the Injoker art).
-- [ ] First successful APK build and install on the owner's phone; latency and layout check on the device.
+- [x] First APK builds; layout / touch / Back checked on the emulator (20:9, 16:9, 4:3).
+- [x] Google Play release build: signed AAB (upload key outside git), targetSdk 36, 16 KB pages, adaptive icon, `appCategory=game`, predictive-back opt-out; store listing, declarations, feature graphic and screenshots in `art/store/`; privacy policy page.
+- [ ] Owner: create the app in Play Console, fill the declarations, upload the AAB to a closed test, 12 testers × 14 days, then apply for production.
 - [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
 ### Online leaderboard — owner decisions 2026-09-30  *(UI done with this device's data; online part not started)*
@@ -162,3 +164,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-30 — **Tutorial mode** (spec §24): 4 lessons, one key-by-key spell (Sun Strike), highlights, final unguided run; `Practice/Tutorial.*` + 70 new test checks (Practice tests 946); pixel font gains `,` `=` `>`.
 - 2026-09-30 — **Renamed to Injoker** (product name for Google Play; repo/folders unchanged): new player character gliding over a magic ring with the loaded orbs circling it, Ready-screen logo, Android app id `net.relifes.injoker`, new launcher / web / store icons (`art/make_injoker.py`). Web domain change to injoker.relifes.net pending the owner's DNS record.
 - 2026-09-30 — **Main menu + leaderboard UI**: one option per line (arrows/Enter/hotkeys/tap), top 3 by survival time beside it, top 10 screen with MY BEST, Game Over rank line; this device's list for now. Pixel font gains `#`.
+- 2026-09-30 — **Google Play release prep:** signed AAB, targetSdk 36 (+ Back fix for Android 16), 16 KB alignment verified, adaptive icon, listing/declarations/feature graphic/screenshots, privacy policy on the web.
