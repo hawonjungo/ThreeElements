@@ -136,10 +136,13 @@ const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENT
 const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
 // Sound on/off button (all states), drawn under ACC on the left of the HUD; M toggles it on a keyboard.
 const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
+// Recipe hint on/off while playing (G on a keyboard), under the sound button. Spec §17: off by default; a run
+// that had it on is not ranked and sets no records.
+const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
 // Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
-enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_QUIT };
+enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
 const int MENU_X = 340;
 const int MENU_Y = 238;
 const int MENU_W = 248;
@@ -225,6 +228,7 @@ protected:
 	bool m_hasPlayer = false;             // player sprite loaded
 	bool m_showTouchControls = false;
 	bool m_audioReady = false;            // an audio device was opened
+	bool m_recipeHint = false;            // show the target's recipe above its icon (saved with the settings)
 	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over, and the tutorial run)
 	practice::TutorialSession m_tutorial; // spec §24; only meaningful while m_tutorialActive
 	bool m_tutorialActive = false;        // the tutorial is on screen (the Practice session waits in Ready)
@@ -284,6 +288,7 @@ private:
 	void LoadSettings();          // sound on/off, saved like the records
 	void SaveSettings();
 	void ToggleMute();
+	void ToggleRecipeHint();
 	void EndSession();            // a session ended (Game Over or Esc while Playing): update and save the records
 
 	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy);  // "+1" / "MISS" feedback

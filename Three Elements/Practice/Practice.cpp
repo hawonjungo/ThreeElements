@@ -128,7 +128,9 @@ namespace practice
 	BestUpdate MergeBests(BestStats& bests, const Stats& session)
 	{
 		BestUpdate changed = { false, false, false };
-		if (session.score > bests.score)               { bests.score = session.score;               changed.score = true; }
+		if (session.assisted)  // played with the recipe hint: never a record
+			return changed;
+		if (session.score > bests.score)              { bests.score = session.score;               changed.score = true; }
 		if (session.bestCombo > bests.combo)           { bests.combo = session.bestCombo;           changed.combo = true; }
 		if (session.survivalTime > bests.survivalTime) { bests.survivalTime = session.survivalTime; changed.survivalTime = true; }
 		return changed;
@@ -168,6 +170,7 @@ namespace practice
 		int record = m_stats.bestCombo;
 		m_stats = { START_HP, START_HP, 0, 0, 0, 0, 0, 0.0f };
 		m_stats.bestCombo = record;
+		m_recordAtStart = record;                // what MarkAssisted() puts back if this run turns out assisted
 		m_enemy = { false, 0, SkillId::None, 0.0f, 0.0f };
 		m_tornadoes.clear();                     // projectiles in flight disappear with the session
 		m_invoker.Reset();                       // orbs and D/F slots
@@ -253,7 +256,7 @@ namespace practice
 			++m_stats.correctCasts;
 			++m_stats.score;
 			++m_stats.combo;
-			if (m_stats.combo > m_stats.bestCombo)
+			if (!m_stats.assisted && m_stats.combo > m_stats.bestCombo)  // a hinted run sets no record
 				m_stats.bestCombo = m_stats.combo;
 			m_enemy.active = false;              // the enemy disappears
 			StartWaiting();

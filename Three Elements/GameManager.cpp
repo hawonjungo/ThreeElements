@@ -388,6 +388,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
+    if (sym == SDLK_g) { ToggleRecipeHint(); return; }  // likewise
     if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) { PressEnterAction(); return; }
 
     invoker::InputAction action;
@@ -405,6 +406,8 @@ void GameManager::PressEnterAction()
         ResetVisualEffects();
         m_lastBestUpdate = { false, false, false };
         printf("[practice] session started (seed %u)\n", seed);
+        if (m_recipeHint)
+            m_session.MarkAssisted();  // started with the recipe hint: not ranked (spec §17)
         audio::Play(audio::Sfx::Start);
     }
 }
@@ -446,6 +449,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (!menu && hit(SOUND_BUTTON_RECT))  // sound on/off while playing (the menu has its own line for it)
     {
         ToggleMute();
+        return;
+    }
+    if (!menu && !m_tutorialActive && hit(HINT_BUTTON_RECT))  // recipe hint on/off (not a tutorial button)
+    {
+        ToggleRecipeHint();
         return;
     }
     if (m_tutorialActive)
@@ -935,6 +943,8 @@ void GameManager::SaveTopRuns()
 // A finished run enters this device's top 10 if its survival time is good enough; saved at once.
 int GameManager::SubmitRun(const practice::Stats& st)
 {
+    if (st.assisted)  // played with the recipe hint: not ranked
+        return 0;
     int rank = practice::InsertTopRun(m_topRuns, { st.survivalTime, st.score });
     if (rank > 0)
         SaveTopRuns();
@@ -1027,7 +1037,11 @@ void GameManager::LoadSettings()
 {
     int muted = 0;
     int tutorialDone = 0;
+    int hint = 0;
 #ifdef __EMSCRIPTEN__
+    hint = EM_ASM_INT({
+        try { return localStorage.getItem('threeElements_recipeHint') === '1' ? 1 : 0; } catch (e) { return 0; }
+    });
     muted = EM_ASM_INT({
         try { return localStorage.getItem('threeElements_muted') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
@@ -1038,34 +1052,46 @@ void GameManager::LoadSettings()
     FILE* f = fopen(SavePath("settings.txt").c_str(), "r");
     if (f != NULL)
     {
-        if (fscanf(f, "muted %d tutorial %d", &muted, &tutorialDone) < 1)
+        if (fscanf(f, "muted %d tutorial %d hint %d", &muted, &tutorialDone, &hint) < 1)
             muted = 0;
         fclose(f);
     }
 #endif
     audio::SetMuted(muted != 0);
     m_tutorialDone = tutorialDone != 0;
+    m_recipeHint = hint != 0;
 }
 
 void GameManager::SaveSettings()
 {
     int muted = audio::IsMuted() ? 1 : 0;
     int tutorialDone = m_tutorialDone ? 1 : 0;
+    int hint = m_recipeHint ? 1 : 0;
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         try {
             localStorage.setItem('threeElements_muted', $0 ? '1' : '0');
             localStorage.setItem('threeElements_tutorialDone', $1 ? '1' : '0');
+            localStorage.setItem('threeElements_recipeHint', $2 ? '1' : '0');
         } catch (e) {}
-    }, muted, tutorialDone);
+    }, muted, tutorialDone, hint);
 #else
     FILE* f = fopen(SavePath("settings.txt").c_str(), "w");
     if (f != NULL)
     {
-        fprintf(f, "muted %d tutorial %d\n", muted, tutorialDone);
+        fprintf(f, "muted %d tutorial %d hint %d\n", muted, tutorialDone, hint);
         fclose(f);
     }
 #endif
+}
+
+void GameManager::ToggleRecipeHint()
+{
+    m_recipeHint = !m_recipeHint;
+    SaveSettings();
+    if (m_recipeHint)
+        m_session.MarkAssisted();  // only while Playing: this run is no longer ranked
+    printf("[practice] recipe hint %s\n", m_recipeHint ? "on" : "off");
 }
 
 void GameManager::ToggleMute()
@@ -1075,24 +1101,41 @@ void GameManager::ToggleMute()
     printf("[audio] sound %s\n", audio::IsMuted() ? "off" : "on");
 }
 
-// "SOUND ON" / "SOUND OFF" under ACC (tap or click it, or press M). Hidden when there is no audio device at all.
+// "SOUND ON" / "SOUND OFF" under ACC (tap or click it, or press M; hidden when there is no audio device at all),
+// and "HINT ON" / "HINT OFF" under it (G), the recipe hint of spec §17.
 void GameManager::RenderSoundButton()
 {
-    if (!m_audioReady || (!m_tutorialActive && m_session.State() == practice::GameState::Ready))
-        return;  // on the Ready screen the menu has a SOUND line instead
-    const SDL_Rect& r = SOUND_BUTTON_RECT;
-    bool muted = audio::IsMuted();
-    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 160);
-    SDL_RenderFillRect(m_screen, &r);
-    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);
-    SDL_RenderDrawRect(m_screen, &r);
-    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-    const char* label = muted ? "SOUND OFF" : "SOUND ON";
+    if (!m_tutorialActive && m_session.State() == practice::GameState::Ready)
+        return;  // on the Ready screen the menu has SOUND and RECIPE HINT lines instead
     const SDL_Color on = { 200, 235, 200, 255 };
     const SDL_Color off = { 170, 170, 180, 255 };
-    pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 1)) / 2, r.y + (r.h - 7) / 2, 1,
-        muted ? off : on);
+    if (m_audioReady)  // no audio device: no sound button
+    {
+        const SDL_Rect& r = SOUND_BUTTON_RECT;
+        bool muted = audio::IsMuted();
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 160);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        const char* label = muted ? "SOUND OFF" : "SOUND ON";
+        pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 1)) / 2, r.y + (r.h - 7) / 2, 1,
+            muted ? off : on);
+    }
+
+    if (m_tutorialActive)  // the tutorial shows its own keys; the hint belongs to Practice
+        return;
+    const SDL_Rect& h = HINT_BUTTON_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 160);
+    SDL_RenderFillRect(m_screen, &h);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 110);
+    SDL_RenderDrawRect(m_screen, &h);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const char* hintLabel = m_recipeHint ? "HINT ON" : "HINT OFF";
+    pixeltext::DrawShadowed(m_screen, hintLabel, h.x + (h.w - pixeltext::Width(hintLabel, 1)) / 2, h.y + (h.h - 7) / 2, 1,
+        m_recipeHint ? on : off);
 }
 
 // ------------------------------------------------------------------ main menu and leaderboard
@@ -1123,6 +1166,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
     case MENU_SOUND:       ToggleMute(); break;
+    case MENU_HINT:        ToggleRecipeHint(); break;
     case MENU_QUIT:        PressEscapeAction(quit); break;
     }
 }
@@ -1148,6 +1192,7 @@ void GameManager::RenderMenu()
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
         case MENU_SOUND:       label = audio::IsMuted() ? "SOUND: OFF" : "SOUND: ON"; key = "M"; break;
+        case MENU_HINT:        label = m_recipeHint ? "RECIPE HINT: ON" : "RECIPE HINT: OFF"; key = "G"; break;
         case MENU_QUIT:        label = "QUIT";        key = "ESC"; break;
         }
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
@@ -1555,6 +1600,7 @@ void GameManager::RenderTutorial()
     }
     else  // Done
     {
+        pixeltext::DrawShadowed(m_screen, "NEED HELP WITH RECIPES? TURN ON RECIPE HINT (G).", panel.x + 12, panel.y + 74, 1, grey);
         RenderButton(TUTORIAL_PLAY_RECT, "PLAY PRACTICE", true);
         RenderButton(TUTORIAL_MENU_RECT, "MENU", false);
     }
@@ -1879,7 +1925,9 @@ void GameManager::RenderGameOverScreen()
     snprintf(buf, sizeof(buf), "RECORDS  SCORE %d   COMBO %d   TIME %s", m_bests.score, m_bests.combo, value);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 282, 2, grey);
 
-    if (m_lastRank > 0)
+    if (st.assisted)
+        pixeltext::DrawCentered(m_screen, "RECIPE HINT WAS ON - NOT RANKED", SCREEN_WIDTH, 312, 2, grey);
+    else if (m_lastRank > 0)
     {
         snprintf(buf, sizeof(buf), "RANK #%d ON THIS DEVICE", m_lastRank);
         pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 312, 2, gold);
@@ -1906,8 +1954,22 @@ void GameManager::RenderTargetHint()
     SDL_Rect area = TargetHintArea(e.target, textX);
     pixeltext::DrawShadowed(m_screen, buf, textX, 78, 2, yellow);
 
+    // Recipe hint (spec §17, off by default, not in the tutorial): the three orbs of the recipe between the name
+    // and the icon, the same coloured orbs as the HUD and the recipe list; the icon moves down to make room.
+    bool showRecipe = m_recipeHint && !m_tutorialActive;
+    int tileY = showRecipe ? 126 : 100;
+    if (showRecipe)
+    {
+        const invoker::Recipe& r = invoker::GetSkillDefinition(e.target).recipe;
+        const int counts[3] = { r.quas, r.wex, r.exort };
+        int x = area.x + area.w / 2 - 26;
+        for (int element = 0; element < 3; ++element)
+            for (int n = 0; n < counts[element]; ++n, x += 26)
+                RenderSmallOrb(static_cast<invoker::Orb>(element), x, 111);
+    }
+
     // the skill's icon below the text, centred under it, large enough to read at a glance (owner 2026-09-30)
-    SDL_Rect tile = { area.x + (area.w - SKILL_HINT_SIZE - 4) / 2, 100, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
+    SDL_Rect tile = { area.x + (area.w - SKILL_HINT_SIZE - 4) / 2, tileY, SKILL_HINT_SIZE + 4, SKILL_HINT_SIZE + 4 };
     if (tile.x + tile.w > SCREEN_WIDTH - 16)  // short names: keep the tile inside the right margin
         tile.x = SCREEN_WIDTH - 16 - tile.w;
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);

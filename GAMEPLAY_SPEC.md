@@ -218,7 +218,13 @@ A **cast** (for accuracy) is exactly a D/F press with a filled slot while an ene
 
 **Tutorial exception [CONFIRMED, owner decision 2026-09-30].** The Tutorial (§24) is a separate mode whose whole purpose is to show the keys: it displays key sequences such as `E E E R D`. None of that appears in Practice.
 
-**[FUTURE]** A beginner mode may add hints. *Observation (not blocking):* with no hints and no reference in the game, the enemy↔spell mapping can only be learnt by trial and error; a beginner mode or an out-of-game reference would address this later.
+**Recipe hint option [CONFIRMED, owner decision 2026-09-30 — an intentional, off-by-default exception to "no recipe hints"].** A setting "RECIPE HINT" (**default OFF**; menu line, an in-play `HINT ON/OFF` button under `SOUND`, key G; saved with the other settings) shows the target skill's recipe as three coloured orbs between the `TARGET` name and its icon. Rules:
+- **H-1** A run in which the hint was on **at any moment** (on at the start, or switched on while Playing) is **assisted**. Switching it off again does not undo this.
+- **H-2** An assisted run is **not ranked**: it never enters the top-runs list (and will never be submitted to an online board), and it sets **no records** (Best Score / Best Combo / Best Survival Time). Its best combo shown in play falls back to the record held when the run started. Game Over says `RECIPE HINT WAS ON - NOT RANKED` instead of a rank.
+- **H-3** Score, combo, accuracy, HP and difficulty work exactly as in a normal run; the hint changes nothing but what is drawn and whether the run counts.
+- **H-4** The Tutorial never shows the hint (it has its own guidance); its last card suggests turning it on for players who need help.
+
+*Observation (not blocking):* a full "beginner mode" beyond this option (slower enemies, etc.) is still FUTURE.
 
 **Not addressed here (handled by PLAN.md):** audio, menus beyond restart, settings, tutorials, localisation.
 

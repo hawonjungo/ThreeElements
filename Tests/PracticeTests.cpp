@@ -1507,6 +1507,41 @@ static void TestInvokerThroughSession()
 	CHECK(p.Invoker().GetSlot(Slot::D) == SkillId::None && p.Invoker().OrbCount() == 2);
 }
 
+// ---------------------------------------------------------------- recipe hint (spec §17): assisted runs set no records
+
+static void TestAssistedRuns()
+{
+	// MergeBests ignores an assisted run completely
+	BestStats bests = { 3, 2, 10.0f };
+	Stats st = { 0, 3, 50, 0, 40, 60, 0, 300.0f, true };
+	BestUpdate u = MergeBests(bests, st);
+	CHECK(!u.Any() && bests.score == 3 && bests.combo == 2 && NearF(bests.survivalTime, 10.0f, 1e-6f));
+
+	// outside Playing MarkAssisted does nothing; a new run starts unassisted
+	PracticeSession s;
+	s.MarkAssisted();
+	CHECK(!s.GetStats().assisted);
+	s.RestoreBestCombo(2);
+	s.Start(5);
+	CHECK(!s.GetStats().assisted);
+
+	// a new combo record reached earlier in the run is taken back when the hint is turned on ...
+	Kill(s); Kill(s); Kill(s);
+	CHECK(s.GetStats().combo == 3 && s.GetStats().bestCombo == 3);
+	s.MarkAssisted();
+	CHECK(s.GetStats().assisted && s.GetStats().bestCombo == 2 && s.GetStats().combo == 3);
+	// ... and the rest of the run cannot raise it either
+	Kill(s);
+	CHECK(s.GetStats().combo == 4 && s.GetStats().bestCombo == 2);
+	CHECK(s.GetStats().score == 4);       // score and combo still count up as usual on screen
+
+	// the next run is a normal one again, from the unchanged record
+	s.Start(6);
+	CHECK(!s.GetStats().assisted && s.GetStats().bestCombo == 2);
+	Kill(s); Kill(s); Kill(s);
+	CHECK(s.GetStats().bestCombo == 3);
+}
+
 // ---------------------------------------------------------------- leaderboard order (survival time)
 
 static void TestTopRuns()
@@ -1777,6 +1812,7 @@ int main()
 	RunTest("input outside Playing", TestInputOutsidePlaying);
 	RunTest("invoker through the session", TestInvokerThroughSession);
 	RunTest("persistent bests", TestPersistentBests);
+	RunTest("recipe hint: assisted runs", TestAssistedRuns);
 	RunTest("leaderboard order", TestTopRuns);
 	RunTest("tutorial: script", TestTutorialScript);
 	RunTest("tutorial: guided keys", TestTutorialGuidedKeys);

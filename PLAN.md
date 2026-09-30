@@ -2,7 +2,7 @@
 
 Based on [PROJECT_AUDIT.md](PROJECT_AUDIT.md) (2026-09-21 snapshot of the code before Phase 1; read it for file/line references and bug IDs B1…B17) and [GAMEPLAY_SPEC.md](GAMEPLAY_SPEC.md).
 
-> **Precedence:** [GAMEPLAY_SPEC.md](GAMEPLAY_SPEC.md) v2 is the source of truth for gameplay rules; where it conflicts with this file, the spec wins. It has **no blocking open decisions**; tunables (starting speed/delay, hit-line position, sprite ↔ skill table, restart key) are data/constants chosen at implementation time. **Hints are excluded** from the MVP. **Persistent local best stats** (Best Score / Best Combo / Best Survival Time) are part of the MVP; build them once the session logic works.
+> **Precedence:** [GAMEPLAY_SPEC.md](GAMEPLAY_SPEC.md) v2 is the source of truth for gameplay rules; where it conflicts with this file, the spec wins. It has **no blocking open decisions**; tunables (starting speed/delay, hit-line position, sprite ↔ skill table, restart key) are data/constants chosen at implementation time. **Recipe hints are excluded** from normal play; the only exception is the off-by-default RECIPE HINT option (spec §17 H-1..H-4), whose runs are not ranked. **Persistent local best stats** (Best Score / Best Combo / Best Survival Time) are part of the MVP; build them once the session logic works.
 
 ## Status
 
@@ -159,7 +159,7 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-28 — **Phase 6 (part 1):** persistent records (Best Score / Combo / Survival Time, `MergeBests`, 12 new checks → Practice tests 876) and light hit/miss/leak feedback; pixel font gains `!` and `+`.
 - 2026-09-29 — **Phase 6 (part 2):** synthesised sound effects with mute, code-drawn effects for 8 skills (placeholder sheets no longer used), web visitor counter.
 - 2026-09-29 — Clean-up: the 8 unused placeholder VFX sheets deleted; branches `phase-2-invoker-core`, `backU`, `Jun2024` deleted (all work is on `main`). Owner decisions: no background music; difficulty tuning waits for difficulty-dependent backgrounds.
-- 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play.
+- 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play; RECIPE HINT option (G, off by default, assisted runs not ranked).
 - 2026-09-30 — **Phase 7 started:** native Android project (`android/`), Android-specific code paths, launcher icon; `CMakeLists.txt` for the NDK build.
 - 2026-09-30 — **Tutorial mode** (spec §24): 4 lessons, one key-by-key spell (Sun Strike), highlights, final unguided run; `Practice/Tutorial.*` + 70 new test checks (Practice tests 946); pixel font gains `,` `=` `>`.
 - 2026-09-30 — **Renamed to Injoker** (product name for Google Play; repo/folders unchanged): new player character gliding over a magic ring with the loaded orbs circling it, Ready-screen logo, Android app id `net.relifes.injoker`, new launcher / web / store icons (`art/make_injoker.py`). Web domain change to injoker.relifes.net pending the owner's DNS record.
