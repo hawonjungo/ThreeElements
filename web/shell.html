@@ -85,6 +85,24 @@
     }
     #visitors .label { display: block; font-size: 9px; }
   }
+  /* Links to the policy / terms / support pages: a line under the canvas on desktop and in portrait. On a phone in
+     landscape only when the screen is wide enough to leave a black bar beside the game (bottom-left corner of that
+     bar); on 16:9 screens there is no bar, so they are hidden there (visible again in portrait). New tab, so a
+     run in progress is never lost. */
+  #site-nav { font-size: 12px; color: #6b7285; }
+  #site-nav a { color: #8a93a8; text-decoration: none; margin: 0 6px; }
+  #site-nav a:hover { color: #f2c14e; text-decoration: underline; }
+  @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+    #site-nav { display: none; }
+  }
+  @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (min-aspect-ratio: 19/10) {
+    #site-nav {
+      display: block; position: fixed; z-index: 5; font-size: 10px; line-height: 1.9;
+      left: calc(6px + env(safe-area-inset-left)); bottom: calc(6px + env(safe-area-inset-bottom));
+    }
+    #site-nav a { display: block; margin: 0; }
+    #site-nav .sep { display: none; }
+  }
   #fs-tip {
     position: fixed; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(360px, 90vw); padding: 14px; box-sizing: border-box; font-size: 13px; line-height: 1.5;
@@ -101,6 +119,7 @@
   <div id="status"><span class="spinner" id="spinner"></span>Loading&hellip;</div>
   <progress hidden id="progress" max="100" value="0"></progress>
   <div id="hint">Keyboard: Q/W/E orbs &middot; R invoke &middot; D/F cast &middot; Enter start &middot; Esc back/quit &middot; M sound &middot; G recipe hint. On touch: use the on-screen buttons.</div>
+  <nav id="site-nav"><a href="policy/" target="_blank" rel="noopener">Privacy</a><span class="sep">&middot;</span><a href="terms/" target="_blank" rel="noopener">Terms</a><span class="sep">&middot;</span><a href="support/" target="_blank" rel="noopener">Support</a></nav>
   <div id="visitors" hidden><span class="label">Visitors </span><span id="visitor-count"></span></div>
   <button id="fs-btn" type="button" hidden aria-label="Fullscreen"><span style="font-size:22px">&#x26F6;</span><br>Full</button>
   <div id="fs-tip" hidden>
