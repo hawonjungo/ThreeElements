@@ -11,6 +11,7 @@
 #include "Audio.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <cstring>
 #ifdef __EMSCRIPTEN__
@@ -195,6 +196,7 @@ void GameManager::LoadAssets()
     LoadGhostWalkSheet();  // same for the Ghost Walk aura
     LoadTopRuns();
     LoadBests();
+    LoadBossTimes();
     LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
@@ -286,6 +288,8 @@ bool GameManager::RunFrame()
         if (t.finished)
             audio::Play(audio::Sfx::Start);
     }
+    if (m_bossActive)
+        PresentBossUpdate(m_boss.Update(dt));  // the fight's clock stops by itself once it is won or lost
     m_tutorialWrongFlash -= dt;
     m_orbFlash -= dt;
     m_tutorialSpawnFlash -= dt;
@@ -324,6 +328,8 @@ bool GameManager::RunFrame()
     RenderGhostWalk();  // behind the player: the player is never covered
     RenderPlayer();
     RenderEnemy();
+    RenderBossImpacts();  // rings on the ground where delayed spells will land, under the boss
+    RenderBoss();
     RenderTornadoes();  // above the background, player and enemy, below the HUD
     RenderSkillVfx();   // code-drawn skill effects, above everything else in the scene
     RenderFeedback();   // "+1" / "MISS" and the defeat ring, part of the scene
@@ -334,9 +340,15 @@ bool GameManager::RunFrame()
     RenderInvokerHud();
     RenderStatsHud();
     RenderTargetHint();
+    RenderBossCombo();
 
     if (m_tutorialActive)
         RenderTutorial();
+    else if (m_bossActive)
+    {
+        if (m_boss.State() != practice::BossState::Fighting)
+            RenderBossResult();
+    }
     else if (m_session.State() == practice::GameState::Ready)
         RenderReadyScreen();
     else if (m_session.State() == practice::GameState::GameOver)
@@ -345,6 +357,8 @@ bool GameManager::RunFrame()
         RenderRecipes();
     if (m_showLeaderboard && !m_tutorialActive && m_session.State() != practice::GameState::Playing)
         RenderLeaderboard();
+    if (m_showBossSelect)
+        RenderBossSelect();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -370,6 +384,16 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         HandleTutorialKey(sym, e);
         return;
     }
+    if (m_showBossSelect)
+    {
+        HandleBossSelectKey(sym);
+        return;
+    }
+    if (m_bossActive)
+    {
+        HandleBossKey(sym, e);
+        return;
+    }
     bool menu = m_session.State() == practice::GameState::Ready;
     if (menu && (sym == SDLK_UP || sym == SDLK_DOWN))  // move through the menu (wraps round)
     {
@@ -385,6 +409,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
     if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { m_showLeaderboard = true; return; }
     if (sym == SDLK_t && menu) { StartTutorial(); return; }
+    if (sym == SDLK_b && menu) { m_showBossSelect = true; return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
@@ -440,10 +465,23 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
     };
 
-    bool menu = !m_tutorialActive && m_session.State() == practice::GameState::Ready;
+    bool menu = !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Ready;
     if (m_showRecipes || m_showLeaderboard)  // an overlay is open: a tap anywhere closes it
     {
         m_showRecipes = m_showLeaderboard = false;
+        return;
+    }
+    if (m_showBossSelect)  // the boss list: a tap on a boss starts the fight, anywhere else closes the list
+    {
+        for (int i = 0; i < practice::BOSS_COUNT; ++i)
+        {
+            if (hit(BossSelectRect(i)))
+            {
+                StartBoss(i);
+                return;
+            }
+        }
+        m_showBossSelect = false;
         return;
     }
     if (!menu && hit(SOUND_BUTTON_RECT))  // sound on/off while playing (the menu has its own line for it)
@@ -459,6 +497,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (m_tutorialActive)
     {
         HandleTutorialPointer(x, y);
+        return;
+    }
+    if (m_bossActive)
+    {
+        HandleBossPointer(x, y);
         return;
     }
     if (m_session.State() == practice::GameState::GameOver && hit(RECIPES_BUTTON_GAMEOVER_RECT))
@@ -575,8 +618,10 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
 
     if (result.event == invoker::InvokerEvent::Cast && result.skill == invoker::SkillId::GhostWalk)
         m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
-    if (result.event == invoker::InvokerEvent::Cast)
-        StartSkillVfx(result.skill, hadEnemy, enemyBody);  // no-op for Tornado / Ghost Walk (own effects)
+    // no-op for Tornado / Ghost Walk (own effects); in a boss fight Sun Strike, Chaos Meteor and EMP are drawn when
+    // they land (PresentBossUpdate), not when they are cast
+    if (result.event == invoker::InvokerEvent::Cast && !(m_bossActive && practice::BossSpellDelay(result.skill) > 0.0f))
+        StartSkillVfx(result.skill, hadEnemy, enemyBody);
     if (cast != practice::CastOutcome::None)
         OnCastJudged(cast, enemyBody);
 }
@@ -745,16 +790,19 @@ void GameManager::RenderTornadoes()
         return;
 
     const int size = static_cast<int>(TORNADO_FRAME_SIZE * TORNADO_DRAW_SCALE);  // same on both axes: no distortion
-    for (int i = 0; i < m_session.ActiveTornadoCount(); ++i)
+    auto draw = [&](const practice::Tornado& t)
     {
-        const practice::Tornado& t = m_session.GetTornado(i);
-
         int frame = practice::TornadoFrame(t.animTime);
         SDL_Rect src = { (frame % TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE, (frame / TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE,
             TORNADO_FRAME_SIZE, TORNADO_FRAME_SIZE };
         SDL_Rect dst = { static_cast<int>(t.x) - size / 2, static_cast<int>(t.y) - size / 2, size, size };
         SDL_RenderCopy(m_screen, m_tornadoSheet, &src, &dst);
-    }
+    };
+    for (int i = 0; i < m_session.ActiveTornadoCount(); ++i)
+        draw(m_session.GetTornado(i));
+    for (int i = 0; m_bossActive && i < m_boss.ProjectileCount(); ++i)  // a Deafening Blast is drawn by SkillVfx
+        if (m_boss.GetProjectile(i).skill == invoker::SkillId::Tornado)
+            draw(m_boss.GetProjectile(i).motion);
 }
 
 // One shared reset for every temporary visual effect: called on Esc (back to Ready) and on Enter (new session),
@@ -1090,7 +1138,11 @@ void GameManager::ToggleRecipeHint()
     m_recipeHint = !m_recipeHint;
     SaveSettings();
     if (m_recipeHint)
+    {
         m_session.MarkAssisted();  // only while Playing: this run is no longer ranked
+        if (m_bossActive)
+            m_boss.MarkAssisted(); // only while Fighting: no best time for this fight
+    }
     printf("[practice] recipe hint %s\n", m_recipeHint ? "on" : "off");
 }
 
@@ -1105,7 +1157,7 @@ void GameManager::ToggleMute()
 // and "HINT ON" / "HINT OFF" under it (G), the recipe hint of spec §17.
 void GameManager::RenderSoundButton()
 {
-    if (!m_tutorialActive && m_session.State() == practice::GameState::Ready)
+    if (!m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Ready)
         return;  // on the Ready screen the menu has SOUND and RECIPE HINT lines instead
     const SDL_Color on = { 200, 235, 200, 255 };
     const SDL_Color off = { 170, 170, 180, 255 };
@@ -1163,6 +1215,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     {
     case MENU_PLAY:        PressEnterAction(); break;
     case MENU_TUTORIAL:    StartTutorial(); break;
+    case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
     case MENU_SOUND:       ToggleMute(); break;
@@ -1189,6 +1242,7 @@ void GameManager::RenderMenu()
         {
         case MENU_PLAY:        label = "PLAY";        key = "ENTER"; break;
         case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
+        case MENU_BOSS:        label = "BOSS FIGHTS"; key = "B"; break;
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
         case MENU_SOUND:       label = audio::IsMuted() ? "SOUND: OFF" : "SOUND: ON"; key = "M"; break;
@@ -1201,11 +1255,12 @@ void GameManager::RenderMenu()
         SDL_SetRenderDrawColor(m_screen, selected ? 255 : 120, selected ? 210 : 125, selected ? 90 : 140, 220);
         SDL_RenderDrawRect(m_screen, &r);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        const int textY = r.y + (MENU_ITEM_H - 14) / 2;
         if (selected)
-            pixeltext::DrawShadowed(m_screen, ">", r.x + 10, r.y + 10, 2, gold);
-        pixeltext::DrawShadowed(m_screen, label, r.x + 30, r.y + 10, 2, selected ? gold : white);
+            pixeltext::DrawShadowed(m_screen, ">", r.x + 10, textY, 2, gold);
+        pixeltext::DrawShadowed(m_screen, label, r.x + 30, textY, 2, selected ? gold : white);
         if (!m_showTouchControls)  // keyboard hints mean nothing on a touch screen
-            pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + 13, 1, grey);
+            pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + (MENU_ITEM_H - 7) / 2, 1, grey);
         if (item == MENU_TUTORIAL && !m_tutorialDone)
             RenderHighlight(r);
     }
@@ -1821,6 +1876,11 @@ void GameManager::RenderStatsHud()
     const SDL_Color white = { 255, 255, 255, 255 };
     char buf[64];
 
+    if (m_bossActive)
+    {
+        RenderBossHud();
+        return;
+    }
     if (!m_tutorialActive && m_session.State() == practice::GameState::Ready)
         return;  // the Ready screen shows the logo there; the numbers are all zero anyway
     if (m_tutorialActive)  // the tutorial has no score: its card panel takes the top of the screen
@@ -1979,6 +2039,584 @@ void GameManager::RenderTargetHint()
     SDL_RenderDrawRect(m_screen, &tile);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     m_skillIcons[static_cast<int>(e.target)].RenderAt(m_screen, tile.x + 2, tile.y + 2, SKILL_HINT_SIZE);
+}
+
+// ------------------------------------------------------------------ boss mode (spec §25)
+
+void GameManager::StartBoss(int boss)
+{
+    ResetVisualEffects();
+    m_showBossSelect = false;
+    m_boss.Start(boss);
+    m_bossActive = true;
+    m_bossSelect = m_boss.BossIndex();
+    m_bossNewBest = false;
+    if (m_recipeHint)
+        m_boss.MarkAssisted();  // fought with the recipe hint: no best time (B-12)
+    audio::Play(audio::Sfx::Start);
+    printf("[boss] fight against %s\n", m_boss.Def().name);
+}
+
+// Leaves the fight (or its result screen) for the boss list; Esc there goes on to the menu.
+void GameManager::ExitBoss()
+{
+    m_bossActive = false;
+    m_showBossSelect = true;
+    ResetVisualEffects();
+    printf("[boss] back to the boss list\n");
+}
+
+void GameManager::HandleBossSelectKey(SDL_Keycode sym)
+{
+    if (sym == SDLK_UP || sym == SDLK_DOWN)
+        m_bossSelect = (m_bossSelect + (sym == SDLK_UP ? practice::BOSS_COUNT - 1 : 1)) % practice::BOSS_COUNT;
+    else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
+        StartBoss(m_bossSelect);
+    else if (sym >= SDLK_1 && sym < SDLK_1 + practice::BOSS_COUNT)
+        StartBoss(static_cast<int>(sym - SDLK_1));
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK || sym == SDLK_b)
+        m_showBossSelect = false;
+    else if (sym == SDLK_m)
+        ToggleMute();
+    else if (sym == SDLK_g)
+        ToggleRecipeHint();
+}
+
+// Keys in a fight: the gameplay keys, M / G, Esc / Back to the boss list. On the result screen Enter fights the
+// same boss again.
+void GameManager::HandleBossKey(SDL_Keycode sym, const SDL_Event& e)
+{
+    if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { ExitBoss(); return; }
+    if (sym == SDLK_m) { ToggleMute(); return; }
+    if (sym == SDLK_g) { ToggleRecipeHint(); return; }
+    if (m_boss.State() != practice::BossState::Fighting)
+    {
+        if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
+            StartBoss(m_boss.BossIndex());
+        return;
+    }
+    invoker::InputAction action;
+    if (MainPlayer::TranslateKey(e, action))
+        ProcessBossAction(action);
+}
+
+bool GameManager::HandleBossPointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    if (m_boss.State() != practice::BossState::Fighting)
+    {
+        if (hit(TOUCH_GAMEOVER_RESTART_RECT)) { StartBoss(m_boss.BossIndex()); return true; }
+        if (hit(TOUCH_GAMEOVER_MENU_RECT)) { ExitBoss(); return true; }
+        return false;
+    }
+    if (hit(TOUCH_PLAYING_MENU_RECT))  // "ESC  BACK"
+    {
+        ExitBoss();
+        return true;
+    }
+    for (int i = 0; i < 6 && m_showTouchControls; ++i)
+    {
+        if (hit(kTouchButtons[i].rect))
+        {
+            ProcessBossAction(kTouchButtons[i].action);
+            return true;
+        }
+    }
+    return false;
+}
+
+void GameManager::ProcessBossAction(invoker::InputAction action)
+{
+    practice::Bounds body = BossDrawnBody();  // effects aimed at the boss go where it is drawn
+    practice::BossInputResult r = m_boss.Input(action);
+    if (!r.accepted)
+        return;
+    PresentInvokerResult(action, r.invoker, practice::CastOutcome::None, true, body);
+    if (r.attemptStarted)
+        printf("[boss] combo attempt started\n");
+    if (r.fail != practice::ComboFail::None)
+        OnBossFail(r.fail);
+}
+
+void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
+{
+    const SDL_Color gold = { 255, 215, 80, 255 };
+    if (r.lifted)
+        audio::Play(audio::Sfx::Cast);
+    for (int i = 0; i < r.impactCount; ++i)
+    {
+        const practice::BossImpact& impact = r.impacts[i];
+        practice::Bounds body = m_boss.Body();
+        if (practice::BossSpellDelay(impact.skill) > 0.0f)  // the delayed spells appear when they land, where they land
+        {
+            practice::Bounds at = body;
+            at.x = impact.x - at.w * 0.5f;
+            StartSkillVfx(impact.skill, true, at);
+        }
+        if (impact.counted)
+        {
+            for (int k = 0; k < FEEDBACK_MAX_BURSTS; ++k)
+            {
+                if (m_bursts[k].left <= 0.0f)
+                {
+                    m_bursts[k] = { FEEDBACK_BURST_TIME, static_cast<int>(body.x + body.w * 0.5f), static_cast<int>(body.y + body.h * 0.5f) };
+                    break;
+                }
+            }
+            audio::Play(audio::Sfx::CastCorrect);
+        }
+    }
+    if (r.fail != practice::ComboFail::None)
+        OnBossFail(r.fail);
+    if (r.comboComplete)
+    {
+        BossText("COMBO!", gold);
+        m_shakeLeft = FEEDBACK_SHAKE_TIME;
+        printf("[boss] combo complete: boss HP %d\n", m_boss.BossHp());
+    }
+    if (r.playerHit)
+    {
+        OnLeak(m_boss.PlayerHp());
+        printf("[boss] the boss reached the player: HP %d\n", m_boss.PlayerHp());
+    }
+    if (r.won)
+    {
+        audio::Play(audio::Sfx::Start);
+        int i = m_boss.BossIndex();
+        float time = m_boss.Elapsed();
+        if (!m_boss.Assisted() && (m_bossBest[i] <= 0.0f || time < m_bossBest[i]))
+        {
+            m_bossBest[i] = time;
+            m_bossNewBest = true;
+            SaveBossTimes();
+        }
+        printf("[boss] %s defeated in %.1f s%s\n", m_boss.Def().name, time, m_bossNewBest ? " (new best)" : "");
+    }
+    if (r.lost)
+    {
+        audio::Play(audio::Sfx::GameOver);
+        printf("[boss] defeated by %s\n", m_boss.Def().name);
+    }
+}
+
+void GameManager::OnBossFail(practice::ComboFail reason)
+{
+    const SDL_Color red = { 255, 90, 90, 255 };
+    const char* text = reason == practice::ComboFail::WrongSpell ? "WRONG SPELL"
+        : reason == practice::ComboFail::TooEarly ? "TOO EARLY"
+        : reason == practice::ComboFail::TooLate ? "TOO LATE" : "MISSED";
+    BossText(text, red);
+    m_enemyFlashLeft = FEEDBACK_ENEMY_FLASH;
+    audio::Play(audio::Sfx::CastWrong);
+    printf("[boss] combo failed: %s\n", text);
+}
+
+void GameManager::BossText(const char* text, SDL_Color color)
+{
+    practice::Bounds b = BossDrawnBody();
+    int x = static_cast<int>(b.x + b.w * 0.5f);
+    int half = pixeltext::Width(text, 3) / 2 + 8;
+    x = x < half ? half : (x > SCREEN_WIDTH - half ? SCREEN_WIDTH - half : x);
+    int y = static_cast<int>(b.y) - 16;
+    y = y < 150 ? 150 : y;  // below the HUD rows
+    for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+    {
+        if (m_floatTexts[i].left <= 0.0f)
+        {
+            m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.6f, x, y, text, color };
+            break;
+        }
+    }
+}
+
+// Best fight time per boss, saved like the records: bosses.txt (milliseconds, one per boss) next to the exe /
+// in the app folder, localStorage on the web. Missing or unreadable = not beaten yet.
+void GameManager::LoadBossTimes()
+{
+    int raw[practice::BOSS_COUNT] = {};
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var values = String(localStorage.getItem('threeElements_bossTimes')).split(',').map(Number);
+            for (var i = 0; i < $1; ++i)
+                HEAP32[($0 >> 2) + i] = values[i] | 0;
+        } catch (e) {}
+    }, raw, practice::BOSS_COUNT);
+#else
+    FILE* f = fopen(SavePath("bosses.txt").c_str(), "r");
+    if (f != NULL)
+    {
+        for (int i = 0; i < practice::BOSS_COUNT; ++i)
+            if (fscanf(f, "%d", &raw[i]) != 1)
+                break;
+        fclose(f);
+    }
+#endif
+    for (int i = 0; i < practice::BOSS_COUNT; ++i)
+        m_bossBest[i] = raw[i] > 0 ? raw[i] / 1000.0f : 0.0f;
+}
+
+void GameManager::SaveBossTimes()
+{
+    int raw[practice::BOSS_COUNT];
+    for (int i = 0; i < practice::BOSS_COUNT; ++i)
+        raw[i] = static_cast<int>(m_bossBest[i] * 1000.0f);
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var values = [];
+            for (var i = 0; i < $1; ++i)
+                values.push(HEAP32[($0 >> 2) + i]);
+            localStorage.setItem('threeElements_bossTimes', values.join(','));
+        } catch (e) {}
+    }, raw, practice::BOSS_COUNT);
+#else
+    FILE* f = fopen(SavePath("bosses.txt").c_str(), "w");
+    if (f != NULL)
+    {
+        for (int i = 0; i < practice::BOSS_COUNT; ++i)
+            fprintf(f, "%d ", raw[i]);
+        fprintf(f, "\n");
+        fclose(f);
+    }
+#endif
+}
+
+SDL_Rect GameManager::BossSelectRect(int index) const
+{
+    SDL_Rect r = { BOSS_SELECT_PANEL.x + 24, BOSS_SELECT_ROW_Y + index * BOSS_SELECT_ROW_STEP, BOSS_SELECT_PANEL.w - 48, BOSS_SELECT_ROW_H };
+    return r;
+}
+
+practice::Bounds GameManager::BossDrawnBody() const
+{
+    practice::Bounds b = m_boss.Body();
+    if (m_boss.Phase() == practice::BossPhase::Airborne)
+        b.y -= practice::BossLiftHeight(m_boss.AirTime());
+    return b;
+}
+
+// Filled ellipse (the boss's shadow) and an ellipse outline (impact rings), both flat on the ground.
+static void FillEllipse(SDL_Renderer* r, int cx, int cy, int rx, int ry)
+{
+    for (int dy = -ry; dy <= ry; ++dy)
+    {
+        float k = 1.0f - static_cast<float>(dy * dy) / static_cast<float>(ry * ry);
+        int half = static_cast<int>(rx * std::sqrt(k > 0.0f ? k : 0.0f));
+        SDL_RenderDrawLine(r, cx - half, cy + dy, cx + half, cy + dy);
+    }
+}
+
+static void DrawEllipse(SDL_Renderer* r, int cx, int cy, int rx, int ry)
+{
+    SDL_Point pts[41];
+    for (int i = 0; i <= 40; ++i)
+    {
+        float a = 6.2831853f * i / 40.0f;
+        pts[i] = { cx + static_cast<int>(rx * std::cos(a)), cy + static_cast<int>(ry * std::sin(a)) };
+    }
+    SDL_RenderDrawLines(r, pts, 41);
+}
+
+// The boss: its shadow on the ground (smaller the higher it floats), the Tornado under it while it is in the air,
+// and the enemy sprite drawn larger and tinted. It flashes red when a combo fails.
+void GameManager::RenderBoss()
+{
+    if (!m_bossActive)
+        return;
+    const practice::BossDefinition& def = m_boss.Def();
+    const practice::EnemyDefinition& e = practice::GetEnemyDefinition(def.enemyDefinition);
+    EnemyObject& sprite = m_enemySprites[def.enemyDefinition];
+    bool airborne = m_boss.Phase() == practice::BossPhase::Airborne;
+    float lift = airborne ? practice::BossLiftHeight(m_boss.AirTime()) : 0.0f;
+    practice::Bounds body = m_boss.Body();
+    const int ground = static_cast<int>(practice::GROUND_LINE_Y);
+    int cx = static_cast<int>(body.x + body.w * 0.5f);
+
+    float shrink = 1.0f - 0.5f * lift / practice::BOSS_LIFT_HEIGHT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 110);
+    FillEllipse(m_screen, cx, ground, static_cast<int>(body.w * 0.55f * shrink), static_cast<int>(8 * shrink));
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    if (airborne && m_tornadoSheet != NULL)
+    {
+        int frame = practice::TornadoFrame(m_boss.AirTime());
+        SDL_Rect src = { (frame % TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE, (frame / TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE,
+            TORNADO_FRAME_SIZE, TORNADO_FRAME_SIZE };
+        const int size = 112;
+        SDL_Rect dst = { cx - size / 2, ground - static_cast<int>(lift) - size / 2 + 24, size, size };
+        SDL_RenderCopy(m_screen, m_tornadoSheet, &src, &dst);
+    }
+
+    if (sprite.p_object_ == NULL)
+        return;
+    int x = static_cast<int>(body.x - e.bodyLeft * def.scale);
+    int y = static_cast<int>(practice::GROUND_LINE_Y - e.feetRow * def.scale - lift);
+    bool flash = m_enemyFlashLeft > 0.0f;
+    if (flash)
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
+    else
+        SDL_SetTextureColorMod(sprite.p_object_, def.tint[0], def.tint[1], def.tint[2]);
+    sprite.RenderFrameScaled(m_screen, x, y, def.scale);
+    SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+}
+
+// Where each delayed spell will land: a faint circle of its reach and a ring closing in on the impact point.
+void GameManager::RenderBossImpacts()
+{
+    if (!m_bossActive)
+        return;
+    const int ground = static_cast<int>(practice::GROUND_LINE_Y);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < m_boss.PendingCount(); ++i)
+    {
+        const practice::PendingSpell& p = m_boss.GetPending(i);
+        SDL_Color c = p.skill == invoker::SkillId::SunStrike ? SDL_Color{ 255, 215, 80, 255 }
+            : p.skill == invoker::SkillId::ChaosMeteor ? SDL_Color{ 255, 120, 30, 255 } : SDL_Color{ 190, 100, 255, 255 };
+        float radius = practice::BossSpellRadius(p.skill);
+        float progress = p.delay > 0.0f ? 1.0f - p.left / p.delay : 1.0f;  // 0 at the cast, 1 at the impact
+        int cx = static_cast<int>(p.x);
+        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 70);
+        DrawEllipse(m_screen, cx, ground, static_cast<int>(radius), static_cast<int>(radius * 0.22f));
+        int rx = static_cast<int>(radius * (1.0f - progress)) + 4;
+        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, static_cast<Uint8>(120 + 120 * progress));
+        for (int k = 0; k < 2; ++k)
+            DrawEllipse(m_screen, cx, ground + k, rx, static_cast<int>(rx * 0.22f) + 1);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+}
+
+// Row 1: HP squares, the boss's name and its HP bar. Row 2: the fight's time. ESC BACK on the right.
+void GameManager::RenderBossHud()
+{
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color grey = { 200, 200, 210, 255 };
+    char buf[64];
+
+    pixeltext::DrawShadowed(m_screen, "HP", 16, 12, 2, white);
+    for (int i = 0; i < practice::START_HP; ++i)
+    {
+        SDL_Rect box = { 56 + i * 24, 10, 18, 18 };
+        bool blinkOn = i == m_hpBlinkIndex && m_hpBlinkLeft > 0.0f && static_cast<int>(m_hpBlinkLeft * 16.0f) % 2 == 0;
+        if (blinkOn)
+            SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+        else if (i < m_boss.PlayerHp())
+            SDL_SetRenderDrawColor(m_screen, 220, 50, 50, 255);
+        else
+            SDL_SetRenderDrawColor(m_screen, 40, 20, 24, 255);
+        SDL_RenderFillRect(m_screen, &box);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+        SDL_RenderDrawRect(m_screen, &box);
+    }
+
+    const practice::BossDefinition& def = m_boss.Def();
+    pixeltext::DrawShadowed(m_screen, def.name, 190, 12, 2, gold);
+    int barX = 190 + pixeltext::Width(def.name, 2) + 16;
+    int segment = BOSS_HP_BAR_W / def.hp;
+    for (int i = 0; i < def.hp; ++i)
+    {
+        SDL_Rect seg = { barX + i * segment, 9, segment - 4, 20 };
+        if (i < m_boss.BossHp())
+            SDL_SetRenderDrawColor(m_screen, 170, 60, 220, 255);
+        else
+            SDL_SetRenderDrawColor(m_screen, 30, 20, 40, 255);
+        SDL_RenderFillRect(m_screen, &seg);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+        SDL_RenderDrawRect(m_screen, &seg);
+    }
+
+    char value[16];
+    FormatTime(value, sizeof(value), m_boss.Elapsed());
+    snprintf(buf, sizeof(buf), "TIME %s", value);
+    pixeltext::DrawShadowed(m_screen, buf, 190, 42, 2, white);
+    if (m_boss.State() == practice::BossState::Fighting)
+        pixeltext::DrawShadowed(m_screen, "ESC  BACK", SCREEN_WIDTH - pixeltext::Width("ESC  BACK", 2) - 16, 42, 2, grey);
+}
+
+// The combo at the top right: one icon tile per spell in order (done = green, cast and on its way = blue,
+// next = pulsing gold), the next spell's name above, the recipe orbs under each tile with the RECIPE HINT on.
+// In the middle: boss 1's lesson line and its CAST NOW cue, or why the last attempt failed.
+void GameManager::RenderBossCombo()
+{
+    if (!m_bossActive || m_boss.State() != practice::BossState::Fighting)
+        return;
+    const practice::BossDefinition& def = m_boss.Def();
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color grey = { 190, 190, 200, 255 };
+    const SDL_Color red = { 255, 110, 110, 255 };
+    char buf[64];
+
+    int n = def.comboLength;
+    int width = n * BOSS_COMBO_TILE + (n - 1) * BOSS_COMBO_GAP;
+    int x0 = SCREEN_WIDTH - 16 - width;
+    bool running = m_boss.AttemptRunning();
+    int next = running ? m_boss.CastSteps() : 0;
+
+    if (running && next >= n)
+        snprintf(buf, sizeof(buf), "COMBO CAST - WAIT FOR IT");
+    else
+        snprintf(buf, sizeof(buf), "NEXT: %s", invoker::GetSkillDefinition(def.combo[next]).name);
+    pixeltext::DrawShadowed(m_screen, buf, SCREEN_WIDTH - 16 - pixeltext::Width(buf, 2), 64, 2, gold);
+
+    for (int i = 0; i < n; ++i)
+    {
+        SDL_Rect tile = { x0 + i * (BOSS_COMBO_TILE + BOSS_COMBO_GAP), BOSS_COMBO_Y, BOSS_COMBO_TILE, BOSS_COMBO_TILE };
+        bool done = running && m_boss.StepDone(i);
+        bool cast = running && i < next;
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
+        SDL_RenderFillRect(m_screen, &tile);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        m_skillIcons[static_cast<int>(def.combo[i])].RenderAt(m_screen, tile.x + 2, tile.y + 2, BOSS_COMBO_TILE - 4);
+        if (done)
+            SDL_SetRenderDrawColor(m_screen, 90, 230, 110, 255);
+        else if (cast)
+            SDL_SetRenderDrawColor(m_screen, 90, 190, 255, 255);
+        else
+            SDL_SetRenderDrawColor(m_screen, 120, 125, 140, 255);
+        for (int k = 0; k < (done || cast ? 3 : 1); ++k)
+        {
+            SDL_Rect frame = { tile.x - k, tile.y - k, tile.w + 2 * k, tile.h + 2 * k };
+            SDL_RenderDrawRect(m_screen, &frame);
+        }
+        if (i == next && !(running && next >= n))
+            RenderHighlight(tile);
+        if (i + 1 < n)
+            pixeltext::DrawShadowed(m_screen, ">", tile.x + BOSS_COMBO_TILE + BOSS_COMBO_GAP / 2 - 5, tile.y + 13, 2, grey);
+        if (m_recipeHint)
+        {
+            const invoker::Recipe& r = invoker::GetSkillDefinition(def.combo[i]).recipe;
+            const int counts[3] = { r.quas, r.wex, r.exort };
+            int ox = tile.x + BOSS_COMBO_TILE / 2 - 15;  // three 14 px orbs, 15 px apart, centred under the tile
+            for (int element = 0; element < 3; ++element)
+            {
+                for (int c = 0; c < counts[element]; ++c, ox += 15)
+                {
+                    int oy = BOSS_COMBO_Y + BOSS_COMBO_TILE + 11;
+                    SDL_Color col = kOrbColors[element];
+                    SDL_SetRenderDrawColor(m_screen, 10, 12, 18, 255);
+                    draw::FillCircle(m_screen, ox, oy, 8);
+                    SDL_SetRenderDrawColor(m_screen, col.r, col.g, col.b, 255);
+                    draw::FillCircle(m_screen, ox, oy, 7);
+                    const char* letter = element == 0 ? "Q" : element == 1 ? "W" : "E";
+                    const SDL_Color white = { 255, 255, 255, 255 };
+                    pixeltext::Draw(m_screen, letter, ox - 2, oy - 3, 1, white);
+                }
+            }
+        }
+    }
+
+    if (def.guided)
+        pixeltext::DrawCentered(m_screen, "TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", SCREEN_WIDTH, 100, 1, grey);
+    if (m_boss.CueNow())
+    {
+        float t = SDL_GetTicks() / 1000.0f;
+        SDL_Color pulse = { 255, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 80, 255 };
+        pixeltext::DrawCentered(m_screen, "CAST NOW!", SCREEN_WIDTH, 116, 3, pulse);
+    }
+    else if (!running && m_boss.LastFail() != practice::ComboFail::None)
+    {
+        practice::ComboFail f = m_boss.LastFail();
+        snprintf(buf, sizeof(buf), "LAST TRY: %s", f == practice::ComboFail::WrongSpell ? "WRONG SPELL"
+            : f == practice::ComboFail::TooEarly ? "TOO EARLY" : f == practice::ComboFail::TooLate ? "TOO LATE" : "MISSED");
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 118, 2, red);
+    }
+}
+
+// The three bosses, each with its combo and best time; arrows + Enter, 1-3, or a tap.
+void GameManager::RenderBossSelect()
+{
+    DimScreen(190);
+    const SDL_Rect& panel = BOSS_SELECT_PANEL;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 235);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    pixeltext::DrawCentered(m_screen, "BOSS FIGHTS", SCREEN_WIDTH, panel.y + 16, 3, gold);
+    pixeltext::DrawCentered(m_screen, "ONLY A FULL COMBO HURTS A BOSS", SCREEN_WIDTH, panel.y + 48, 1, grey);
+
+    char buf[96], time[16];
+    for (int i = 0; i < practice::BOSS_COUNT; ++i)
+    {
+        const practice::BossDefinition& def = practice::GetBossDefinition(i);
+        SDL_Rect r = BossSelectRect(i);
+        bool selected = i == m_bossSelect;
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 26, 28, 40, selected ? 240 : 180);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 130, 220);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+        snprintf(buf, sizeof(buf), "%d  %s", i + 1, def.name);
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 12, 3, selected ? gold : white);
+        buf[0] = '\0';
+        for (int k = 0; k < def.comboLength; ++k)
+        {
+            if (k > 0)
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), " > ");
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%s", invoker::GetSkillDefinition(def.combo[k]).name);
+        }
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 50, 2, white);
+        if (m_bossBest[i] > 0.0f)
+        {
+            FormatTime(time, sizeof(time), m_bossBest[i]);
+            snprintf(buf, sizeof(buf), "BEST %s", time);
+        }
+        else
+            snprintf(buf, sizeof(buf), "NOT BEATEN YET");
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 80, 2, m_bossBest[i] > 0.0f ? gold : grey);
+        if (selected)
+            RenderHighlight(r);
+    }
+    const char* help = m_showTouchControls ? "TAP A BOSS TO FIGHT   TAP OUTSIDE TO GO BACK" : "1-3 / ENTER: FIGHT     ESC: BACK";
+    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
+}
+
+// Victory or defeat: the time, the best time, and how to go on (the same tap zones as Practice's Game Over).
+void GameManager::RenderBossResult()
+{
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color red = { 235, 70, 70, 255 };
+    const SDL_Color grey = { 200, 200, 210, 255 };
+    char buf[64], value[16];
+    bool won = m_boss.State() == practice::BossState::Won;
+    int i = m_boss.BossIndex();
+
+    DimScreen(170);
+    pixeltext::DrawCentered(m_screen, won ? "BOSS DEFEATED!" : "DEFEATED", SCREEN_WIDTH, 70, 6, won ? gold : red);
+    pixeltext::DrawCentered(m_screen, m_boss.Def().name, SCREEN_WIDTH, 150, 3, white);
+    if (won)
+    {
+        FormatTime(value, sizeof(value), m_boss.Elapsed());
+        snprintf(buf, sizeof(buf), m_bossNewBest ? "TIME %s  NEW BEST!" : "TIME %s", value);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 200, 3, m_bossNewBest ? gold : white);
+    }
+    else
+    {
+        snprintf(buf, sizeof(buf), "BOSS HP LEFT %d / %d", m_boss.BossHp(), m_boss.Def().hp);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 200, 3, white);
+    }
+    if (m_bossBest[i] > 0.0f)
+    {
+        FormatTime(value, sizeof(value), m_bossBest[i]);
+        snprintf(buf, sizeof(buf), "BEST TIME %s", value);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 250, 2, grey);
+    }
+    if (m_boss.Assisted())
+        pixeltext::DrawCentered(m_screen, "RECIPE HINT WAS ON - NO BEST TIME", SCREEN_WIDTH, 280, 2, grey);
+
+    pixeltext::DrawCentered(m_screen, "PRESS ENTER TO FIGHT AGAIN", SCREEN_WIDTH, 350, 3, white);
+    pixeltext::DrawCentered(m_screen, "ESC  BOSS LIST", SCREEN_WIDTH, 395, 2, grey);
 }
 
 bool GameManager::loadBackgroundLayers() {

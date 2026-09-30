@@ -30,6 +30,7 @@ FEATURES
 - A recipe list to look up any spell between runs.
 - An optional recipe hint while you learn (runs with the hint are not ranked).
 - Endless mode: 3 hearts, rising speed, score, combo, accuracy and survival time.
+- Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down.
 - Your 10 best runs by survival time, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs.
 - Chiptune sound effects, spell effects for all ten spells.
@@ -58,7 +59,13 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
-## Release notes (first closed test, max 500)
+## Release notes (1.2.0, versionCode 2, max 500)
+
+```
+New: Boss fights! Three bosses that only take damage from a full combo with the right timing - Tornado, then Sun Strike, Chaos Meteor, EMP and Deafening Blast landing as the boss comes down. Start with the Stone Knight: it tells you when to cast.
+```
+
+## Release notes (first closed test, 1.1.0 / versionCode 1, max 500)
 
 ```
 First test version of Injoker. Try the tutorial first, then see how long you survive. Feedback is very welcome!

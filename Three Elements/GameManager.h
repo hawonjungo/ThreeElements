@@ -14,6 +14,7 @@
 #include "Core/Invoker.h"
 #include "Practice/Practice.h"
 #include "Practice/Tutorial.h"
+#include "Practice/Boss.h"
 #include <vector>
 using namespace std;
 //Screen dimension constants
@@ -142,12 +143,12 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
 // Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
-enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
+enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_BOSS, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
 const int MENU_X = 340;
 const int MENU_Y = 238;
 const int MENU_W = 248;
-const int MENU_ITEM_H = 34;
-const int MENU_STEP = 40;
+const int MENU_ITEM_H = 31;   // 8 lines (7 on the web) must end above the bottom edge
+const int MENU_STEP = 35;
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 628, 250, 276, 150 };
 const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 474, 430, 230, 36 };
@@ -161,6 +162,16 @@ const float TUTORIAL_WRONG_FLASH = 0.6f;    // s: the expected key flashes after
 const float TUTORIAL_SPAWN_FLASH = 3.0f;    // s: a new run enemy and its target are highlighted
 const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 224, 430, 230, 36 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
+
+// Boss mode (spec §25): the boss list (menu line BOSS FIGHTS / key B), the fight's HUD, the result screen.
+const SDL_Rect BOSS_SELECT_PANEL = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
+const int BOSS_SELECT_ROW_Y = 94;       // the first boss's row
+const int BOSS_SELECT_ROW_H = 108;
+const int BOSS_SELECT_ROW_STEP = 120;
+const int BOSS_COMBO_TILE = 40;         // the combo strip at the top right: one icon tile per spell
+const int BOSS_COMBO_GAP = 22;          // room for the ">" between two tiles
+const int BOSS_COMBO_Y = 84;            // under "NEXT: ..." (y 64), clear of the orb row (y 150) even with the hint orbs
+const int BOSS_HP_BAR_W = 220;
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
 const float FEEDBACK_TEXT_TIME = 0.7f;    // "+1" / "MISS" rise and vanish
@@ -234,7 +245,13 @@ protected:
 	bool m_tutorialActive = false;        // the tutorial is on screen (the Practice session waits in Ready)
 	bool m_tutorialDone = false;          // finished once on this machine / browser (saved with the settings)
 	float m_tutorialWrongFlash = 0.0f;
-	float m_tutorialSpawnFlash = 0.0f;     // touch device (web media query) or any finger touch seen; PC keeps it off
+	float m_tutorialSpawnFlash = 0.0f;
+	practice::BossSession m_boss;          // spec §25; only meaningful while m_bossActive
+	bool m_bossActive = false;             // a boss fight (or its result screen) is on screen
+	bool m_showBossSelect = false;         // the boss list is open
+	int m_bossSelect = 0;                  // highlighted boss in the list
+	float m_bossBest[practice::BOSS_COUNT] = {};  // best fight time per boss in s (0 = not beaten yet), saved
+	bool m_bossNewBest = false;            // the fight that just ended set its boss's best time     // touch device (web media query) or any finger touch seen; PC keeps it off
 
 	// Sound for a key the Core has handled (orb, invoke, cast whoosh), the Ghost Walk aura and the skill effect;
 	// shared by Practice and the tutorial. The judged outcome (right / wrong) is handled by OnCastJudged.
@@ -328,10 +345,42 @@ private:
 	void RenderTutorial();
 	void RenderHighlight(SDL_Rect rect);        // pulsing gold frame around what the player should look at
 	void RenderButton(const SDL_Rect& rect, const char* label, bool pulse);
+	// boss mode (spec §25)
+	void StartBoss(int boss);
+	void ExitBoss();                            // back to the boss list
+	void HandleBossSelectKey(SDL_Keycode sym);
+	void HandleBossKey(SDL_Keycode sym, const SDL_Event& e);
+	bool HandleBossPointer(int x, int y);
+	void ProcessBossAction(invoker::InputAction action);
+	void PresentBossUpdate(const practice::BossUpdateResult& result);
+	void OnBossFail(practice::ComboFail reason);
+	void BossText(const char* text, SDL_Color color);  // rises above the boss, like "+1" / "MISS"
+	void LoadBossTimes();
+	void SaveBossTimes();
+	SDL_Rect BossSelectRect(int index) const;
+	practice::Bounds BossDrawnBody() const;     // the boss's body where it is drawn (raised while in the air)
+	void RenderBoss();
+	void RenderBossImpacts();
+	void RenderBossHud();
+	void RenderBossCombo();
+	void RenderBossSelect();
+	void RenderBossResult();
 	// what the play view shows: the tutorial's invoker / enemy while it runs, the Practice session's otherwise
-	const invoker::InvokerState& ShownInvoker() const { return m_tutorialActive ? m_tutorial.Invoker() : m_session.Invoker(); }
-	const practice::ActiveEnemy& ShownEnemy() const { return m_tutorialActive ? m_tutorial.Enemy() : m_session.Enemy(); }
-	bool IsPlayView() const { return m_tutorialActive || m_session.State() == practice::GameState::Playing; }
+	// (in a boss fight: the fight's invoker, and no Practice enemy)
+	const invoker::InvokerState& ShownInvoker() const
+	{
+		return m_tutorialActive ? m_tutorial.Invoker() : m_bossActive ? m_boss.Invoker() : m_session.Invoker();
+	}
+	const practice::ActiveEnemy& ShownEnemy() const
+	{
+		static const practice::ActiveEnemy none = {};
+		return m_tutorialActive ? m_tutorial.Enemy() : m_bossActive ? none : m_session.Enemy();
+	}
+	bool IsPlayView() const
+	{
+		return m_tutorialActive || (m_bossActive && m_boss.State() == practice::BossState::Fighting)
+			|| m_session.State() == practice::GameState::Playing;
+	}
 	SDL_Rect TargetHintArea(invoker::SkillId target, int& textX) const;  // where RenderTargetHint draws
 	void RenderRecipesButton(const SDL_Rect& rect);
 	void RenderRecipes();

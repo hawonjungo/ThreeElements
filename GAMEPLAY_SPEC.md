@@ -329,3 +329,61 @@ A short guided introduction for players who have never played Invoker. Owner dec
 | 3 | Rules | C: `ORDER DOES NOT MATTER: QQW = QWQ = WQQ` · C: `A NEW SPELL GOES TO D, THE OLD ONE TO F. BOTH CAST` (slots *highlighted*) · C: `WRONG SPELL = MISS. NO DAMAGE. TRY AGAIN` · C: `FORGOT A RECIPE? PRESS H FOR THE LIST` | The remaining rules, as cards |
 | 4 | Your turn | C: `NOW YOU. READ THE TARGET, FIND THE KEYS` · 3 slow dummies, random targets; each new one and its `TARGET` hint *highlighted* for a moment; H opens the Recipes list (enemies stop); HP shown, a leak takes a heart but never ends the run | The full loop on your own |
 | — | End | C: `TUTORIAL COMPLETE` · `ENTER  PLAY PRACTICE` / `ESC  MENU` | — |
+
+## 25. Boss mode (update 1.2)
+
+**Status: CONFIRMED by the owner 2026-09-30 and implemented the same day** (`Practice/Boss.*`, tested in `Tests/PracticeTests`; drawn by `GameManager::RenderBoss*`; "triển khai 2 3 4": the proposals of the Combo/Boss discussion recorded in PLAN.md, taken as they were proposed). A separate mode next to Practice and the Tutorial. It trains the Invoker skill Practice cannot: **timing** delayed spells so they land together, and invoking 3–4 spells with only two slots. Practice rules (§§3–19) are unchanged; everything below applies to Boss mode only.
+
+### Entering and leaving
+
+- **B-1 [CONFIRMED]** Menu line **BOSS** (key B) opens the boss list; all three bosses can be chosen from the start (no unlocks). A fight starts at once. Esc / Back leaves the fight for the menu at any time (nothing is saved for an abandoned fight).
+- **B-2 [CONFIRMED]** Q/W/E/R/D/F work exactly as in Practice (Core `InvokerState`, no cooldowns). The player has **3 HP**. The Recipes list is not available during a fight (as in Practice). RECIPE HINT works as in §17 (see B-12).
+
+### The boss
+
+- **B-3 [CONFIRMED]** One boss per fight. It walks toward the player at its speed. When it reaches the player (the Practice hit line): **HP −1**, a running combo fails, and the boss is knocked back to `BOSS_RESET_X`. HP 0 = **defeat**.
+- **B-4 [CONFIRMED]** The boss has **combo HP**: it only loses 1 HP when its whole combo is completed (B-7). Single spells never damage it. HP 0 = **victory**.
+
+### Spell timelines (Boss mode only)
+
+- **B-5 [CONFIRMED]** Initial tuning values, Dota 2 Invoker as the reference, all in one table in `Practice/Boss.h`:
+
+| Spell | Boss mode behaviour |
+|---|---|
+| Tornado | Projectile from the player (700 px/s, aimed at the boss at cast time). On hit it **lifts the boss for 2.5 s**; the boss is **invulnerable in the air** and comes down on the same spot. A Tornado passes through a boss that is already in the air |
+| Sun Strike | Lands **1.7 s** after the cast, where the boss was at cast time (radius 70 px) |
+| Chaos Meteor | Lands **1.3 s** after the cast, where the boss was at cast time (radius 80 px) |
+| EMP | Detonates **2.9 s** after the cast, where the boss was at cast time (radius 120 px) |
+| Deafening Blast | Projectile from the player (700 px/s); hits the boss when it reaches it |
+| the other five | No effect on the boss (drawn as usual) |
+
+A spell "lands" on the boss when its impact happens within its radius of the boss's body (projectiles: when they reach it).
+
+### Combos
+
+- **B-6 [CONFIRMED]** Each boss has one combo: an ordered list of spells that always starts with Tornado. It is shown at the top right as spell names (and small icons) in order; the next spell is highlighted, done ones are marked.
+- **B-7 [CONFIRMED]** Judging (fixed combos, option (a) of the discussion):
+  1. An **attempt** starts when Tornado is cast while the boss is on the ground and no attempt is running. Before that, other spells do nothing (not a failure).
+  2. During an attempt the player must **cast** the remaining spells **in the shown order**. Casting a spell out of order **fails** the attempt (`WRONG SPELL`). Casting the spell just cast again, or anything after the whole list has been cast, is ignored (a double tap never fails a combo).
+  3. The boss lands `2.5 s` after the attempt's Tornado hit; the landing opens the **window** (1.2 s for boss 1, 1.0 s for bosses 2 and 3). **Every** follow-up spell must land on the boss **inside the window**: landing while the boss is still in the air (or before it was lifted) fails the attempt (`TOO EARLY`); landing outside its radius fails it (`MISSED`); the window closing before all have landed fails it (`TOO LATE`). A Tornado that never hits also fails it (`MISSED`).
+  4. All follow-ups land in the window: **combo complete**, boss HP −1, and the boss is pushed back 200 px (at most to `BOSS_RESET_X`).
+  5. After a failure, spells of that attempt still on their way do nothing. A new attempt starts with the next Tornado on a grounded boss.
+- **B-8 [CONFIRMED]** Targeting v1: no free aiming; delayed spells land where the boss was when they were cast. The difficulty is the timing (free aiming is FUTURE).
+
+### Bosses (v1)
+
+- **B-9 [CONFIRMED]** Art v1: existing enemy sprites drawn larger and tinted, with an HP bar (owner art can replace them later).
+
+| # | Boss | Combo | HP | Speed | Window |
+|---|---|---|---|---|---|
+| 1 | Stone Knight | Tornado → Sun Strike | 3 | 40 px/s | 1.2 s |
+| 2 | Dark Wizard | Tornado → Chaos Meteor → Deafening Blast | 3 | 45 px/s | 1.0 s |
+| 3 | Kitsune Queen | Tornado → EMP → Chaos Meteor → Deafening Blast | 3 | 50 px/s | 1.0 s |
+
+- **B-10 [CONFIRMED]** **Boss 1 is the lesson** (point 8 of the discussion, built into the first boss instead of a separate tutorial lesson): a line explains `TORNADO LIFTS IT. LAND THE NEXT SPELL AS IT COMES DOWN`, and while the boss is in the air a **`CAST NOW`** cue appears exactly when casting the next spell would make it land inside the window. Bosses 2 and 3 show no cue.
+- **B-11 [CONFIRMED]** Timing is visible for every boss: a ring on the ground shows where each delayed spell will land and closes as its impact nears; the boss's shadow shows it is in the air.
+
+### Results
+
+- **B-12 [CONFIRMED]** Victory shows the fight time; the **best time per boss** is saved locally (like the records) and shown in the boss list. A fight with the recipe hint on at any moment (§17 H-1) is **assisted**: no best time. No leaderboard for Boss mode yet (FUTURE: its own board).
+- **B-13 [CONFIRMED]** Architecture: a `BossSession` in the Practice layer (`Practice/Boss.*`, no SDL, time passed in as `dt`, unit-tested like `TutorialSession`); the Core and `PracticeSession` are untouched. The presentation draws the boss (lift, shadow, HP bar), impact rings, the combo panel, the cue and the result screens.

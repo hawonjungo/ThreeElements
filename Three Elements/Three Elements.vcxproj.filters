@@ -54,6 +54,9 @@
     <ClCompile Include="Practice\Tutorial.cpp">
       <Filter>Practice</Filter>
     </ClCompile>
+    <ClCompile Include="Practice\Boss.cpp">
+      <Filter>Practice</Filter>
+    </ClCompile>
     <ClCompile Include="PixelText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -99,6 +102,9 @@
       <Filter>Practice</Filter>
     </ClInclude>
     <ClInclude Include="Practice\Tutorial.h">
+      <Filter>Practice</Filter>
+    </ClInclude>
+    <ClInclude Include="Practice\Boss.h">
       <Filter>Practice</Filter>
     </ClInclude>
     <ClInclude Include="PixelText.h">

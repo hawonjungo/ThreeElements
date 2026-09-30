@@ -131,10 +131,10 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - **Android: Google Play Games Services** sign-in and leaderboard (weekly by default + all-time). Needs the app created in Play Console (the owner has a developer account since 2026-09-30).
 - **Web: a server of our own** (to choose: hosting, how web players are identified, anti-cheat basics). Note: two separate boards unless the server also serves Android.
 
-### Combo / Boss mode — owner idea 2026-09-30  *(not started; planned as update **1.2**, after 1.1 is in the Google Play closed test)*
+### Combo / Boss mode — owner idea 2026-09-30  *(implemented 2026-09-30 as version **1.2.0**; spec GAMEPLAY_SPEC.md §25)*
 A separate mode on top of Practice: a boss appears and only takes damage from a real Invoker **combo executed with Dota-like timing**, e.g. Tornado lifts it → Chaos Meteor / Sun Strike timed to land as it comes down → Deafening Blast pushes it back.
 
-**Discussion 2026-09-30 (proposals, to be confirmed by the owner in a spec before any code):**
+**Discussion 2026-09-30** (the owner then said "triển khai 2 3 4": all proposals accepted as written; they became spec §25, point 8 was folded into boss 1 as its CAST NOW cue):
 - **Timing is the core.** Every spell gets a cast→impact timeline in Boss mode only; **Practice stays instant** (no rule change). Reference values from Dota (max level, to re-check when writing the spec; all in one tunable table): Tornado lift ~2.5–2.9 s, boss **invulnerable while airborne**, falls where it was lifted · Sun Strike lands after **1.7 s** at the boss's position at cast time · Chaos Meteor lands after **1.3 s**, then rolls forward and burns · EMP detonates after **2.9 s** · Deafening Blast travels and knocks back · Cold Snap short stun per hit · Ice Wall slow · Forge Spirit / Alacrity / Ghost Walk: little role in v1 combos.
 - **The skill trained:** cast the delayed spells early so they land the moment the boss touches down (landing while airborne = miss), and invoke 3–4 spells with only two D/F slots (pre-invoke two, invoke the rest during the lift). No cooldowns needed.
 - **Proposed decisions (owner to answer point by point):**
@@ -176,3 +176,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-30 — **Renamed to Injoker** (product name for Google Play; repo/folders unchanged): new player character gliding over a magic ring with the loaded orbs circling it, Ready-screen logo, Android app id `net.relifes.injoker`, new launcher / web / store icons (`art/make_injoker.py`). Web domain change to injoker.relifes.net pending the owner's DNS record.
 - 2026-09-30 — **Main menu + leaderboard UI**: one option per line (arrows/Enter/hotkeys/tap), top 3 by survival time beside it, top 10 screen with MY BEST, Game Over rank line; this device's list for now. Pixel font gains `#`.
 - 2026-09-30 — **Google Play release prep:** signed AAB, targetSdk 36 (+ Back fix for Android 16), 16 KB alignment verified, adaptive icon, listing/declarations/feature graphic/screenshots, privacy policy on the web.
+- 2026-09-30 — **1.1.0:** RECIPE HINT option (spec §17 H-1..H-4), policy / terms / support pages linked from the game page.
+- 2026-09-30 — **1.2.0 Boss mode** (spec §25): `Practice/Boss.*` (`BossSession`, 93 new test checks → Practice tests 1062), menu line BOSS FIGHTS, three bosses with Dota-timed combos, impact rings, CAST NOW cue on boss 1, best time per boss; versionCode 2.
