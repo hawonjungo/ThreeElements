@@ -124,6 +124,14 @@ Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK install
 - [ ] First successful APK build and install on the owner's phone; latency and layout check on the device.
 - [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
+### Combo / Boss mode — owner idea 2026-09-30  *(not started; after the first Google Play release, planned as update 1.1)*
+A separate mode on top of Practice: a boss appears and only takes damage from a real Invoker **combo executed with Dota-like timing**, e.g. Tornado lifts it → Chaos Meteor / Sun Strike timed to land as it comes down → Deafening Blast pushes it back. The boss loses exactly the combo's HP only when the combo is completed correctly.
+- Needs (not in the game today): per-spell cast→impact delays (Dota values as reference: Sun Strike ~1.7 s, Chaos Meteor ~1.3 s fall, EMP ~2.9 s, Tornado lift ~2 s during which the boss is invulnerable), boss states (grounded / airborne / knocked back / slowed), damage only when the boss is in the right state and place at impact, boss HP bar, boss sprite, a combo tutorial.
+- Architecture: a `ComboSession` in the Practice layer (pure timeline simulation, unit-tested), like `TutorialSession`; Practice untouched.
+- Open decisions to settle in a spec first: the first 3–4 combos (proposed: Tornado→Sun Strike, Tornado→Meteor→Blast, Tornado→EMP→Meteor→Blast "TEMB", Cold Snap→Forge Spirit), whether the combo's spell order is shown, targeting (proposed v1: spells land where the boss is at cast time, the skill is the timing; free aiming later), what a failed / mistimed combo does, boss art.
+- Later: **items** (Refresher, Eul's, Blink...). Refresher only makes sense with cooldowns, which the game does not have: a design decision for then.
+- Pulls part of Phase 8 (combat) forward, by owner decision.
+
 ### Phase 8 — Future Combat / Story  *(deliberately not started)*
 Design note only, when the MVP has proven fun: Threne story, Evil King, hero roles, assign-cards screens, real skill effects/damage, bosses, multi-target hard modes, beginner-mode hints. Builds on Core; no code before this phase is explicitly opened.
 
