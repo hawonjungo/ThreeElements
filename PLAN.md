@@ -179,3 +179,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-30 — **1.1.0:** RECIPE HINT option (spec §17 H-1..H-4), policy / terms / support pages linked from the game page.
 - 2026-09-30 — **1.2.0 Boss mode** (spec §25): `Practice/Boss.*` (`BossSession`, 93 new test checks → Practice tests 1062), menu line BOSS FIGHTS, three bosses with Dota-timed combos, impact rings, CAST NOW cue on boss 1, best time per boss; versionCode 2.
 - 2026-09-30 — **1.2.1** (owner feedback: bosses too hard): timing grades PERFECT / GREAT / GOOD with damage in % (a perfect combo kills at once, otherwise 2-3 combos), a missed spell only loses its share, timing bars under the combo icons with RECIPE HINT on (spec §25 B-4, B-7, B-14, B-15); Practice tests 1090; versionCode 3.
+- 2026-09-30 — **1.2.2:** BOSS FIGHTS moved right under PLAY in the menu; build files named after the version (`injoker-<version>-vc<code>-release.aab`); versionCode 4.

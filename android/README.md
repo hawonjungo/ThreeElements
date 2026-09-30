@@ -22,7 +22,7 @@ From Git Bash in `android/` (Java: the JDK that ships with Android Studio):
 
 ```bash
 export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
-./gradlew assembleDebug          # -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleDebug          # -> app/build/outputs/apk/debug/injoker-<version>-vc<code>-debug.apk
 ./gradlew installDebug           # installs on the phone connected with USB debugging on
 ```
 
@@ -36,7 +36,7 @@ connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-t
 - **Upload key:** `D:/Dev/Keys/injoker-upload.jks` (alias `upload`), passwords in `D:/Dev/Keys/injoker-keystore.properties`.
   Neither is in git; `local.properties` points at the properties file (`injoker.signing=...`). **Back both up** somewhere
   safe: losing the upload key means asking Google to reset it. Google Play App Signing holds the real app-signing key.
-- **Build the bundle:** `./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab` (signed with the
+- **Build the bundle:** `./gradlew bundleRelease` → `app/build/outputs/bundle/release/injoker-<version>-vc<code>-release.aab` (the file name carries the version, e.g. `injoker-1.2.2-vc4-release.aab`) (signed with the
   upload key). Raise `versionCode` in `app/build.gradle` for every upload.
 - Play requirements already handled: targetSdk 36; native libraries 16 KB page aligned
   (`ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES`, verify with `llvm-readelf -lW lib*.so` → LOAD align `0x4000`); no permissions;

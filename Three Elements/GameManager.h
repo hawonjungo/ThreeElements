@@ -143,7 +143,7 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
 // Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
-enum MenuItem { MENU_PLAY, MENU_TUTORIAL, MENU_BOSS, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
+enum MenuItem { MENU_PLAY, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
 const int MENU_X = 340;
 const int MENU_Y = 238;
 const int MENU_W = 248;
