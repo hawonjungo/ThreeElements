@@ -1,4 +1,6 @@
-# Three Elements — Android (native SDL2)
+# Injoker — Android (native SDL2)
+
+App id `net.relifes.injoker` (permanent once on Google Play). Launcher icon: `art/make_injoker.py`.
 
 The same C++ game as the desktop and web builds, compiled for Android with the NDK. SDL's own Java glue
 (`SDLActivity`) runs it; `ThreeElementsActivity` only names the native libraries.

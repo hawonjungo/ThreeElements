@@ -8,12 +8,12 @@
 # Run from Git Bash (Windows) or any bash. Settings (environment variables, defaults in brackets):
 #   EMSDK_DIR      Emscripten SDK folder           [/d/Dev/tools/emsdk]
 #   WEB_BUILD_DIR  the one output folder           [/d/Dev/web-build]
-#   SITE_URL       published site, for the check   [http://3elements.relifes.net]
+#   SITE_URL       published site, for the check   [https://injoker.relifes.net]
 set -euo pipefail
 
 EMSDK_DIR="${EMSDK_DIR:-/d/Dev/tools/emsdk}"
 WEB_BUILD_DIR="${WEB_BUILD_DIR:-/d/Dev/web-build}"
-SITE_URL="${SITE_URL:-http://3elements.relifes.net}"
+SITE_URL="${SITE_URL:-https://injoker.relifes.net}"
 REPO_API="https://api.github.com/repos/hawonjungo/ThreeElements"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,6 +39,8 @@ em++ -O2 -std=c++14 \
 	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp \
 	-o "$WEB_BUILD_DIR/index.html"
 cp "$REPO_ROOT/web/manifest.webmanifest" "$WEB_BUILD_DIR/"
+mkdir -p "$WEB_BUILD_DIR/icons"
+cp "$REPO_ROOT/web/icons/"*.png "$WEB_BUILD_DIR/icons/"
 echo "Build OK: $(ls "$WEB_BUILD_DIR" | tr '\n' ' ')"
 
 [ "${1:-}" = "--deploy" ] || exit 0
@@ -54,6 +56,8 @@ trap 'git -C "$REPO_ROOT" worktree remove --force "$WT" 2> /dev/null || true' EX
 git -C "$WT" merge -q --ff-only origin/gh-pages
 
 cp "$WEB_BUILD_DIR"/{index.html,index.js,index.wasm,index.data,manifest.webmanifest} "$WT/"
+mkdir -p "$WT/icons"
+cp "$WEB_BUILD_DIR/icons/"*.png "$WT/icons/"
 SRC_SHA="$(git rev-parse --short HEAD)"
 git -C "$WT" add -A
 if git -C "$WT" diff --cached --quiet; then

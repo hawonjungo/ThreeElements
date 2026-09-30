@@ -30,10 +30,11 @@ namespace practice
 	constexpr float FIELD_HEIGHT = 544.0f;
 	const float GROUND_LINE_Y = 500.0f;  // y of the ground the enemies run on: their feetRow is drawn here
 
-	// Where spells leave the player: the front (right edge) of the player's body, at mid height. Measured on
-	// assets/main.bmp, whose visible pixels span x 99..143, y 457..496 when the sprite is drawn at (10, 385).
-	const float PLAYER_CAST_X = 143.0f;
-	const float PLAYER_CAST_Y = 476.0f;
+	// Where spells leave the player: the front of the player's body, at the hand holding the staff. The Injoker
+	// sprite (assets/player/injoker.png) is drawn 82 x 120 px with its left edge at x 44 and its feet on the ground
+	// (GameManager.h, PLAYER_DRAW_*), so it spans x 44..126, y 378..498; the staff hand is near (120, 450).
+	const float PLAYER_CAST_X = 128.0f;
+	const float PLAYER_CAST_Y = 450.0f;
 
 	// ---- enemies ----
 	const int ENEMY_TYPE_COUNT = 10;     // one visual identity per skill

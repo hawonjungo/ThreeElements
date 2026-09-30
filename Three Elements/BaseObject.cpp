@@ -111,3 +111,30 @@ void BaseObject::free()
 		rect_ = { 0, 0, 0, 0 };
 	}
 }
+
+bool BaseObject::LoadImgAlpha(const std::string& path, SDL_Renderer* screen)
+{
+	free();
+	SDL_Surface* surface = IMG_Load(path.c_str());
+	if (surface == NULL)
+	{
+		printf("Unable to load image %s: %s\n", path.c_str(), IMG_GetError());
+		return false;
+	}
+	p_object_ = SDL_CreateTextureFromSurface(screen, surface);
+	rect_.w = width_frame_ = surface->w;
+	rect_.h = height_frame_ = surface->h;
+	SDL_FreeSurface(surface);
+	if (p_object_ == NULL)
+		return false;
+	SDL_SetTextureBlendMode(p_object_, SDL_BLENDMODE_BLEND);
+	SDL_SetTextureScaleMode(p_object_, SDL_ScaleModeLinear);
+	return true;
+}
+
+void BaseObject::RenderScaled(SDL_Renderer* screen, const SDL_Rect& dst)
+{
+	if (p_object_ == NULL)
+		return;
+	SDL_RenderCopy(screen, p_object_, NULL, &dst);
+}

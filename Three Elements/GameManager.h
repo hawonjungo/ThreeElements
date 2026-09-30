@@ -60,9 +60,31 @@ const float GHOST_WALK_DURATION = 3.0f;  // seconds; a new cast starts the time 
 const int GHOST_WALK_DRAW_SIZE = 128;    // px on screen
 const Uint8 GHOST_WALK_ALPHA = 150;      // the ring's centre is a solid swirl: see-through, so the player stays clearly visible
 
-// Centre of the player's visible body (the sprite is drawn at (10, 385)); shared by every effect drawn on the player.
-const int PLAYER_BODY_CENTER_X = 121;
-const int PLAYER_BODY_CENTER_Y = 476;
+// The player: the owner's "Injoker" character (art/make_injoker.py). For now one standing picture that glides:
+// it bobs gently over a spinning magic ring while the background scrolls, and the orbs the player has loaded
+// circle it, Invoker-style (owner 2026-09-30, option A; a run cycle sprite sheet may replace the picture later).
+const char* const PLAYER_SPRITE_PATH = "assets/player/injoker.png";
+const int PLAYER_DRAW_H = 120;           // on-screen height (the file is 2x, drawn smoothed)
+const int PLAYER_DRAW_X = 44;            // left edge; the feet stand on practice::GROUND_LINE_Y
+const float PLAYER_BOB_PX = 3.0f;        // glide: up-and-down amplitude
+const float PLAYER_BOB_SPEED = 3.5f;     // rad/s
+// the magic ring under the feet and the orbit of the loaded orbs (an ellipse around the hat and shoulders)
+const int PLAYER_RING_RX = 58;
+const int PLAYER_RING_RY = 12;
+const int PLAYER_ORBIT_Y = 404;
+const int PLAYER_ORBIT_RX = 62;
+const int PLAYER_ORBIT_RY = 14;
+const float PLAYER_ORBIT_SPEED = 1.8f;   // rad/s
+const int PLAYER_ORB_RADIUS = 9;
+const float PLAYER_ORB_FLASH = 0.35f;    // s: the orbs flare when R invokes
+
+// Centre of the player's visible body; shared by every effect drawn on the player (Ghost Walk, Alacrity...).
+const int PLAYER_BODY_CENTER_X = 86;
+const int PLAYER_BODY_CENTER_Y = 440;
+
+// Ready screen logo (the same art as the app icon).
+const char* const TITLE_LOGO_PATH = "assets/title/injoker_logo.png";
+const int TITLE_LOGO_H = 170;
 
 // Skill icons (assets/skill, 128 px RGBA made by art/make_skill_icons.py) are drawn scaled to these sizes.
 const int SKILL_SLOT_SIZE = 64;     // D / F slots
@@ -156,6 +178,8 @@ protected:
 
 	// declare object
 	MainPlayer m_player;
+	BaseObject m_titleLogo;
+	float m_orbFlash = 0.0f;           // s left of the invoke flare on the orbiting orbs
 	Skill m_skillIcons[invoker::SKILL_COUNT];  // icon sprites, indexed by invoker::SkillId
 	Keyboard m_keyQ, m_keyW, m_keyE, m_keyR, m_keyD, m_keyF;  // key icons: orbs, invoke, slot labels; R was
 	                                                          // unused until the touch buttons needed an icon
@@ -267,6 +291,7 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
+	void RenderPlayer();          // magic ring, orbiting orbs and the gliding Injoker
 	// tutorial (spec §24)
 	void StartTutorial();
 	void ExitTutorial(bool startPractice);

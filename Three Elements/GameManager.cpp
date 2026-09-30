@@ -84,7 +84,7 @@ bool GameManager::InitSDL()
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");  // the game is landscape only
     windowFlags |= SDL_WINDOW_FULLSCREEN;
 #endif
-    m_window = SDL_CreateWindow("Three Elements",
+    m_window = SDL_CreateWindow("Injoker",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -158,7 +158,8 @@ void GameManager::LoopGame()
 
 void GameManager::LoadAssets()
 {
-    m_hasPlayer = m_player.LoadImg("assets/main.bmp", m_screen);
+    m_hasPlayer = m_player.LoadImgAlpha(PLAYER_SPRITE_PATH, m_screen);
+    m_titleLogo.LoadImgAlpha(TITLE_LOGO_PATH, m_screen);
 
     // key icons: the orbs (Q/W/E), invoke (R: touch button only, the keyboard has no on-screen R icon),
     // and the slot labels (D/F)
@@ -195,11 +196,6 @@ void GameManager::LoadAssets()
     LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
-    if (m_hasPlayer)
-    {
-        m_player.set_clips();
-        m_player.SetPos(10, 385);
-    }
 
 #ifdef __EMSCRIPTEN__
     // Phones/tablets show the on-screen Q/W/E/R/D/F cluster from the start; a PC browser keeps it hidden
@@ -289,6 +285,7 @@ bool GameManager::RunFrame()
             audio::Play(audio::Sfx::Start);
     }
     m_tutorialWrongFlash -= dt;
+    m_orbFlash -= dt;
     m_tutorialSpawnFlash -= dt;
     UpdateFeedback(dt);
     m_ghostWalkLeft = m_ghostWalkLeft > dt ? m_ghostWalkLeft - dt : 0.0f;
@@ -323,10 +320,7 @@ bool GameManager::RunFrame()
     renderBackgroundLayers();
 
     RenderGhostWalk();  // behind the player: the player is never covered
-    if (m_hasPlayer)
-    {
-        m_player.Render(m_screen);
-    }
+    RenderPlayer();
     RenderEnemy();
     RenderTornadoes();  // above the background, player and enemy, below the HUD
     RenderSkillVfx();   // code-drawn skill effects, above everything else in the scene
@@ -540,7 +534,10 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
         audio::Play(action == invoker::InputAction::Q ? audio::Sfx::OrbQuas
             : action == invoker::InputAction::W ? audio::Sfx::OrbWex : audio::Sfx::OrbExort);
     else if (result.event == invoker::InvokerEvent::Invoked)
+    {
         audio::Play(audio::Sfx::Invoke);
+        m_orbFlash = PLAYER_ORB_FLASH;
+    }
     else if (result.event == invoker::InvokerEvent::Cast && cast == practice::CastOutcome::None)
         audio::Play(audio::Sfx::Cast);
 
@@ -1066,6 +1063,76 @@ void GameManager::RenderSoundButton()
         muted ? off : on);
 }
 
+// The player: a magic ring turning under the feet, the loaded orbs circling the character (behind it on the far
+// half of the orbit, in front on the near half) and the Injoker picture gliding up and down between them.
+void GameManager::RenderPlayer()
+{
+    float t = SDL_GetTicks() / 1000.0f;
+    int bob = static_cast<int>(PLAYER_BOB_PX * std::sin(t * PLAYER_BOB_SPEED));
+    const int ground = static_cast<int>(practice::GROUND_LINE_Y);
+    const int cx = PLAYER_BODY_CENTER_X;
+
+    // magic ring: two thin ellipses and six runes going round, in the three element colours
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_ADD);
+    for (int ring = 0; ring < 2; ++ring)
+    {
+        int rx = PLAYER_RING_RX - ring * 14, ry = PLAYER_RING_RY - ring * 3;
+        SDL_Point pts[49];
+        for (int i = 0; i <= 48; ++i)
+        {
+            float a = 6.2831853f * i / 48.0f;
+            pts[i] = { cx + static_cast<int>(rx * std::cos(a)), ground + static_cast<int>(ry * std::sin(a)) };
+        }
+        SDL_SetRenderDrawColor(m_screen, 150, 120, 220, 120);
+        SDL_RenderDrawLines(m_screen, pts, 49);
+    }
+    for (int i = 0; i < 6; ++i)
+    {
+        float a = t * 0.9f + 6.2831853f * i / 6.0f;
+        SDL_Color c = kOrbColors[i % 3];
+        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, 170);
+        draw::FillCircle(m_screen, cx + static_cast<int>((PLAYER_RING_RX - 7) * std::cos(a)),
+            ground + static_cast<int>((PLAYER_RING_RY - 1) * std::sin(a)), 2);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    // the orbs the player has loaded (0..3), spaced evenly on the orbit; sin(angle) < 0 is the far side
+    const invoker::InvokerState& inv = ShownInvoker();
+    int count = IsPlayView() ? inv.OrbCount() : 0;
+    auto drawOrb = [&](int i)
+    {
+        float a = t * PLAYER_ORBIT_SPEED + 6.2831853f * i / 3.0f;
+        int x = cx + static_cast<int>(PLAYER_ORBIT_RX * std::cos(a));
+        int y = PLAYER_ORBIT_Y + bob + static_cast<int>(PLAYER_ORBIT_RY * std::sin(a));
+        bool far = std::sin(a) < 0.0f;
+        SDL_Color c = kOrbColors[static_cast<int>(inv.GetOrb(i))];
+        float flare = m_orbFlash > 0.0f ? m_orbFlash / PLAYER_ORB_FLASH : 0.0f;
+        int r = PLAYER_ORB_RADIUS - (far ? 2 : 0);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_ADD);
+        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, static_cast<Uint8>(60 + 120 * flare));
+        draw::FillCircle(m_screen, x, y, r + 5 + static_cast<int>(6 * flare));
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, c.r, c.g, c.b, far ? 190 : 255);
+        draw::FillCircle(m_screen, x, y, r);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, far ? 90 : 160);
+        draw::FillCircle(m_screen, x - r / 3, y - r / 3, r / 3 + 1);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    };
+    for (int i = 0; i < count; ++i)
+        if (std::sin(t * PLAYER_ORBIT_SPEED + 6.2831853f * i / 3.0f) < 0.0f)
+            drawOrb(i);
+
+    if (m_hasPlayer)
+    {
+        int w = m_player.ImageWidth() * PLAYER_DRAW_H / m_player.ImageHeight();
+        m_player.RenderScaled(m_screen, { PLAYER_DRAW_X, ground - PLAYER_DRAW_H - 2 + bob, w, PLAYER_DRAW_H });
+    }
+
+    for (int i = 0; i < count; ++i)
+        if (std::sin(t * PLAYER_ORBIT_SPEED + 6.2831853f * i / 3.0f) >= 0.0f)
+            drawOrb(i);
+}
+
 // ------------------------------------------------------------------ tutorial (spec §24)
 
 void GameManager::StartTutorial()
@@ -1535,6 +1602,8 @@ void GameManager::RenderStatsHud()
     const SDL_Color white = { 255, 255, 255, 255 };
     char buf[64];
 
+    if (!m_tutorialActive && m_session.State() == practice::GameState::Ready)
+        return;  // the Ready screen shows the logo there; the numbers are all zero anyway
     if (m_tutorialActive)  // the tutorial has no score: its card panel takes the top of the screen
     {
         const SDL_Color grey = { 200, 200, 210, 255 };
@@ -1597,8 +1666,13 @@ void GameManager::RenderReadyScreen()
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color grey = { 200, 200, 210, 255 };
     DimScreen(150);
-    pixeltext::DrawCentered(m_screen, "THREE ELEMENTS", SCREEN_WIDTH, 120, 6, gold);
-    pixeltext::DrawCentered(m_screen, "PRACTICE MODE", SCREEN_WIDTH, 190, 3, white);
+    // the logo (the app icon's art) and the name
+    if (m_titleLogo.ImageHeight() > 0)
+    {
+        int w = m_titleLogo.ImageWidth() * TITLE_LOGO_H / m_titleLogo.ImageHeight();
+        m_titleLogo.RenderScaled(m_screen, { (SCREEN_WIDTH - w) / 2, 14, w, TITLE_LOGO_H });
+    }
+    pixeltext::DrawCentered(m_screen, "INJOKER", SCREEN_WIDTH, 188, 5, gold);
 
     // the persistent records (spec §13)
     char time[16];

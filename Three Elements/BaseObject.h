@@ -15,6 +15,12 @@ public:
 	BaseObject& operator=(const BaseObject&) = delete;
 	virtual bool LoadImg(std::string path, SDL_Renderer* screen);
 	void Render(SDL_Renderer* screen);
+	// Painted RGBA art with real transparency (skill icons, the Injoker character and logo): loaded without the grey
+	// colour key LoadImg applies, and smoothed when scaled. Draw it with RenderScaled.
+	bool LoadImgAlpha(const std::string& path, SDL_Renderer* screen);
+	void RenderScaled(SDL_Renderer* screen, const SDL_Rect& dst);
+	int ImageWidth() const { return rect_.w; }   // source size in pixels (0 when nothing is loaded)
+	int ImageHeight() const { return rect_.h; }
 	void SetPos(int x, int y) { rect_.x = x; rect_.y = y; }
 	void SetFrameNum(int frameNum); 
 	int GetFrameNum() const;

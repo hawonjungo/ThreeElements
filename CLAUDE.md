@@ -1,6 +1,8 @@
-# Three Elements — tài liệu bàn giao cho agent
+# Injoker (repo: Three Elements) — tài liệu bàn giao cho agent
 
-> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-28: Phase 3 xong và đã có **bản web chạy trên điện thoại** (http://3elements.relifes.net). Mọi việc làm trên nhánh **`main`**; nhánh `gh-pages` chỉ chứa bản web đã build. Repo chỉ còn đúng hai nhánh này (các nhánh cũ đã xóa 2026-09-29). Debug và Release x64 lẫn bản web đều đã được build và chạy thử.
+> **Tên sản phẩm là Injoker** (quyết định chủ project 2026-09-30, tên dùng trên Google Play). Tên thư mục, repo, `.sln` và project vẫn là "Three Elements" để không phá build/lịch sử; chỉ những gì người chơi thấy mang tên Injoker (tiêu đề cửa sổ, tên app Android, trang web, màn Ready). Mã app Android: `net.relifes.injoker` (không đổi được sau khi lên Play).
+
+> Ngôn ngữ làm việc với chủ project: tiếng Việt (các tài liệu kỹ thuật bên dưới viết bằng tiếng Anh). Tài liệu này là bản tóm tắt để agent mới hiểu project và làm tiếp. Trạng thái cập nhật ngày 2026-09-28: Phase 3 xong và đã có **bản web chạy trên điện thoại** (https://injoker.relifes.net). Mọi việc làm trên nhánh **`main`**; nhánh `gh-pages` chỉ chứa bản web đã build. Repo chỉ còn đúng hai nhánh này (các nhánh cũ đã xóa 2026-09-29). Debug và Release x64 lẫn bản web đều đã được build và chạy thử.
 
 **Đọc theo thứ tự này trước khi sửa code:**
 
@@ -73,7 +75,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 - **Build (đã ổn định ở Phase 1):** đường dẫn include/lib trong `Three Elements.vcxproj` đều tương đối so với file project, cả 4 cấu hình (Debug/Release × x64/Win32) build được; sau build, các DLL SDL được tự copy cạnh exe. Bản Win32 mới chỉ build, chưa chạy thử.
 - Đường dẫn asset trong code là tương đối (`assets/...`), nên **thư mục làm việc khi chạy phải chứa thư mục `assets`** (thư mục `Three Elements/`). Debugger của Visual Studio đã được đặt đúng thư mục này; khi chạy exe từ dòng lệnh phải tự `cd` vào đó.
 - Cửa sổ 928×544. Bản PC giới hạn 60 FPS; bản web chạy theo tần số màn hình. Mọi chuyển động/animation tính theo thời gian thật (`dt`), nên FPS không đổi tốc độ game.
-- **Bản web (Emscripten):** `web/build.sh` build vào **một** thư mục duy nhất `D:\Dev\web-build` (emsdk ở `D:\Dev\tools\emsdk`; đổi được bằng biến `EMSDK_DIR`, `WEB_BUILD_DIR`). `web/build.sh --deploy` build rồi commit bản build vào nhánh `gh-pages`, push, và **chờ GitHub Pages phát hành xong rồi so file trên trang thật** (GitHub đôi khi bỏ qua một lần push; script báo lại, chạy lại là được). Chạy từ Git Bash. `web/shell.html` là trang HTML bao quanh canvas (bố cục điện thoại, nút toàn màn hình, thẻ meta iOS), `web/manifest.webmanifest` cho "Thêm vào màn hình chính". Tên miền `3elements.relifes.net` (file `CNAME` trong `gh-pages`); HTTPS của tên miền chưa được GitHub cấp chứng chỉ (chủ project xử lý trong Settings → Pages).
+- **Bản web (Emscripten):** `web/build.sh` build vào **một** thư mục duy nhất `D:\Dev\web-build` (emsdk ở `D:\Dev\tools\emsdk`; đổi được bằng biến `EMSDK_DIR`, `WEB_BUILD_DIR`). `web/build.sh --deploy` build rồi commit bản build vào nhánh `gh-pages`, push, và **chờ GitHub Pages phát hành xong rồi so file trên trang thật** (GitHub đôi khi bỏ qua một lần push; script báo lại, chạy lại là được). Chạy từ Git Bash. `web/shell.html` là trang HTML bao quanh canvas (bố cục điện thoại, nút toàn màn hình, thẻ meta iOS), `web/manifest.webmanifest` cho "Thêm vào màn hình chính". Tên miền **`injoker.relifes.net`** (từ 2026-09-30; file `CNAME` trong `gh-pages` do chủ project đặt trong Settings → Pages), **HTTPS hoạt động**. `3elements.relifes.net` không còn là tên miền của trang.
 - **Không tạo thêm nhánh hay thư mục build mới** khi build/deploy (yêu cầu của chủ project).
 - **Bản Android (native SDL2, Phase 7, bắt đầu 2026-09-30):** thư mục `android/` (Gradle, AGP 8.7.3, Gradle 8.9, JDK 21 của Android Studio). Mã nguồn SDL2 2.32.10 / SDL2_image 2.8.12 **không nằm trong git**: chạy `android/fetch_deps.sh` một lần. Build: `cd android && JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug` (hoặc `installDebug` khi điện thoại cắm USB). NDK/CMake: tự lấy bản mới nhất đã cài. Mục tiêu hiện tại: **chỉ cài APK lên máy chủ project**, chưa lên Google Play. Chi tiết: [android/README.md](android/README.md).
 
@@ -84,7 +86,7 @@ Figma gồm các Pages: `PC`, `demo`, `gameplay`, `poster`.
 | `main.cpp` | Tạo singleton `GameManager`, đọc tùy chọn `--debug` (chỉ dev), gọi `InitSDL()` rồi `LoopGame()`; trả 1 nếu khởi tạo lỗi |
 | `../web/` | `build.sh` (build/deploy web), `shell.html`, `manifest.webmanifest` |
 | `../android/` | Project Android: `app/jni/CMakeLists.txt` (SDL2 + SDL2_image + game → `libmain.so`), `ThreeElementsActivity` (kế thừa `SDLActivity`), manifest (ngang, toàn màn hình), `fetch_deps.sh`, README |
-| `../art/` | Ảnh gốc (`skill-icons/`) + `make_skill_icons.py` (icon game) + `make_launcher_icon.py` (icon app Android) |
+| `../art/` | Ảnh gốc: `skill-icons/` → `make_skill_icons.py` (icon skill); `character/` (nhân vật Injoker của chủ project) → `make_injoker.py` (sprite người chơi, logo màn Ready, icon Android, icon web, icon Google Play `art/store/icon-512.png`) |
 | `GameManager.h/.cpp` | **Presentation**: khởi tạo SDL, `LoadAssets()` + `RunFrame()` (một khung hình: input, `PracticeSession::Update(dt)`, vẽ). `LoopGame()` gọi `RunFrame()` trong vòng `while` (PC) hoặc qua `emscripten_set_main_loop_arg` (web). Vẽ background, quái, hiệu ứng skill, HUD (orb màu, ô D/F ở giữa), cụm phím cảm ứng, màn Ready/Game Over, Top-10 điểm, log phát triển |
 | `Practice/Practice.h/.cpp` | **Practice** (không SDL, không đồng hồ, không biến toàn cục): `EnemyDefinition` (10 quái, `targetSkill`), `DifficultyAt(elapsed)`, `PracticeSession` (Ready/Playing/GameOver, HP, điểm, combo, độ chính xác, thời gian sống sót, một quái đang hoạt động, sở hữu `InvokerState`) |
 | `Practice/Tutorial.h/.cpp` | **Tutorial** (spec §24, không SDL): `TutorialSession` chạy kịch bản các bước (Card / Keys / Run / Done), dùng `InvokerState` và luật đúng/sai của Practice, hình nhân tập, 3 quái đi chậm ở bài cuối; không đụng điểm/kỷ lục |
@@ -109,7 +111,7 @@ Tài nguyên trong `assets/`:
 - `enemies/`: 13 sprite, **10 đang dùng** (mushroom_run, goblin_run, eyes_fly, skeleton, fire_wiz, nec_walk, worm_run + dark_wiz, kitsune_run, knight_run thêm ở Phase 3); chưa dùng: bat_fly, mush (trùng nấm), nec_walk_bg (trùng nec_walk)
 - `keyboard/`: icon Q W E R D F
 - `skill/`: 10 icon skill **128×128 RGBA, nền trong suốt**, do script `art/make_skill_icons.py` tạo từ ảnh gốc 2048×2048 của chủ project trong `art/skill-icons/` (tách nền trắng/caro/tối loang từ mép, thu nhỏ). Thay ảnh gốc thì chạy lại `python art/make_skill_icons.py` (cần Pillow); `art/` không được đóng gói vào bản web. `Skills/` (cạnh `skill/`) chỉ còn 2 thư mục sprite hiệu ứng: `Tornado/` (`tornado_vfx_16f.png`, sheet 512×512, 4×4 frame 128×128, nền trong suốt; `tornado_icon.png` chưa dùng) và `Ghost/` (`Ghost Walk-spritesheet.png`; `Ghost.png` chưa dùng)
-- `main.bmp`: sprite người chơi
+- `player/injoker.png`: nhân vật Injoker (một tư thế đứng, vẽ 120 px cao, lướt nhấp nhô; sprite sheet chạy sẽ thay sau). `title/injoker_logo.png`: logo màn Ready. Cả hai do `art/make_injoker.py` tạo; sprite chạy cũ `main.bmp` đã bỏ (2026-09-30).
 
 ## 5. Đã làm được
 
@@ -130,6 +132,7 @@ Tài nguyên trong `assets/`:
 - **Hình ảnh sắc nét (2026-09-30):** `SDL_HINT_RENDER_SCALE_QUALITY "0"` (nearest) cho pixel art; chỉ icon skill (tranh vẽ) được làm mượt (`Skill::LoadIcon`).
 - **Bảng tra công thức (2026-09-30, quyết định chủ project):** phím H hoặc nút "RECIPES (H)" ở màn Ready/Game Over mở bảng 10 skill (icon, tên, 3 orb màu); **không mở được khi đang chơi**; phím/chạm bất kỳ để đóng (`GameManager::RenderRecipes`).
 - **Tutorial (2026-09-30, spec §24):** nút **TUTORIAL (T)** ở màn Ready (nhấp nháy tới khi hoàn thành lần đầu; trạng thái lưu cùng cài đặt âm thanh). 4 bài: nguyên tố → Sun Strike dắt tay từng phím (E E E R D, phím cần bấm sáng lên cả trên HUD lẫn nút cảm ứng) → thẻ quy tắc → tự chơi 3 quái chậm (chỉ thấy tên + icon, H mở bảng công thức và tạm dừng). Khung vàng nhấp nháy làm nổi bật quái, TARGET, orb, ô D/F. Enter/Space/NEXT sang thẻ tiếp; Esc thoát; màn cuối Enter vào Practice. Không ảnh hưởng điểm/kỷ lục.
+- **Nhân vật Injoker (2026-09-30, quyết định chủ project):** pháp sư áo tím lướt trên vòng phép xoay (nhấp nhô, nền vẫn cuộn); **orb đang nạp bay quanh nhân vật** kiểu Invoker (màu Q/W/E, quả phía sau nhỏ và mờ hơn, lóe sáng khi R invoke) — `GameManager::RenderPlayer`, hằng số `PLAYER_*` trong `GameManager.h`. Skill bay ra từ tay cầm gậy (`practice::PLAYER_CAST_X/Y` = 128, 450). Màn Ready: logo + chữ INJOKER (ẩn HUD số liệu ở Ready).
 - **Gợi ý mục tiêu có icon (2026-09-30):** "TARGET: <tên>" kèm icon skill 80 px ngay bên dưới tên (`SKILL_HINT_SIZE`).
 
 ## 6. Chưa có (phần việc còn lại)

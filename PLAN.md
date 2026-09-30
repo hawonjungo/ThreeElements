@@ -120,7 +120,7 @@ MVP facts: all 10 skills from the start; 10 enemy types ↔ 10 skills through da
 Owner decisions (2026-09-30): native SDL2 (not a web wrapper), debug APK installed on the owner's own phone first, tested on a real device.
 - [x] Gradle project `android/` from SDL 2.32's template (AGP 8.7.3 / Gradle 8.9 / JDK 21), SDL sources fetched by `android/fetch_deps.sh` (not in git), `app/jni/CMakeLists.txt` building SDL2, SDL2_image (PNG via stb, BMP) and the game as `libmain.so`.
 - [x] Code: logical 928×544 rendering with letterbox (`SDL_RenderSetLogicalSize`, all platforms), `TouchToGame`, landscape hint, touch buttons on from start, Back = Esc, save files in `SDL_GetPrefPath`, records saved when the app goes to the background.
-- [x] Launcher icon (`art/make_launcher_icon.py`).
+- [x] Launcher icon (now made by `art/make_injoker.py` from the Injoker art).
 - [ ] First successful APK build and install on the owner's phone; latency and layout check on the device.
 - [ ] Later (only if wanted): release signing, Google Play listing. iOS is out of scope.
 
@@ -155,3 +155,4 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-09-30 — Pixel-art polish (nearest scaling, unsquashed background), tech-debt fixes (Close frees backgrounds, BaseObject non-copyable, EnemyObject uses base members), new skill icons with `art/make_skill_icons.py`, target hint icon, recipe reference (H) outside play.
 - 2026-09-30 — **Phase 7 started:** native Android project (`android/`), Android-specific code paths, launcher icon; `CMakeLists.txt` for the NDK build.
 - 2026-09-30 — **Tutorial mode** (spec §24): 4 lessons, one key-by-key spell (Sun Strike), highlights, final unguided run; `Practice/Tutorial.*` + 70 new test checks (Practice tests 946); pixel font gains `,` `=` `>`.
+- 2026-09-30 — **Renamed to Injoker** (product name for Google Play; repo/folders unchanged): new player character gliding over a magic ring with the loaded orbs circling it, Ready-screen logo, Android app id `net.relifes.injoker`, new launcher / web / store icons (`art/make_injoker.py`). Web domain change to injoker.relifes.net pending the owner's DNS record.
