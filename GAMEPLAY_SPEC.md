@@ -389,3 +389,24 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 
 - **B-12 [CONFIRMED]** Victory shows the fight time; the **best time per boss** is saved locally (like the records) and shown in the boss list. A fight with the recipe hint on at any moment (§17 H-1) is **assisted**: no best time. No leaderboard for Boss mode yet (FUTURE: its own board).
 - **B-13 [CONFIRMED]** Architecture: a `BossSession` in the Practice layer (`Practice/Boss.*`, no SDL, time passed in as `dt`, unit-tested like `TutorialSession`); the Core and `PracticeSession` are untouched. The presentation draws the boss (lift, shadow, HP bar), impact rings, the combo panel, the grades, the timing bars (hint), the cue and the result screens.
+
+## 26. PLAY mode — the main game (update 1.3)
+
+**Status: CONFIRMED by the owner 2026-09-30 / 2026-10-01** (discussion recorded in PLAN.md). PLAY is the main mode. It plays by the **Practice rules, renamed SURVIVAL** in the menu (§§3–19: instant judging, the Tornado projectile, wrong cast = MISS), with longer targets, gold and rewards on top. None of the Boss-mode delays (§25) apply here. SURVIVAL itself is unchanged.
+
+- **P3-1 [CONFIRMED]** Menu: `PLAY` (Enter) · `SURVIVAL` (the former Practice, key S) · `BOSS FIGHTS` · `TUTORIAL` · … The Tutorial's end card starts PLAY.
+- **P3-2 [CONFIRMED]** **Three kinds of enemy**, still one at a time (C-1):
+
+| Kind | Target | Appears | Speed | Reaching the player | Points | Gold |
+|---|---|---|---|---|---|---|
+| Normal | 1 skill | otherwise | difficulty speed | −1 life | 1 | — |
+| Elite | a **chain of 2** skills, in order | at random: 0 % at the start, rising to 30 % after 3 min | ×0.8 | −2 lives | 3 | 5 |
+| Boss | a **chain of 3** skills, in order | every **10th** enemy | ×0.6 | −3 lives | 10 | 20 |
+
+  Chains never repeat a skill; the first skill of a chain follows the enemy table (E-3) and is never the previous enemy's first skill. Elites and bosses are drawn larger (×1.4, ×2) and tinted.
+- **P3-3 [CONFIRMED]** **Chains.** The HUD's TARGET hint shows the skill needed **now** (name, icon) and, for a chain, the whole chain as small icons (done ones marked, the current one highlighted). A correct cast of the current skill breaks it and moves to the next (counted as a correct cast, combo +1); the enemy dies when the last one is cast. A wrong cast is a MISS as in Survival: **the progress made on the chain is kept**. Tornado is judged when its projectile hits, as in Survival.
+- **P3-4 [CONFIRMED]** **Rune after every boss** (random): **Regeneration** +1 life (max 5; not offered at 5) · **Frost** enemies move at 60 % for 15 s · **Double Damage** points ×2 for 20 s · **Bounty** +25 gold · **Shield** the next enemy that reaches the player does no damage. The rune's name is announced on screen; running ones show in the HUD.
+- **P3-5 [CONFIRMED]** **Score and gold.** Points per kill (table) rank PLAY runs (leaderboard by **score**, this device for now; ties: more bosses, then longer time). **Gold** comes only from elites, bosses and Bounty; it is **banked across runs** on the device (saved as it is earned, never lost at Game Over) and is the currency of the future shop (§ to come). A run with the recipe hint on is not ranked (§17 H-2) but still earns gold.
+- **P3-6 [CONFIRMED]** **Stages.** Every boss defeated starts a new stage: the background changes (tinted placeholder until the owner's background art arrives). Difficulty (speed, delay) follows the survival clock as in §14; tuning together with the new backgrounds is still open (PLAN.md).
+- **P3-7 [CONFIRMED]** Lives start at 3 (as Survival), max 5. Game Over at 0 shows score, gold earned (and the bank), stage reached and time, and the rank on the PLAY board.
+- **P3-8 [RECOMMENDED]** Architecture: the same `PracticeSession` with a mode (`Survival` / `Play`); Survival behaviour is exactly the previous Practice (its tests are unchanged). Chains, kinds, runes and gold live in the Practice layer (tested); drawing, saving the gold bank and the PLAY leaderboard in the presentation.

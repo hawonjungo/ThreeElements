@@ -22,6 +22,7 @@
 GameManager* GameManager::instance_ = NULL;
 
 static void FormatTime(char* out, size_t size, float seconds);  // "mm:ss", defined with the HUD code below
+static const char* PointsText(int points);                     // "+1" / "+10", defined with PLAY below
 
 // Where the small save files (top scores, records, settings) live: next to the exe on desktop, as always; in the
 // app's private data folder on Android, where an app cannot write to its install location. (The web build keeps
@@ -197,6 +198,8 @@ void GameManager::LoadAssets()
     LoadTopRuns();
     LoadBests();
     LoadBossTimes();
+    LoadPlayRuns();
+    LoadGold();
     LoadSettings();
     m_session.RestoreBestCombo(m_bests.combo);  // the HUD's BEST is the all-time record from the start
 
@@ -270,8 +273,18 @@ bool GameManager::RunFrame()
     practice::UpdateResult update = m_session.Update(dt);
     LogUpdate(update);
     if (update.cast != practice::CastOutcome::None)
-        OnCastJudged(update.cast, enemyBefore);
-    if (update.leaked)
+        OnCastJudged(update.cast, enemyBefore, update.cast != practice::CastOutcome::Correct ? NULL
+            : update.kill.killed ? PointsText(update.kill.points) : "HIT");
+    if (update.kill.killed)
+        OnKill(update.kill, enemyBefore);
+    if (update.leaked && update.shieldUsed)  // PLAY Shield rune: the hit is blocked
+    {
+        const SDL_Color cyan = { 110, 210, 255, 255 };
+        for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+            if (m_floatTexts[i].left <= 0.0f) { m_floatTexts[i] = { FEEDBACK_TEXT_TIME, 150, 360, "BLOCKED", cyan }; break; }
+        audio::Play(audio::Sfx::CastCorrect);
+    }
+    else if (update.leaked)
         OnLeak(m_session.GetStats().hp);  // HP was already reduced: this square was just lost
     if (update.gameOver)
     {
@@ -290,7 +303,8 @@ bool GameManager::RunFrame()
     }
     if (m_bossActive)
         PresentBossUpdate(m_boss.Update(dt));
-    m_bossDamageLeft -= dt;  // the fight's clock stops by itself once it is won or lost
+    m_bossDamageLeft -= dt;
+    m_announceLeft -= dt;  // the fight's clock stops by itself once it is won or lost
     m_tutorialWrongFlash -= dt;
     m_orbFlash -= dt;
     m_tutorialSpawnFlash -= dt;
@@ -354,6 +368,7 @@ bool GameManager::RunFrame()
         RenderReadyScreen();
     else if (m_session.State() == practice::GameState::GameOver)
         RenderGameOverScreen();
+    RenderAnnouncement();
     if (m_showRecipes && m_session.State() != practice::GameState::Playing)
         RenderRecipes();
     if (m_showLeaderboard && !m_tutorialActive && m_session.State() != practice::GameState::Playing)
@@ -411,6 +426,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { m_showLeaderboard = true; return; }
     if (sym == SDLK_t && menu) { StartTutorial(); return; }
     if (sym == SDLK_b && menu) { m_showBossSelect = true; return; }
+    if (sym == SDLK_s && menu) { StartMode(practice::SessionMode::Survival); return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK) { PressEscapeAction(quit); return; }  // AC_BACK: Android Back
     if (sym == SDLK_m) { ToggleMute(); return; }  // not a gameplay key: works in every state
@@ -576,7 +592,10 @@ void GameManager::ProcessAction(invoker::InputAction action)
     default: break;
     }
 
-    PresentInvokerResult(action, r.invoker, r.cast, hadEnemy, enemyBody);
+    const char* label = r.cast != practice::CastOutcome::Correct ? NULL : r.kill.killed ? PointsText(r.kill.points) : "HIT";
+    PresentInvokerResult(action, r.invoker, r.cast, hadEnemy, enemyBody, label);
+    if (r.kill.killed)
+        OnKill(r.kill, enemyBody);
 
     const invoker::InvokerState& inv = m_session.Invoker();
     const char* slotName = action == invoker::InputAction::D ? "D" : "F";
@@ -602,7 +621,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
 }
 
 void GameManager::PresentInvokerResult(invoker::InputAction action, const invoker::InvokerResult& result,
-    practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody)
+    practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody, const char* label)
 {
     // sounds: each orb has its element's sound, R only sounds when it really invoked, a judged cast sounds right /
     // wrong (OnCastJudged), and a cast that is not judged at once (Tornado launch, no enemy) just whooshes
@@ -624,7 +643,7 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
     if (result.event == invoker::InvokerEvent::Cast && !(m_bossActive && practice::BossSpellDelay(result.skill) > 0.0f))
         StartSkillVfx(result.skill, hadEnemy, enemyBody);
     if (cast != practice::CastOutcome::None)
-        OnCastJudged(cast, enemyBody);
+        OnCastJudged(cast, enemyBody, label);
 }
 
 // The six touch buttons (Q/W/E/R/D/F), drawn only while Playing (matches the keyboard: those keys are
@@ -752,11 +771,20 @@ void GameManager::RenderEnemy()
     // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
     sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow);
     bool flash = m_enemyFlashLeft > 0.0f && sprite.p_object_ != NULL;  // red tint after a wrong cast
+    if (sprite.p_object_ == NULL)
+        return;
     if (flash)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
-    sprite.Render(m_screen);
-    if (flash)
-        SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+    else if (e.kind == practice::EnemyKind::Elite)  // PLAY: elites and bosses are larger and tinted (P3-2)
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 200, 130);
+    else if (e.kind == practice::EnemyKind::Boss)
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 130, 130);
+    if (e.scale > 1.0f)
+        sprite.RenderFrameScaled(m_screen, static_cast<int>(e.x - def.bodyLeft * e.scale),
+            static_cast<int>(practice::GROUND_LINE_Y - def.feetRow * e.scale), e.scale);
+    else
+        sprite.Render(m_screen);
+    SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
 }
 
 // Loads the Tornado sprite sheet as a plain texture: no colour key (BaseObject::LoadImg would make grey pixels
@@ -824,7 +852,7 @@ void GameManager::ResetVisualEffects()
 
 // Correct: a gold ring where the enemy was and a rising "+1". Wrong: the enemy flashes red and "MISS" rises
 // above it. `enemy` is where the enemy was when the cast (or the Tornado hit) was judged.
-void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy)
+void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy, const char* label)
 {
     int cx = static_cast<int>(enemy.x + enemy.w * 0.5f);
     int cy = static_cast<int>(enemy.y + enemy.h * 0.5f);
@@ -856,7 +884,7 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
         if (m_floatTexts[i].left <= 0.0f)
         {
             m_floatTexts[i] = { FEEDBACK_TEXT_TIME, textX, static_cast<int>(enemy.y) - 10,
-                correct ? "+1" : "MISS", correct ? gold : red };
+                label != NULL ? label : correct ? "+1" : "MISS", correct ? gold : red };
             break;
         }
     }
@@ -994,6 +1022,13 @@ int GameManager::SubmitRun(const practice::Stats& st)
 {
     if (st.assisted)  // played with the recipe hint: not ranked
         return 0;
+    if (m_session.Mode() == practice::SessionMode::Play)  // the PLAY board ranks by score (P3-5)
+    {
+        int playRank = practice::InsertPlayRun(m_playRuns, { st.score, st.survivalTime, st.bossesDefeated + 1 });
+        if (playRank > 0)
+            SavePlayRuns();
+        return playRank;
+    }
     int rank = practice::InsertTopRun(m_topRuns, { st.survivalTime, st.score });
     if (rank > 0)
         SaveTopRuns();
@@ -1053,8 +1088,8 @@ void GameManager::SaveBests(const practice::BestStats& bests)
 // "NEW BEST!" when the session really ends.
 void GameManager::SaveRecordsSoFar()
 {
-    if (m_session.State() != practice::GameState::Playing)
-        return;
+    if (m_session.State() != practice::GameState::Playing || m_session.Mode() != practice::SessionMode::Survival)
+        return;  // PLAY banks its gold as it is earned and has no other records
     practice::BestStats sofar = m_bests;
     if (practice::MergeBests(sofar, m_session.GetStats()).Any())
         SaveBests(sofar);
@@ -1072,6 +1107,11 @@ void GameManager::TouchToGame(float normX, float normY, int& gameX, int& gameY)
 // A session is over, by Game Over or by Esc while Playing: its score, combo and survival time can set records.
 void GameManager::EndSession()
 {
+    if (m_session.Mode() != practice::SessionMode::Survival)  // the records are Survival's (PLAY ranks by score)
+    {
+        m_lastBestUpdate = { false, false, false };
+        return;
+    }
     m_lastBestUpdate = practice::MergeBests(m_bests, m_session.GetStats());
     if (m_lastBestUpdate.Any())
     {
@@ -1214,7 +1254,8 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
 {
     switch (item)
     {
-    case MENU_PLAY:        PressEnterAction(); break;
+    case MENU_PLAY:        StartMode(practice::SessionMode::Play); break;
+    case MENU_SURVIVAL:    StartMode(practice::SessionMode::Survival); break;
     case MENU_TUTORIAL:    StartTutorial(); break;
     case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
@@ -1242,6 +1283,7 @@ void GameManager::RenderMenu()
         switch (item)
         {
         case MENU_PLAY:        label = "PLAY";        key = "ENTER"; break;
+        case MENU_SURVIVAL:    label = "SURVIVAL";    key = "S"; break;
         case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
         case MENU_BOSS:        label = "BOSS FIGHTS"; key = "B"; break;
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
@@ -1280,16 +1322,15 @@ void GameManager::RenderTop3Panel()
     SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 160);
     SDL_RenderDrawRect(m_screen, &panel);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-    pixeltext::DrawShadowed(m_screen, "TOP 3  SURVIVAL", panel.x + 12, panel.y + 10, 2, gold);
-    char buf[48], time[16];
-    if (m_topRuns[0].survivalTime <= 0.0f)
+    pixeltext::DrawShadowed(m_screen, "TOP 3  PLAY", panel.x + 12, panel.y + 10, 2, gold);  // PLAY ranks by score (P3-5)
+    char buf[48];
+    if (m_playRuns[0].score <= 0)
         pixeltext::DrawShadowed(m_screen, "NO RUNS YET", panel.x + 12, panel.y + 50, 2, grey);
-    for (int i = 0; i < 3 && m_topRuns[i].survivalTime > 0.0f; ++i)
+    for (int i = 0; i < 3 && m_playRuns[i].score > 0; ++i)
     {
-        FormatTime(time, sizeof(time), m_topRuns[i].survivalTime);
-        snprintf(buf, sizeof(buf), "%d.  %s", i + 1, time);
+        snprintf(buf, sizeof(buf), "%d.  %d", i + 1, m_playRuns[i].score);
         pixeltext::DrawShadowed(m_screen, buf, panel.x + 12, panel.y + 40 + i * 26, 2, i == 0 ? gold : white);
-        snprintf(buf, sizeof(buf), "SCORE %d", m_topRuns[i].score);
+        snprintf(buf, sizeof(buf), "STAGE %d", m_playRuns[i].stage);
         pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 1) - 12, panel.y + 44 + i * 26, 1, grey);
     }
     const char* more = m_showTouchControls ? "TAP FOR TOP 10" : "L / CLICK: TOP 10";
@@ -1301,7 +1342,7 @@ void GameManager::RenderTop3Panel()
 void GameManager::RenderLeaderboard()
 {
     DimScreen(190);
-    const SDL_Rect panel = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
+    const SDL_Rect panel = { 110, 30, SCREEN_WIDTH - 220, SCREEN_HEIGHT - 60 };
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 235);
     SDL_RenderFillRect(m_screen, &panel);
@@ -1313,27 +1354,36 @@ void GameManager::RenderLeaderboard()
     const SDL_Color white = { 235, 235, 240, 255 };
     const SDL_Color grey = { 150, 155, 170, 255 };
     pixeltext::DrawCentered(m_screen, "LEADERBOARD", SCREEN_WIDTH, panel.y + 16, 3, gold);
-    pixeltext::DrawCentered(m_screen, "SURVIVAL TIME  -  THIS DEVICE", SCREEN_WIDTH, panel.y + 48, 1, grey);
+    pixeltext::DrawCentered(m_screen, "THIS DEVICE", SCREEN_WIDTH, panel.y + 48, 1, grey);
 
+    // two boards side by side: PLAY by score (spec §26), SURVIVAL by time
+    const int leftX = panel.x + 36, rightX = panel.x + panel.w / 2 + 24;
+    pixeltext::DrawShadowed(m_screen, "PLAY - SCORE", leftX, panel.y + 66, 2, gold);
+    pixeltext::DrawShadowed(m_screen, "SURVIVAL - TIME", rightX, panel.y + 66, 2, gold);
     char buf[64], time[16];
     for (int i = 0; i < practice::TOP_RUNS; ++i)
     {
-        int y = panel.y + 72 + i * 28;
+        int y = panel.y + 94 + i * 26;
+        SDL_Color c = i < 3 ? white : grey;
+        if (m_playRuns[i].score > 0)
+        {
+            snprintf(buf, sizeof(buf), "%2d. %d", i + 1, m_playRuns[i].score);
+            pixeltext::DrawShadowed(m_screen, buf, leftX, y, 2, c);
+            snprintf(buf, sizeof(buf), "STAGE %d", m_playRuns[i].stage);
+            pixeltext::DrawShadowed(m_screen, buf, leftX + 170, y + 4, 1, grey);
+        }
+        else
+        {
+            snprintf(buf, sizeof(buf), "%2d. --", i + 1);
+            pixeltext::DrawShadowed(m_screen, buf, leftX, y, 2, grey);
+        }
         bool empty = m_topRuns[i].survivalTime <= 0.0f;
         FormatTime(time, sizeof(time), m_topRuns[i].survivalTime);
-        snprintf(buf, sizeof(buf), "%2d.", i + 1);
-        SDL_Color c = empty ? grey : (i < 3 ? gold : white);
-        pixeltext::DrawShadowed(m_screen, buf, panel.x + 60, y, 2, c);
-        pixeltext::DrawShadowed(m_screen, empty ? "--:--" : time, panel.x + 130, y, 2, c);
-        if (!empty)
-        {
-            snprintf(buf, sizeof(buf), "SCORE %d", m_topRuns[i].score);
-            pixeltext::DrawShadowed(m_screen, buf, panel.x + 260, y, 2, grey);
-        }
+        snprintf(buf, sizeof(buf), "%2d. %s", i + 1, empty ? "--:--" : time);
+        pixeltext::DrawShadowed(m_screen, buf, rightX, y, 2, empty ? grey : c);
     }
-    FormatTime(time, sizeof(time), m_bests.survivalTime);
-    snprintf(buf, sizeof(buf), "MY BEST  TIME %s   SCORE %d   COMBO %d", time, m_bests.score, m_bests.combo);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, panel.y + panel.h - 62, 2, white);
+    snprintf(buf, sizeof(buf), "GOLD BANK %d", m_goldBank);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, panel.y + panel.h - 54, 2, gold);
     pixeltext::DrawCentered(m_screen, "PRESS ANY KEY OR TAP TO CLOSE", SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
 }
 
@@ -1434,7 +1484,7 @@ void GameManager::ExitTutorial(bool startPractice)
     ResetVisualEffects();
     printf("[tutorial] left\n");
     if (startPractice)
-        PressEnterAction();
+        StartMode(practice::SessionMode::Play);
 }
 
 // Keys while the tutorial runs: NEXT (Enter / Space) on cards, the gameplay keys on key steps and the run, H for the
@@ -1657,7 +1707,7 @@ void GameManager::RenderTutorial()
     else  // Done
     {
         pixeltext::DrawShadowed(m_screen, "NEED HELP WITH RECIPES? TURN ON RECIPE HINT (G).", panel.x + 12, panel.y + 74, 1, grey);
-        RenderButton(TUTORIAL_PLAY_RECT, "PLAY PRACTICE", true);
+        RenderButton(TUTORIAL_PLAY_RECT, "PLAY", true);
         RenderButton(TUTORIAL_MENU_RECT, "MENU", false);
     }
 }
@@ -1912,8 +1962,13 @@ void GameManager::RenderStatsHud()
     pixeltext::DrawShadowed(m_screen, buf, 190, 12, 2, white);
     snprintf(buf, sizeof(buf), "COMBO %d", st.combo);
     pixeltext::DrawShadowed(m_screen, buf, 400, 12, 2, white);
-    snprintf(buf, sizeof(buf), "BEST %d", st.bestCombo);
-    pixeltext::DrawShadowed(m_screen, buf, 590, 12, 2, white);
+    bool play = m_session.Mode() == practice::SessionMode::Play;
+    const SDL_Color goldColor = { 255, 210, 90, 255 };
+    if (play)  // PLAY: the gold of this run instead of the best combo (P3-5)
+        snprintf(buf, sizeof(buf), "GOLD %d", st.gold);
+    else
+        snprintf(buf, sizeof(buf), "BEST %d", st.bestCombo);
+    pixeltext::DrawShadowed(m_screen, buf, 590, 12, 2, play ? goldColor : white);
 
     // row 2: accuracy and survival time
     char value[16];
@@ -1923,6 +1978,21 @@ void GameManager::RenderStatsHud()
     FormatTime(value, sizeof(value), st.survivalTime);
     snprintf(buf, sizeof(buf), "TIME %s", value);
     pixeltext::DrawShadowed(m_screen, buf, 190, 42, 2, white);
+    if (play)
+    {
+        snprintf(buf, sizeof(buf), "STAGE %d", st.bossesDefeated + 1);
+        pixeltext::DrawShadowed(m_screen, buf, 400, 42, 2, white);
+        // the runes still running (P3-4)
+        char runes[64] = "";
+        if (m_session.FrostLeft() > 0.0f)
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "FROST %d  ", static_cast<int>(m_session.FrostLeft()) + 1);
+        if (m_session.DoubleLeft() > 0.0f)
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "X2 %d  ", static_cast<int>(m_session.DoubleLeft()) + 1);
+        if (m_session.HasShield())
+            snprintf(runes + strlen(runes), sizeof(runes) - strlen(runes), "SHIELD");
+        const SDL_Color cyan = { 110, 210, 255, 255 };
+        pixeltext::DrawShadowed(m_screen, runes, 190, 68, 2, cyan);
+    }
 
     // reminder of the control that leaves the session (only while playing)
     if (m_session.State() == practice::GameState::Playing)
@@ -1959,6 +2029,11 @@ void GameManager::RenderReadyScreen()
 
 void GameManager::RenderGameOverScreen()
 {
+    if (m_session.Mode() == practice::SessionMode::Play)
+    {
+        RenderPlayGameOver();
+        return;
+    }
     const practice::Stats& st = m_session.GetStats();
     const SDL_Color white = { 255, 255, 255, 255 };
     const SDL_Color red = { 235, 70, 70, 255 };
@@ -2040,6 +2115,253 @@ void GameManager::RenderTargetHint()
     SDL_RenderDrawRect(m_screen, &tile);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     m_skillIcons[static_cast<int>(e.target)].RenderAt(m_screen, tile.x + 2, tile.y + 2, SKILL_HINT_SIZE);
+
+    // PLAY elites and bosses (P3-3): the kind above, and the whole chain in small icons below (broken ones marked,
+    // the current one highlighted)
+    if (e.chainLength > 1)
+    {
+        const SDL_Color orange = { 255, 170, 70, 255 };
+        const SDL_Color red = { 255, 90, 90, 255 };
+        const char* kind = e.kind == practice::EnemyKind::Boss ? "BOSS" : "ELITE";
+        const int size = 36, gap = 18;
+        int x0 = SCREEN_WIDTH - 16 - (e.chainLength * size + (e.chainLength - 1) * gap);
+        int y = tile.y + tile.h + 8;
+        pixeltext::DrawShadowed(m_screen, kind, x0 - 12 - pixeltext::Width(kind, 2), y + 11, 2,
+            e.kind == practice::EnemyKind::Boss ? red : orange);
+        const SDL_Color grey = { 190, 190, 200, 255 };
+        for (int i = 0; i < e.chainLength; ++i)
+        {
+            SDL_Rect cell = { x0 + i * (size + gap), y, size, size };
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
+            SDL_RenderFillRect(m_screen, &cell);
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+            m_skillIcons[static_cast<int>(e.chain[i])].RenderAt(m_screen, cell.x + 2, cell.y + 2, size - 4);
+            bool done = i < e.chainStep;
+            if (done)
+            {
+                SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 140);
+                SDL_RenderFillRect(m_screen, &cell);
+                SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+                SDL_SetRenderDrawColor(m_screen, 90, 230, 110, 255);
+            }
+            else
+                SDL_SetRenderDrawColor(m_screen, 120, 125, 140, 255);
+            SDL_RenderDrawRect(m_screen, &cell);
+            if (i == e.chainStep)
+                RenderHighlight(cell);
+            if (i + 1 < e.chainLength)
+                pixeltext::DrawShadowed(m_screen, ">", cell.x + size + gap / 2 - 5, cell.y + 11, 2, grey);
+        }
+    }
+}
+
+// ------------------------------------------------------------------ PLAY mode (spec §26)
+
+// The points of a kill as floating text; only these values exist (1 / 3 / 10, doubled by Double Damage).
+static const char* PointsText(int points)
+{
+    switch (points)
+    {
+    case 1:  return "+1";
+    case 2:  return "+2";
+    case 3:  return "+3";
+    case 6:  return "+6";
+    case 10: return "+10";
+    case 20: return "+20";
+    default: return "+";
+    }
+}
+
+void GameManager::StartMode(practice::SessionMode mode)
+{
+    m_session.SetMode(mode);
+    printf("[practice] mode: %s\n", mode == practice::SessionMode::Play ? "PLAY" : "SURVIVAL");
+    PressEnterAction();
+}
+
+// An enemy was finished in PLAY: its gold goes to the bank at once (so it is never lost), and a boss announces the
+// new stage and its rune (P3-4, P3-5, P3-6).
+void GameManager::OnKill(const practice::KillReport& kill, const practice::Bounds& enemy)
+{
+    if (kill.gold > 0)
+    {
+        m_goldBank += kill.gold;
+        SaveGold();
+        snprintf(m_goldText, sizeof(m_goldText), "+%d GOLD", kill.gold);
+        const SDL_Color gold = { 255, 200, 60, 255 };
+        int x = static_cast<int>(enemy.x + enemy.w * 0.5f);
+        x = x < 110 ? 110 : (x > SCREEN_WIDTH - 110 ? SCREEN_WIDTH - 110 : x);
+        for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+        {
+            if (m_floatTexts[i].left <= 0.0f)
+            {
+                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, x, static_cast<int>(enemy.y) - 44, m_goldText, gold };
+                break;
+            }
+        }
+    }
+    if (kill.kind == practice::EnemyKind::Boss && m_session.Mode() == practice::SessionMode::Play)
+    {
+        snprintf(m_stageText, sizeof(m_stageText), "BOSS DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
+        switch (kill.rune)
+        {
+        case practice::Rune::Regeneration: m_announce = "RUNE: REGENERATION  +1 LIFE"; break;
+        case practice::Rune::Frost:        m_announce = "RUNE: FROST  ENEMIES SLOWED"; break;
+        case practice::Rune::DoubleDamage: m_announce = "RUNE: DOUBLE DAMAGE  SCORE X2"; break;
+        case practice::Rune::Bounty:       m_announce = "RUNE: BOUNTY  +25 GOLD"; break;
+        case practice::Rune::Shield:       m_announce = "RUNE: SHIELD  NEXT HIT BLOCKED"; break;
+        default:                           m_announce = NULL; break;
+        }
+        m_announceLeft = ANNOUNCE_TIME;
+        audio::Play(audio::Sfx::Start);
+        printf("[play] boss defeated: stage %d, rune %d, gold bank %d\n", m_session.GetStats().bossesDefeated + 1,
+            static_cast<int>(kill.rune), m_goldBank);
+    }
+}
+
+void GameManager::RenderAnnouncement()
+{
+    if (m_announceLeft <= 0.0f || m_session.State() != practice::GameState::Playing)
+        return;
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color cyan = { 110, 210, 255, 255 };
+    pixeltext::DrawCentered(m_screen, m_stageText, SCREEN_WIDTH, 96, 3, gold);
+    if (m_announce != NULL)
+        pixeltext::DrawCentered(m_screen, m_announce, SCREEN_WIDTH, 128, 2, cyan);
+}
+
+// The PLAY top 10 (score, time, stage) and the gold bank: playruns.txt / gold.txt next to the exe (the app folder
+// on Android), localStorage on the web, like the other records.
+void GameManager::LoadPlayRuns()
+{
+    int raw[practice::TOP_RUNS * 3] = {};  // score, milliseconds, stage, ...
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var parts = String(localStorage.getItem('threeElements_playRuns')).split(',');
+            for (var i = 0; i < $1; ++i) {
+                var p = (parts[i] || '').split(':');
+                for (var k = 0; k < 3; ++k)
+                    HEAP32[($0 >> 2) + i * 3 + k] = Number(p[k]) | 0;
+            }
+        } catch (e) {}
+    }, raw, practice::TOP_RUNS);
+#else
+    FILE* f = fopen(SavePath("playruns.txt").c_str(), "r");
+    if (f != NULL)
+    {
+        for (int i = 0; i < practice::TOP_RUNS && fscanf(f, "%d %d %d", &raw[i * 3], &raw[i * 3 + 1], &raw[i * 3 + 2]) == 3; ++i) {}
+        fclose(f);
+    }
+#endif
+    for (int i = 0; i < practice::TOP_RUNS; ++i)
+        m_playRuns[i] = { 0, 0.0f, 0 };
+    for (int i = 0; i < practice::TOP_RUNS; ++i)  // re-inserted one by one, so a damaged file still comes out sorted
+        if (raw[i * 3] > 0)
+            practice::InsertPlayRun(m_playRuns, { raw[i * 3], raw[i * 3 + 1] / 1000.0f, raw[i * 3 + 2] > 0 ? raw[i * 3 + 2] : 1 });
+}
+
+void GameManager::SavePlayRuns()
+{
+    int raw[practice::TOP_RUNS * 3];
+    for (int i = 0; i < practice::TOP_RUNS; ++i)
+    {
+        raw[i * 3] = m_playRuns[i].score;
+        raw[i * 3 + 1] = static_cast<int>(m_playRuns[i].time * 1000.0f);
+        raw[i * 3 + 2] = m_playRuns[i].stage;
+    }
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var parts = [];
+            for (var i = 0; i < $1; ++i)
+                parts.push(HEAP32[($0 >> 2) + i * 3] + ':' + HEAP32[($0 >> 2) + i * 3 + 1] + ':' + HEAP32[($0 >> 2) + i * 3 + 2]);
+            localStorage.setItem('threeElements_playRuns', parts.join(','));
+        } catch (e) {}
+    }, raw, practice::TOP_RUNS);
+#else
+    FILE* f = fopen(SavePath("playruns.txt").c_str(), "w");
+    if (f != NULL)
+    {
+        for (int i = 0; i < practice::TOP_RUNS; ++i)
+            fprintf(f, "%d %d %d\n", raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]);
+        fclose(f);
+    }
+#endif
+}
+
+void GameManager::LoadGold()
+{
+    int gold = 0;
+#ifdef __EMSCRIPTEN__
+    gold = EM_ASM_INT({
+        try { return Number(localStorage.getItem('threeElements_gold')) | 0; } catch (e) { return 0; }
+    });
+#else
+    FILE* f = fopen(SavePath("gold.txt").c_str(), "r");
+    if (f != NULL)
+    {
+        if (fscanf(f, "%d", &gold) != 1)
+            gold = 0;
+        fclose(f);
+    }
+#endif
+    m_goldBank = gold > 0 ? gold : 0;
+}
+
+void GameManager::SaveGold()
+{
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try { localStorage.setItem('threeElements_gold', String($0)); } catch (e) {}
+    }, m_goldBank);
+#else
+    FILE* f = fopen(SavePath("gold.txt").c_str(), "w");
+    if (f != NULL)
+    {
+        fprintf(f, "%d\n", m_goldBank);
+        fclose(f);
+    }
+#endif
+}
+
+// PLAY's Game Over: score, stage and kills, the gold of the run and the bank, the time, and the rank.
+void GameManager::RenderPlayGameOver()
+{
+    const practice::Stats& st = m_session.GetStats();
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color red = { 235, 70, 70, 255 };
+    const SDL_Color grey = { 200, 200, 210, 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    char buf[64], value[16];
+
+    DimScreen(170);
+    pixeltext::DrawCentered(m_screen, "GAME OVER", SCREEN_WIDTH, 64, 8, red);
+    bool best = m_lastRank == 1 && !st.assisted;
+    snprintf(buf, sizeof(buf), best ? "SCORE %d  NEW BEST!" : "SCORE %d", st.score);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 145, 3, best ? gold : white);
+    snprintf(buf, sizeof(buf), "STAGE %d   KILLS %d", st.bossesDefeated + 1, st.kills);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 178, 3, white);
+    snprintf(buf, sizeof(buf), "GOLD +%d   BANK %d", st.gold, m_goldBank);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 211, 3, gold);
+    FormatTime(value, sizeof(value), st.survivalTime);
+    snprintf(buf, sizeof(buf), "SURVIVED %s", value);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 244, 3, white);
+    snprintf(buf, sizeof(buf), "BEST SCORE %d", m_playRuns[0].score);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 282, 2, grey);
+    if (st.assisted)
+        pixeltext::DrawCentered(m_screen, "RECIPE HINT WAS ON - NOT RANKED", SCREEN_WIDTH, 312, 2, grey);
+    else if (m_lastRank > 0)
+    {
+        snprintf(buf, sizeof(buf), "RANK #%d ON THIS DEVICE", m_lastRank);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 312, 2, gold);
+    }
+    pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
+    pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
+    RenderRecipesButton(RECIPES_BUTTON_GAMEOVER_RECT);
+    RenderButton(LEADERBOARD_BUTTON_GAMEOVER_RECT, "LEADERBOARD  (L)", false);
 }
 
 // ------------------------------------------------------------------ boss mode (spec §25)
@@ -2712,7 +3034,15 @@ bool GameManager::loadBackgroundLayers() {
 }
 
 void GameManager::renderBackgroundLayers() {
+    // PLAY: every boss defeated is a new stage with its own light (a placeholder for the stage backgrounds, P3-6)
+    static const SDL_Color kStageTints[] = {
+        { 255, 255, 255, 255 }, { 255, 205, 160, 255 }, { 165, 185, 255, 255 }, { 255, 150, 150, 255 }, { 205, 165, 255, 255 } };
+    SDL_Color tint = kStageTints[0];
+    if (!m_tutorialActive && !m_bossActive && m_session.Mode() == practice::SessionMode::Play
+        && m_session.State() != practice::GameState::Ready)
+        tint = kStageTints[m_session.GetStats().bossesDefeated % 5];
     for (int i = 0; i < 12; ++i) {
+        SDL_SetTextureColorMod(backgroundLayers[i], tint.r, tint.g, tint.b);
         SDL_Rect srcRect = { 0, BACKGROUND_CROP_Y, SCREEN_WIDTH, SCREEN_HEIGHT };  // unscaled band, see GameManager.h
         SDL_Rect destRect = { static_cast<int>(backgroundPositions[i]), 0, SCREEN_WIDTH, SCREEN_HEIGHT };
         SDL_RenderCopy(m_screen, backgroundLayers[i], &srcRect, &destRect);

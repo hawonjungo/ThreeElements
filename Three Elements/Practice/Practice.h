@@ -89,6 +89,9 @@ namespace practice
 		int incorrectCasts;
 		float survivalTime; // seconds spent Playing
 		bool assisted;      // the recipe hint was on at some point in this run (spec §17): not ranked, no records
+		int gold;           // PLAY: gold earned in this run (elites, bosses, Bounty); Survival: always 0
+		int kills;          // enemies defeated
+		int bossesDefeated; // PLAY: stage = bossesDefeated + 1
 
 		int TotalCasts() const { return correctCasts + incorrectCasts; }
 		double Accuracy() const  // 0.0 .. 1.0; 0.0 while no cast has been judged yet
@@ -129,13 +132,66 @@ namespace practice
 	// equal to an existing entry goes below it.
 	int InsertTopRun(TopRun* list, const TopRun& run);
 
+	// ---- PLAY mode (spec §26): the main game. Survival rules plus chains, elites, bosses, runes and gold. ----
+	// INITIAL TUNING VALUES, like the difficulty ones.
+	enum class SessionMode { Survival, Play };      // Survival = the former Practice, unchanged
+	enum class EnemyKind { Normal, Elite, Boss };
+	enum class Rune { None, Regeneration, Frost, DoubleDamage, Bounty, Shield };  // the reward for a boss
+	const int   PLAY_MAX_CHAIN = 3;
+	const int   PLAY_BOSS_EVERY = 10;              // every 10th enemy of a PLAY run is a boss
+	const float PLAY_ELITE_CHANCE_MAX = 0.3f;       // elites: 0 % at the start ...
+	const float PLAY_ELITE_RAMP_TIME = 180.0f;      // ... rising to 30 % after this many seconds
+	const float PLAY_ELITE_SPEED = 0.8f;            // speed multipliers (longer chains need more keys)
+	const float PLAY_BOSS_SPEED = 0.6f;
+	const float PLAY_ELITE_SCALE = 1.4f;            // drawn (and hit) this much larger
+	const float PLAY_BOSS_SCALE = 2.0f;
+	const int   PLAY_LEAK_NORMAL = 1;               // lives lost when it reaches the player
+	const int   PLAY_LEAK_ELITE = 2;
+	const int   PLAY_LEAK_BOSS = 3;
+	const int   PLAY_POINTS_NORMAL = 1;             // score per kill
+	const int   PLAY_POINTS_ELITE = 3;
+	const int   PLAY_POINTS_BOSS = 10;
+	const int   PLAY_GOLD_ELITE = 5;                // gold only from elites, bosses and Bounty
+	const int   PLAY_GOLD_BOSS = 20;
+	const int   PLAY_BOUNTY_GOLD = 25;
+	const int   PLAY_MAX_HP = 5;                    // Regeneration never goes above this
+	const float PLAY_FROST_TIME = 15.0f;            // s of Frost: enemies at PLAY_FROST_SPEED
+	const float PLAY_FROST_SPEED = 0.6f;
+	const float PLAY_DOUBLE_TIME = 20.0f;           // s of Double Damage: points x2
+
+	float EliteChance(float elapsedSeconds);        // 0 .. PLAY_ELITE_CHANCE_MAX
+
+	// PLAY leaderboard (by score; ties: more bosses, then longer time). Same list rules as InsertTopRun.
+	struct PlayRun
+	{
+		int score;       // 0 = empty slot
+		float time;      // seconds
+		int stage;       // bosses defeated + 1
+	};
+	int InsertPlayRun(PlayRun* list, const PlayRun& run);  // list has TOP_RUNS entries; rank 1..TOP_RUNS or 0
+
 	struct ActiveEnemy
 	{
 		bool active;
 		int definition;                 // index into the enemy table
-		invoker::SkillId target;        // copied from the definition when spawned
+		invoker::SkillId target;        // the skill needed now (Survival: copied from the definition)
 		float x;                        // body-left, logical pixels
 		float speed;                    // px/s, fixed at spawn
+		EnemyKind kind;                 // PLAY only; Survival enemies are Normal
+		invoker::SkillId chain[PLAY_MAX_CHAIN];  // PLAY: the skills needed in order (chain[chainStep] == target)
+		int chainLength;                // 1 for a normal enemy (0 is treated as 1)
+		int chainStep;                  // skills of the chain already broken
+		float scale;                    // drawn size and hit box (0 is treated as 1)
+	};
+
+	// What a correct cast that finished an enemy gave (PLAY: points, gold and a boss's rune).
+	struct KillReport
+	{
+		bool killed;
+		EnemyKind kind;
+		int points;
+		int gold;
+		Rune rune;
 	};
 
 	// Axis-aligned box in field pixels.
@@ -188,6 +244,7 @@ namespace practice
 		invoker::InvokerResult invoker; // what the Invoker Core did with the key
 		CastOutcome cast;               // Correct / Incorrect only for a filled slot cast against an active enemy
 		bool tornadoLaunched;           // a Tornado projectile was created (it is judged later, when it hits)
+		KillReport kill;                // a Correct cast that finished the enemy (a chain step is Correct, not a kill)
 	};
 
 	struct UpdateResult
@@ -196,12 +253,19 @@ namespace practice
 		bool leaked;       // an enemy reached the player this update (HP was reduced)
 		bool gameOver;     // HP reached 0 this update
 		CastOutcome cast;  // a Tornado hit was judged this update (None if no projectile hit)
+		KillReport kill;   // that hit finished the enemy
+		int leakDamage;    // lives lost by the leak (PLAY: 1 / 2 / 3)
+		bool shieldUsed;   // a Shield rune took the leak instead
 	};
 
 	class PracticeSession
 	{
 	public:
 		PracticeSession();                // starts in Ready
+
+		// Survival (the former Practice) or PLAY; kept for every later Start / PressEnter. Ignored while Playing.
+		void SetMode(SessionMode mode) { if (m_state != GameState::Playing) m_mode = mode; }
+		SessionMode Mode() const { return m_mode; }
 
 		void Start(unsigned seed);        // new session (also used to restart): resets everything except the
 		                                  // best combo record, state = Playing
@@ -232,6 +296,12 @@ namespace practice
 			m_stats.bestCombo = m_recordAtStart;
 		}
 
+		// PLAY runes (P3-4): the reward a boss gives, also callable directly (tests). Returns the rune applied.
+		Rune ApplyRune(Rune rune);
+		float FrostLeft() const { return m_frostLeft; }
+		float DoubleLeft() const { return m_doubleLeft; }
+		bool HasShield() const { return m_shield; }
+
 		// Launches a Tornado from the player along (dx, dy) at the current enemy. Input() calls it with the direction
 		// toward the enemy; it is public so a test can aim somewhere else. false = no enemy (or not Playing).
 		bool LaunchTornado(float dx, float dy);
@@ -256,6 +326,12 @@ namespace practice
 		unsigned m_rng;
 		int m_spawnCount;
 		int m_recordAtStart = 0;          // best combo record when this run started (for MarkAssisted)
+		SessionMode m_mode = SessionMode::Survival;
+		float m_frostLeft = 0.0f;         // PLAY rune timers and the shield
+		float m_doubleLeft = 0.0f;
+		bool m_shield = false;
+		KillReport m_kill = {};           // filled by JudgeCast when it finishes an enemy
+		Rune PickRune();
 	};
 }
 

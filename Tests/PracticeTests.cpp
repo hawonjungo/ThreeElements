@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 using namespace practice;
 using invoker::InputAction;
@@ -2172,6 +2173,220 @@ static void TestBossLose()
 }
 
 
+// ---------------------------------------------------------------- PLAY mode (spec §26)
+
+// Invokes `skill` into D and casts it; a Tornado is followed until its projectile is judged.
+static CastOutcome PlayCast(PracticeSession& s, SkillId skill, KillReport* kill = NULL)
+{
+	std::string letters = invoker::RecipeLetters(skill);
+	PressLetters(s, letters.c_str());
+	PressLetters(s, "R");
+	InputResult r = s.Input(InputAction::D);
+	if (kill != NULL)
+		*kill = r.kill;
+	if (skill != SkillId::Tornado)
+		return r.cast;
+	for (int i = 0; i < 300; ++i)
+	{
+		UpdateResult u = s.Update(0.01f);
+		if (u.cast != CastOutcome::None)
+		{
+			if (kill != NULL)
+				*kill = u.kill;
+			return u.cast;
+		}
+	}
+	return CastOutcome::None;
+}
+
+static void PlayWaitSpawn(PracticeSession& s)
+{
+	for (int i = 0; i < 100 && !s.Enemy().active && s.State() == GameState::Playing; ++i)
+		s.Update(0.05f);
+}
+
+// Kills the active enemy by casting its whole chain; returns the report of the finishing cast.
+static KillReport PlayKill(PracticeSession& s)
+{
+	KillReport kill = {};
+	for (int guard = 0; guard < PLAY_MAX_CHAIN && s.Enemy().active; ++guard)
+		PlayCast(s, s.Enemy().target, &kill);
+	return kill;
+}
+
+static SkillId WrongSkillFor(SkillId target)
+{
+	for (int i = 0; i < invoker::SKILL_COUNT; ++i)
+	{
+		SkillId s = static_cast<SkillId>(i);
+		if (s != target && s != SkillId::Tornado)
+			return s;
+	}
+	return SkillId::None;
+}
+
+static void TestPlayTables()
+{
+	CHECK(EliteChance(0.0f) == 0.0f);
+	CHECK(NearF(EliteChance(PLAY_ELITE_RAMP_TIME * 0.5f), PLAY_ELITE_CHANCE_MAX * 0.5f, 1e-6f));
+	CHECK(EliteChance(PLAY_ELITE_RAMP_TIME * 3.0f) == PLAY_ELITE_CHANCE_MAX);
+	PlayRun list[TOP_RUNS] = {};
+	CHECK(InsertPlayRun(list, { 0, 30.0f, 1 }) == 0);          // no score: not listed
+	CHECK(InsertPlayRun(list, { 12, 60.0f, 2 }) == 1);
+	CHECK(InsertPlayRun(list, { 20, 50.0f, 2 }) == 1);
+	CHECK(InsertPlayRun(list, { 12, 70.0f, 3 }) == 2);         // same score, further stage ranks higher
+	CHECK(InsertPlayRun(list, { 12, 80.0f, 2 }) == 3);         // same score and stage: the longer run
+	CHECK(list[0].score == 20 && list[1].stage == 3 && list[2].time == 80.0f && list[3].time == 60.0f);
+	for (int i = 0; i < TOP_RUNS; ++i)
+		InsertPlayRun(list, { 100 + i, 10.0f, 1 });
+	CHECK(InsertPlayRun(list, { 5, 10.0f, 1 }) == 0);          // below the whole list
+}
+
+static void TestPlaySurvivalUnchanged()
+{
+	PracticeSession s;
+	CHECK(s.Mode() == SessionMode::Survival);
+	s.Start(7);
+	PlayWaitSpawn(s);
+	CHECK(s.Enemy().kind == EnemyKind::Normal && s.Enemy().chainLength == 1 && s.Enemy().scale == 1.0f);
+	KillReport kill = PlayKill(s);
+	CHECK(kill.killed && kill.points == 1 && kill.gold == 0 && kill.rune == Rune::None);
+	CHECK(s.GetStats().score == 1 && s.GetStats().gold == 0 && s.GetStats().kills == 1);
+	s.SetMode(SessionMode::Play);  // ignored while Playing
+	CHECK(s.Mode() == SessionMode::Survival);
+}
+
+// Every 10th enemy is a boss with a chain of 3 different skills, slower and larger.
+static void TestPlayBossCadence()
+{
+	PracticeSession s;
+	s.SetMode(SessionMode::Play);
+	CHECK(s.Mode() == SessionMode::Play);
+	s.Start(11);
+	PlayWaitSpawn(s);
+	CHECK(s.Enemy().kind == EnemyKind::Normal);  // elites need time: 0 % at the start
+	int elites = 0;
+	for (int n = 1; n < PLAY_BOSS_EVERY; ++n)
+	{
+		CHECK(s.Enemy().kind != EnemyKind::Boss);
+		if (s.Enemy().kind == EnemyKind::Elite)
+		{
+			++elites;
+			CHECK(s.Enemy().chainLength == 2 && s.Enemy().chain[0] != s.Enemy().chain[1]);
+			CHECK(s.Enemy().scale == PLAY_ELITE_SCALE);
+		}
+		PlayKill(s);
+		PlayWaitSpawn(s);
+	}
+	const ActiveEnemy& boss = s.Enemy();
+	CHECK(s.SpawnCount() == PLAY_BOSS_EVERY && boss.kind == EnemyKind::Boss);
+	CHECK(boss.chainLength == 3 && boss.chainStep == 0 && boss.target == boss.chain[0]);
+	CHECK(boss.chain[0] != boss.chain[1] && boss.chain[0] != boss.chain[2] && boss.chain[1] != boss.chain[2]);
+	CHECK(boss.scale == PLAY_BOSS_SCALE);
+	CHECK(boss.speed <= DifficultyAt(s.GetStats().survivalTime).enemySpeed * PLAY_BOSS_SPEED + 0.5f);
+	CHECK(elites <= PLAY_BOSS_EVERY - 1);
+}
+
+static void PlayToBoss(PracticeSession& s, unsigned seed)
+{
+	s.SetMode(SessionMode::Play);
+	s.Start(seed);
+	PlayWaitSpawn(s);
+	while (s.Enemy().kind != EnemyKind::Boss && s.State() == GameState::Playing)
+	{
+		PlayKill(s);
+		PlayWaitSpawn(s);
+	}
+}
+
+// A chain: right casts break it one skill at a time, a wrong cast keeps the progress, the last one kills.
+static void TestPlayChain()
+{
+	PracticeSession s;
+	PlayToBoss(s, 21);
+	CHECK(s.Enemy().kind == EnemyKind::Boss);
+	int scoreBefore = s.GetStats().score;
+	int correctBefore = s.GetStats().correctCasts;
+	SkillId first = s.Enemy().chain[0], second = s.Enemy().chain[1], third = s.Enemy().chain[2];
+
+	KillReport kill = {};
+	CHECK(PlayCast(s, first, &kill) == CastOutcome::Correct);
+	CHECK(!kill.killed && s.Enemy().active && s.Enemy().chainStep == 1 && s.Enemy().target == second);
+	CHECK(s.GetStats().score == scoreBefore && s.GetStats().correctCasts == correctBefore + 1);
+
+	CHECK(PlayCast(s, WrongSkillFor(second)) == CastOutcome::Incorrect);  // a MISS: progress kept
+	CHECK(s.Enemy().active && s.Enemy().chainStep == 1 && s.Enemy().target == second);
+
+	CHECK(PlayCast(s, second) == CastOutcome::Correct && s.Enemy().chainStep == 2 && s.Enemy().target == third);
+	CHECK(PlayCast(s, third, &kill) == CastOutcome::Correct);
+	CHECK(kill.killed && kill.kind == EnemyKind::Boss && !s.Enemy().active);
+	CHECK(kill.points == PLAY_POINTS_BOSS || kill.points == 2 * PLAY_POINTS_BOSS);
+	CHECK(kill.rune != Rune::None && kill.gold >= PLAY_GOLD_BOSS);
+	CHECK(s.GetStats().bossesDefeated == 1 && s.GetStats().gold >= PLAY_GOLD_BOSS);
+	CHECK(s.GetStats().score == scoreBefore + kill.points);
+}
+
+// A boss that reaches the player costs 3 lives: from 3, Game Over.
+static void TestPlayLeakDamage()
+{
+	PracticeSession s;
+	PlayToBoss(s, 31);
+	CHECK(s.GetStats().hp == START_HP);
+	UpdateResult leak = {};
+	for (int i = 0; i < 3000 && !leak.leaked; ++i)
+		leak = s.Update(0.01f);
+	CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_BOSS && leak.gameOver);
+	CHECK(s.GetStats().hp == 0 && s.State() == GameState::GameOver);
+
+	// a Shield takes the leak instead
+	PracticeSession h;
+	PlayToBoss(h, 31);
+	h.ApplyRune(Rune::Shield);
+	CHECK(h.HasShield());
+	leak = {};
+	for (int i = 0; i < 3000 && !leak.leaked; ++i)
+		leak = h.Update(0.01f);
+	CHECK(leak.leaked && leak.shieldUsed && leak.leakDamage == 0 && !leak.gameOver);
+	CHECK(h.GetStats().hp == START_HP && !h.HasShield());
+}
+
+static void TestPlayRunes()
+{
+	PracticeSession s;
+	s.SetMode(SessionMode::Play);
+	s.Start(41);
+	// Regeneration: +1 life up to 5, and the HP row grows with it
+	for (int i = 0; i < 4; ++i)
+		s.ApplyRune(Rune::Regeneration);
+	CHECK(s.GetStats().hp == PLAY_MAX_HP && s.GetStats().maxHp == PLAY_MAX_HP);
+	// Bounty: gold
+	s.ApplyRune(Rune::Bounty);
+	CHECK(s.GetStats().gold == PLAY_BOUNTY_GOLD);
+	// Frost: enemies at 60 % while it lasts
+	PlayWaitSpawn(s);
+	float x0 = s.Enemy().x;
+	s.Update(0.05f);
+	float normal = x0 - s.Enemy().x;
+	s.ApplyRune(Rune::Frost);
+	x0 = s.Enemy().x;
+	s.Update(0.05f);
+	CHECK(NearF(x0 - s.Enemy().x, normal * PLAY_FROST_SPEED, 0.05f));
+	CHECK(NearF(s.FrostLeft(), PLAY_FROST_TIME - 0.05f, 1e-3f));
+	// Double Damage: the next kill scores twice
+	s.ApplyRune(Rune::DoubleDamage);
+	KillReport kill = PlayKill(s);
+	CHECK(kill.killed && kill.points == 2 * PLAY_POINTS_NORMAL);
+	// the timers run out
+	for (int i = 0; i < 300; ++i)
+		s.Update(0.1f);
+	CHECK(s.FrostLeft() == 0.0f && s.DoubleLeft() == 0.0f);
+	// a new session clears them
+	s.ApplyRune(Rune::Shield);
+	s.Start(42);
+	CHECK(!s.HasShield() && s.GetStats().gold == 0 && s.GetStats().hp == START_HP);
+}
+
+
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
@@ -2220,6 +2435,12 @@ int main()
 	RunTest("boss: four-spell combo (boss 3)", TestBossFourSpellCombo);
 	RunTest("boss: win", TestBossWin);
 	RunTest("boss: lose", TestBossLose);
+	RunTest("play: tables", TestPlayTables);
+	RunTest("play: survival unchanged", TestPlaySurvivalUnchanged);
+	RunTest("play: boss every 10, elites", TestPlayBossCadence);
+	RunTest("play: chains", TestPlayChain);
+	RunTest("play: leak damage, shield", TestPlayLeakDamage);
+	RunTest("play: runes", TestPlayRunes);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;

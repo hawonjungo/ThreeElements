@@ -40,7 +40,7 @@ namespace practice
 			{ CARD, 4, "NOW YOU! READ EACH TARGET,",   "FIND ITS KEYS, INVOKE AND CAST.",    "",    HIGHLIGHT_TARGET, NONE },
 			{ TutorialStepKind::Run, 4, "DEFEAT 3 ENEMIES.", "H: RECIPE LIST",               "",    HIGHLIGHT_ENEMY | HIGHLIGHT_TARGET, TutorialOnEnter::StartRun },
 			// end
-			{ TutorialStepKind::Done, 4, "TUTORIAL COMPLETE!", "ENTER: PLAY PRACTICE   ESC: MENU", "", HIGHLIGHT_NONE, NONE },
+			{ TutorialStepKind::Done, 4, "TUTORIAL COMPLETE!", "ENTER: PLAY   ESC: MENU", "", HIGHLIGHT_NONE, NONE },
 		};
 		const int STEP_COUNT = static_cast<int>(sizeof(kSteps) / sizeof(kSteps[0]));
 

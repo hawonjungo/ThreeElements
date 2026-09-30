@@ -143,12 +143,14 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
 // Main menu (the Ready screen, owner 2026-09-30): one option per line, arrows + Enter, hotkeys, or a tap.
-enum MenuItem { MENU_PLAY, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
+// PLAY = the main game (spec §26); SURVIVAL = the former Practice.
+enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_RECIPES, MENU_LEADERBOARD, MENU_SOUND, MENU_HINT, MENU_QUIT };
 const int MENU_X = 340;
 const int MENU_Y = 238;
 const int MENU_W = 248;
-const int MENU_ITEM_H = 31;   // 8 lines (7 on the web) must end above the bottom edge
-const int MENU_STEP = 35;
+const int MENU_ITEM_H = 28;   // 9 lines (8 on the web) must end above the bottom edge
+const int MENU_STEP = 32;
+const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune) stays on screen
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 628, 250, 276, 150 };
 const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 474, 430, 230, 36 };
@@ -219,6 +221,12 @@ protected:
 	int m_skillVfxCount = 0;                                   // casts so far, seeds each effect's particles
 
 	practice::TopRun m_topRuns[practice::TOP_RUNS] = {};  // this device's best runs by survival time, best first
+	practice::PlayRun m_playRuns[practice::TOP_RUNS] = {}; // this device's best PLAY runs by score (spec §26)
+	int m_goldBank = 0;                  // PLAY gold banked across runs (the future shop's currency), saved
+	char m_goldText[24] = "";            // "+20 GOLD" rising from a defeated elite / boss (FloatText keeps a pointer)
+	char m_stageText[32] = "";           // "BOSS DEFEATED - STAGE 2"
+	const char* m_announce = NULL;       // the rune just received
+	float m_announceLeft = 0.0f;
 	int m_lastRank = 0;                  // where the run that just ended landed in m_topRuns (0 = not listed)
 	int m_menuIndex = 0;                 // highlighted line of the main menu
 	bool m_showLeaderboard = false;      // the top 10 is open (Ready / Game Over)
@@ -262,7 +270,7 @@ protected:
 	// Sound for a key the Core has handled (orb, invoke, cast whoosh), the Ghost Walk aura and the skill effect;
 	// shared by Practice and the tutorial. The judged outcome (right / wrong) is handled by OnCastJudged.
 	void PresentInvokerResult(invoker::InputAction action, const invoker::InvokerResult& result,
-		practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody);
+		practice::CastOutcome cast, bool hadEnemy, const practice::Bounds& enemyBody, const char* label = NULL);
 
 	// Invoker HUD, centred horizontally (owner 2026-09-23): orb centres (40 px discs) and the D/F slot icons'
 	// top-left corners (64 x 64). Both groups are symmetric around SCREEN_WIDTH / 2 = 464.
@@ -314,7 +322,15 @@ private:
 	void ToggleRecipeHint();
 	void EndSession();            // a session ended (Game Over or Esc while Playing): update and save the records
 
-	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy);  // "+1" / "MISS" feedback
+	void OnCastJudged(practice::CastOutcome outcome, const practice::Bounds& enemy, const char* label = NULL);  // "+1" / "MISS"
+	void OnKill(const practice::KillReport& kill, const practice::Bounds& enemy);  // PLAY: gold, a boss's rune and stage
+	void StartMode(practice::SessionMode mode);  // PLAY or SURVIVAL from the menu
+	void LoadPlayRuns();
+	void SavePlayRuns();
+	void LoadGold();
+	void SaveGold();
+	void RenderAnnouncement();
+	void RenderPlayGameOver();
 	void OnLeak(int lostHeartIndex);
 	void UpdateFeedback(float dt);
 	void RenderFeedback();        // rings and floating text, in the scene

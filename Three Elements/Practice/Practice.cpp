@@ -35,11 +35,12 @@ namespace practice
 	Bounds EnemyBounds(const ActiveEnemy& enemy)
 	{
 		const EnemyDefinition& def = kEnemies[enemy.definition];
+		float s = enemy.scale > 0.0f ? enemy.scale : 1.0f;  // PLAY elites and bosses are larger
 		Bounds b;
 		b.x = enemy.x;  // enemy.x is already the left edge of the visible body
-		b.y = GROUND_LINE_Y - static_cast<float>(def.feetRow) + static_cast<float>(def.bodyTop);
-		b.w = static_cast<float>(def.bodyWidth);
-		b.h = static_cast<float>(def.bodyBottom - def.bodyTop + 1);
+		b.y = GROUND_LINE_Y - static_cast<float>(def.feetRow - def.bodyTop) * s;
+		b.w = static_cast<float>(def.bodyWidth) * s;
+		b.h = static_cast<float>(def.bodyBottom - def.bodyTop + 1) * s;
 		return b;
 	}
 
@@ -123,6 +124,14 @@ namespace practice
 		return p;
 	}
 
+	float EliteChance(float elapsedSeconds)
+	{
+		if (elapsedSeconds <= 0.0f)
+			return 0.0f;
+		float c = PLAY_ELITE_CHANCE_MAX * elapsedSeconds / PLAY_ELITE_RAMP_TIME;
+		return c > PLAY_ELITE_CHANCE_MAX ? PLAY_ELITE_CHANCE_MAX : c;
+	}
+
 	// ------------------------------------------------------------------ records
 
 	BestUpdate MergeBests(BestStats& bests, const Stats& session)
@@ -155,6 +164,29 @@ namespace practice
 		return pos + 1;
 	}
 
+	int InsertPlayRun(PlayRun* list, const PlayRun& run)
+	{
+		if (run.score <= 0)
+			return 0;
+		auto better = [](const PlayRun& a, const PlayRun& b)
+		{
+			if (a.score != b.score)
+				return a.score > b.score;
+			if (a.stage != b.stage)
+				return a.stage > b.stage;
+			return a.time > b.time;
+		};
+		int pos = TOP_RUNS;
+		while (pos > 0 && better(run, list[pos - 1]))
+			--pos;
+		if (pos >= TOP_RUNS)
+			return 0;
+		for (int i = TOP_RUNS - 1; i > pos; --i)
+			list[i] = list[i - 1];
+		list[pos] = run;
+		return pos + 1;
+	}
+
 	// ------------------------------------------------------------------ PracticeSession
 
 	PracticeSession::PracticeSession()
@@ -172,6 +204,8 @@ namespace practice
 		m_stats.bestCombo = record;
 		m_recordAtStart = record;                // what MarkAssisted() puts back if this run turns out assisted
 		m_enemy = { false, 0, SkillId::None, 0.0f, 0.0f };
+		m_frostLeft = m_doubleLeft = 0.0f;       // PLAY runes end with the session
+		m_shield = false;
 		m_tornadoes.clear();                     // projectiles in flight disappear with the session
 		m_invoker.Reset();                       // orbs and D/F slots
 		m_lastTarget = SkillId::None;
@@ -216,6 +250,7 @@ namespace practice
 		result.invoker = { invoker::InvokerEvent::InvokeIgnored, SkillId::None };
 		result.cast = CastOutcome::None;
 		result.tornadoLaunched = false;
+		result.kill = {};
 
 		if (m_state != GameState::Playing)
 			return result;
@@ -239,7 +274,9 @@ namespace practice
 			}
 			else
 			{
+				m_kill = {};
 				result.cast = JudgeCast(result.invoker.skill);
+				result.kill = m_kill;
 			}
 		}
 		return result;
@@ -254,10 +291,38 @@ namespace practice
 		if (spell == m_enemy.target)
 		{
 			++m_stats.correctCasts;
-			++m_stats.score;
 			++m_stats.combo;
 			if (!m_stats.assisted && m_stats.combo > m_stats.bestCombo)  // a hinted run sets no record
 				m_stats.bestCombo = m_stats.combo;
+
+			// PLAY chains (P3-3): a correct cast breaks the current skill; the enemy lives on until the last one
+			if (m_enemy.chainStep + 1 < m_enemy.chainLength)
+			{
+				++m_enemy.chainStep;
+				m_enemy.target = m_enemy.chain[m_enemy.chainStep];
+				return CastOutcome::Correct;
+			}
+
+			m_kill = { true, m_enemy.kind, 1, 0, Rune::None };
+			if (m_mode == SessionMode::Play)
+			{
+				m_kill.points = m_enemy.kind == EnemyKind::Boss ? PLAY_POINTS_BOSS
+					: m_enemy.kind == EnemyKind::Elite ? PLAY_POINTS_ELITE : PLAY_POINTS_NORMAL;
+				if (m_doubleLeft > 0.0f)
+					m_kill.points *= 2;
+				m_kill.gold = m_enemy.kind == EnemyKind::Boss ? PLAY_GOLD_BOSS
+					: m_enemy.kind == EnemyKind::Elite ? PLAY_GOLD_ELITE : 0;
+				m_stats.gold += m_kill.gold;
+				if (m_enemy.kind == EnemyKind::Boss)
+				{
+					++m_stats.bossesDefeated;
+					int before = m_stats.gold;
+					m_kill.rune = ApplyRune(PickRune());
+					m_kill.gold += m_stats.gold - before;  // Bounty
+				}
+			}
+			m_stats.score += m_kill.points;          // Survival: +1 per enemy, as always
+			++m_stats.kills;
 			m_enemy.active = false;              // the enemy disappears
 			StartWaiting();
 			return CastOutcome::Correct;
@@ -265,6 +330,38 @@ namespace practice
 
 		++m_stats.incorrectCasts;                // no damage, no HP loss, combo untouched, enemy keeps coming
 		return CastOutcome::Incorrect;
+	}
+
+	Rune PracticeSession::PickRune()
+	{
+		Rune pool[5];
+		int count = 0;
+		if (m_stats.hp < PLAY_MAX_HP)
+			pool[count++] = Rune::Regeneration;
+		pool[count++] = Rune::Frost;
+		pool[count++] = Rune::DoubleDamage;
+		pool[count++] = Rune::Bounty;
+		pool[count++] = Rune::Shield;
+		return pool[NextRandom() % static_cast<unsigned>(count)];
+	}
+
+	Rune PracticeSession::ApplyRune(Rune rune)
+	{
+		switch (rune)
+		{
+		case Rune::Regeneration:
+			if (m_stats.hp < PLAY_MAX_HP)
+				++m_stats.hp;
+			if (m_stats.hp > m_stats.maxHp)
+				m_stats.maxHp = m_stats.hp;
+			break;
+		case Rune::Frost:        m_frostLeft = PLAY_FROST_TIME; break;
+		case Rune::DoubleDamage: m_doubleLeft = PLAY_DOUBLE_TIME; break;
+		case Rune::Bounty:       m_stats.gold += PLAY_BOUNTY_GOLD; break;
+		case Rune::Shield:       m_shield = true; break;
+		default: break;
+		}
+		return rune;
 	}
 
 	bool PracticeSession::LaunchTornado(float dx, float dy)
@@ -295,7 +392,10 @@ namespace practice
 				if (t.active && m_enemy.active && t.enemyId == m_spawnCount && TornadoHits(t, EnemyBounds(m_enemy)))
 				{
 					t.active = false;            // a hit is used up: one projectile resolves at most once
+					m_kill = {};
 					result.cast = JudgeCast(SkillId::Tornado);
+					if (m_kill.killed)
+						result.kill = m_kill;
 				}
 			}
 		}
@@ -321,6 +421,8 @@ namespace practice
 			dt = MAX_FRAME_TIME;
 
 		m_stats.survivalTime += dt;
+		m_frostLeft = m_frostLeft > dt ? m_frostLeft - dt : 0.0f;
+		m_doubleLeft = m_doubleLeft > dt ? m_doubleLeft - dt : 0.0f;
 
 		if (!m_enemy.active)
 		{
@@ -333,7 +435,7 @@ namespace practice
 		}
 		else
 		{
-			m_enemy.x -= m_enemy.speed * dt;
+			m_enemy.x -= m_enemy.speed * (m_frostLeft > 0.0f ? PLAY_FROST_SPEED : 1.0f) * dt;
 		}
 
 		// Projectiles are resolved before the leak test: a Tornado that reaches the enemy on the same update wins.
@@ -342,7 +444,16 @@ namespace practice
 		if (m_enemy.active && m_enemy.x <= HIT_LINE_X)  // "<=": a large dt may jump past the exact line
 		{
 			m_enemy.active = false;              // the enemy disappears
-			--m_stats.hp;
+			int damage = m_mode != SessionMode::Play ? 1 : m_enemy.kind == EnemyKind::Boss ? PLAY_LEAK_BOSS
+				: m_enemy.kind == EnemyKind::Elite ? PLAY_LEAK_ELITE : PLAY_LEAK_NORMAL;
+			if (m_shield)                        // PLAY Shield rune: this leak costs nothing
+			{
+				m_shield = false;
+				damage = 0;
+				result.shieldUsed = true;
+			}
+			m_stats.hp -= damage;
+			result.leakDamage = damage;
 			m_stats.combo = 0;
 			result.leaked = true;
 			if (m_stats.hp <= 0)
@@ -383,8 +494,41 @@ namespace practice
 		m_enemy.target = def.targetSkill;
 		m_enemy.x = SPAWN_X;
 		m_enemy.speed = DifficultyAt(m_stats.survivalTime).enemySpeed * def.speedMultiplier;  // fixed at spawn
+		m_enemy.kind = EnemyKind::Normal;
+		m_enemy.chain[0] = def.targetSkill;
+		m_enemy.chainLength = 1;
+		m_enemy.chainStep = 0;
+		m_enemy.scale = 1.0f;
 		m_lastTarget = def.targetSkill;
 		++m_spawnCount;
+
+		if (m_mode != SessionMode::Play)
+			return;
+		// PLAY (P3-2): every 10th enemy is a boss (chain of 3), others may be elites (chain of 2)
+		if (m_spawnCount % PLAY_BOSS_EVERY == 0)
+			m_enemy.kind = EnemyKind::Boss;
+		else if (static_cast<float>(NextRandom() % 1000u) / 1000.0f < EliteChance(m_stats.survivalTime))
+			m_enemy.kind = EnemyKind::Elite;
+		if (m_enemy.kind == EnemyKind::Normal)
+			return;
+		bool boss = m_enemy.kind == EnemyKind::Boss;
+		m_enemy.chainLength = boss ? 3 : 2;
+		m_enemy.speed *= boss ? PLAY_BOSS_SPEED : PLAY_ELITE_SPEED;
+		m_enemy.scale = boss ? PLAY_BOSS_SCALE : PLAY_ELITE_SCALE;
+		for (int k = 1; k < m_enemy.chainLength; ++k)  // the rest of the chain: random skills not used yet
+		{
+			SkillId options[invoker::SKILL_COUNT];
+			int n = 0;
+			for (int s = 0; s < invoker::SKILL_COUNT; ++s)
+			{
+				bool used = false;
+				for (int j = 0; j < k; ++j)
+					used = used || m_enemy.chain[j] == static_cast<SkillId>(s);
+				if (!used)
+					options[n++] = static_cast<SkillId>(s);
+			}
+			m_enemy.chain[k] = options[NextRandom() % static_cast<unsigned>(n)];
+		}
 	}
 
 	unsigned PracticeSession::NextRandom()

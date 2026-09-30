@@ -19,6 +19,9 @@ Injoker is a fast pixel-art reflex game about one thing: invoking the right spel
 
 Every enemy that walks toward you needs one particular spell. Load three elements, invoke, cast - before it reaches you. Get it right and the enemy is gone and your combo grows. Get it wrong and it keeps coming. The longer you survive, the faster they get.
 
+PLAY
+Normal enemies need one spell, elites a chain of two, and every tenth enemy is a boss that needs three in a row. Beat a boss for a rune - an extra life, frost, double score, bounty or a shield - and move on to the next stage. Collect gold from elites and bosses.
+
 HOW TO PLAY
 - Q, W, E load up to three element orbs (a fourth pushes out the oldest). The order does not matter, only the mix.
 - R invokes the spell your three orbs make.
@@ -29,7 +32,8 @@ FEATURES
 - A short guided tutorial that walks you through your first spell, key by key.
 - A recipe list to look up any spell between runs.
 - An optional recipe hint while you learn (runs with the hint are not ranked).
-- Endless mode: 3 hearts, rising speed, score, combo, accuracy and survival time.
+- PLAY: elites, bosses, runes, stages and gold.
+- SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
 - Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Your 10 best runs by survival time, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs.
@@ -58,6 +62,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.3.0, versionCode 5, max 500)
+
+```
+New main mode: PLAY! Elites need a chain of two spells, every tenth enemy is a boss with a chain of three. Beat bosses for runes (extra life, frost, double score, bounty, shield), reach new stages and collect gold. The old endless mode is now called SURVIVAL.
+```
 
 ## Release notes (1.2.1, versionCode 3, max 500)
 
