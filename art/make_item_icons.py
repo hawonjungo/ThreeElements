@@ -1,7 +1,9 @@
-"""Pixel icons for the shop items (GAMEPLAY_SPEC.md §27), drawn from scratch in the spirit of the Dota 2 items.
+"""Pixel icons for the shop items (GAMEPLAY_SPEC.md §27), the OVERLORD materials (§28) and the runes (§26), drawn
+from scratch in the spirit of the Dota 2 items.
 
 Each icon is a 16 x 16 pixel drawing on a dark tile, scaled x3 (nearest) to 48 x 48 and saved as
-"Three Elements/assets/items/<key><level>.png" (level 1 and 2 for permanent items, 1 for consumables).
+"Three Elements/assets/items/<key><level>.png" (level 1 and 2 for permanent items, 1 for consumables), and as
+"mat_<name>.png" / "rune_<name>.png" for the materials and the runes.
 Run: python art/make_item_icons.py   (needs Pillow)
 """
 import math
@@ -208,6 +210,94 @@ def smoke(level, dark):
     return c
 
 
+def point_booster():
+    c = Canvas((45, 25, 70), (16, 8, 30), (200, 130, 255))
+    c.disc(7.5, 7.5, 4.6, (120, 60, 200))      # the gem
+    c.disc(7.0, 7.0, 3.2, (160, 100, 240))
+    c.disc(6.2, 6.2, 1.4, (225, 190, 255))
+    c.set(5, 5, (255, 255, 255))
+    gold = (240, 200, 80)
+    for (x, y) in ((7, 2), (8, 2), (2, 7), (2, 8), (13, 7), (13, 8), (7, 13), (8, 13)):  # four claws of the setting
+        c.set(x, y, gold)
+    for (x, y) in ((4, 4), (11, 4), (4, 11), (11, 11)):
+        c.set(x, y, (180, 140, 50))
+    return c
+
+
+def mystic_staff():
+    c = Canvas((18, 45, 70), (8, 16, 30), (110, 200, 255))
+    c.line(3, 14, 9, 6, (120, 90, 170))        # the shaft
+    c.line(4, 14, 10, 6, (80, 60, 130))
+    c.ring(10.5, 4.5, 2.6, (150, 220, 255))    # the crescent head ...
+    c.set(8, 5, (18, 45, 70)); c.set(8, 6, (18, 45, 70))
+    c.disc(10.5, 4.5, 1.2, (230, 250, 255))    # ... around a bright crystal
+    for (x, y) in ((13, 2), (6, 2), (13, 8)):
+        c.set(x, y, (200, 240, 255))
+    return c
+
+
+def sacred_relic():
+    c = Canvas((75, 55, 15), (30, 20, 6), (255, 225, 110))
+    gold = (255, 215, 90)
+    c.rect(7, 2, 8, 10, gold)                  # a broad golden blade
+    c.set(7, 1, (255, 245, 190)); c.set(8, 1, gold)
+    c.line(7, 2, 7, 10, (255, 245, 190))
+    c.rect(4, 10, 11, 11, (220, 170, 50))      # winged guard
+    c.set(3, 9, (220, 170, 50)); c.set(12, 9, (220, 170, 50))
+    c.set(2, 8, (255, 225, 110)); c.set(13, 8, (255, 225, 110))
+    c.rect(7, 12, 8, 13, (150, 100, 40))       # grip
+    c.rect(6, 14, 9, 14, (255, 215, 90))       # pommel
+    c.set(10, 3, (255, 250, 210)); c.set(11, 4, (255, 250, 210))  # a glint
+    return c
+
+
+def rune(name):
+    colours = {'regen': ((20, 60, 30), (8, 22, 12), (110, 230, 120)),
+               'frost': ((20, 50, 75), (8, 18, 30), (140, 220, 255)),
+               'double': ((20, 30, 80), (8, 10, 34), (90, 140, 255)),
+               'bounty': ((70, 55, 15), (26, 20, 6), (255, 210, 80)),
+               'shield': ((25, 55, 65), (10, 20, 26), (120, 230, 240))}
+    top, bottom, col = colours[name]
+    c = Canvas(top, bottom, col)
+    hi = tuple(min(255, v + 70) for v in col)
+    c.ring(7.5, 7.5, 6.2, tuple(v // 2 for v in col))  # every rune sits in a stone ring
+    if name == 'regen':        # a cross
+        c.rect(7, 4, 8, 11, col)
+        c.rect(4, 7, 11, 8, col)
+        c.set(7, 4, hi); c.set(4, 7, hi)
+    elif name == 'frost':      # a snowflake
+        c.line(7, 3, 7, 12, col); c.line(3, 7, 12, 7, col)
+        c.line(4, 4, 11, 11, col); c.line(11, 4, 4, 11, col)
+        c.set(7, 7, hi); c.set(8, 8, hi)
+    elif name == 'double':     # two chevrons
+        for dy in (0, 4):
+            c.line(4, 8 + dy - 2, 7, 5 + dy - 2, col)
+            c.line(8, 5 + dy - 2, 11, 8 + dy - 2, col)
+            c.line(4, 9 + dy - 2, 7, 6 + dy - 2, hi if dy == 0 else col)
+            c.line(8, 6 + dy - 2, 11, 9 + dy - 2, hi if dy == 0 else col)
+    elif name == 'bounty':     # a coin
+        c.disc(7.5, 7.5, 3.6, col)
+        c.disc(7.5, 7.5, 2.2, (200, 150, 40))
+        c.rect(7, 6, 8, 9, hi)
+    else:                      # a shield
+        c.rect(5, 4, 10, 8, col)
+        c.rect(6, 9, 9, 10, col)
+        c.rect(7, 11, 8, 11, col)
+        c.line(7, 4, 7, 10, hi)
+    return c
+
+
+EXTRA = [
+    ('mat_pointbooster', point_booster()),
+    ('mat_mysticstaff', mystic_staff()),
+    ('mat_sacredrelic', sacred_relic()),
+    ('rune_regen', rune('regen')),
+    ('rune_frost', rune('frost')),
+    ('rune_double', rune('double')),
+    ('rune_bounty', rune('bounty')),
+    ('rune_shield', rune('shield')),
+]
+
 ICONS = [
     ('blink', [blink(1), blink(2)]),
     ('refresher', [refresher(1), refresher(2)]),
@@ -227,4 +317,6 @@ if __name__ == '__main__':
     for key, levels in ICONS:
         for i, canvas in enumerate(levels):
             canvas.save('%s%d' % (key, i + 1))
+    for key, canvas in EXTRA:
+        canvas.save(key)
     print('icons written to', OUT)

@@ -53,7 +53,8 @@ namespace practice
 		int correctCasts;
 		int incorrectCasts;
 		float survivalTime; // seconds spent Playing
-		bool assisted;      // the recipe hint was on at some point in this run (spec §17): not ranked, no records
+		bool assisted;      // the recipe hint was on at some point in this run (spec §17); information only since
+		                    // 1.6.1: a hinted run is ranked and sets records like any other
 		int gold;           // PLAY: gold earned in this run (elites, bosses, Bounty); Survival: always 0
 		int kills;          // enemies defeated
 		int bossesDefeated; // PLAY: stage = bossesDefeated + 1
@@ -242,14 +243,11 @@ namespace practice
 		// Seeds the best combo record from saved data (never lowers it). Used once at start-up.
 		void RestoreBestCombo(int record) { if (record > m_stats.bestCombo) m_stats.bestCombo = record; }
 		// The player turned the recipe hint on during this run (or started it with the hint on): the run is marked
-		// assisted for good, so it sets no records and enters no leaderboard. Ignored outside Playing.
-		// A best combo reached earlier in the same run is taken back.
+		// assisted for good. It changes nothing else (owner 2026-10-01: hinted runs are ranked). Ignored outside Playing.
 		void MarkAssisted()
 		{
-			if (m_state != GameState::Playing)
-				return;
-			m_stats.assisted = true;
-			m_stats.bestCombo = m_recordAtStart;
+			if (m_state == GameState::Playing)
+				m_stats.assisted = true;
 		}
 
 		// PLAY runes (P3-4): the reward a boss gives, also callable directly (tests). Returns the rune applied.
@@ -308,7 +306,6 @@ namespace practice
 		float m_spawnTimer;               // seconds until the next enemy while none is active
 		unsigned m_rng;
 		int m_spawnCount;
-		int m_recordAtStart = 0;          // best combo record when this run started (for MarkAssisted)
 		SessionMode m_mode = SessionMode::Survival;
 		float m_frostLeft = 0.0f;         // PLAY rune timers and the shield
 		float m_doubleLeft = 0.0f;

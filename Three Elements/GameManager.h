@@ -175,12 +175,28 @@ const TouchButton kTouchButtons[6] =
 };
 // Generous tap zones over the existing Enter/Esc text/HUD reminder, so a touch-only player can start, restart,
 // back out and quit without a keyboard. Same idea as kTouchButtons: reuse what is already drawn, not new UI.
-const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 264, 335, 400, 45 };// "PRESS ENTER TO RESTART"
-const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 364, 385, 200, 30 };  // "ESC  MENU" (Game Over)
+// Result screens (Game Over of both modes, a boss fight's result; owner 2026-10-01): what happened is text in one
+// panel of label / value rows; what the player can do is always a button, in two rows under the panel.
+const int RESULT_PANEL_X = 214;
+const int RESULT_PANEL_Y = 98;
+const int RESULT_PANEL_W = 500;
+const int RESULT_ROW_H = 26;
+const int RESULT_VALUE_X = RESULT_PANEL_X + 250;   // the value column
+const SDL_Rect TOUCH_GAMEOVER_RESTART_RECT = { 214, 410, 244, 44 };  // "ENTER  PLAY AGAIN"
+const SDL_Rect TOUCH_GAMEOVER_MENU_RECT  = { 470, 410, 244, 44 };    // "ESC  MENU"
+// Pause (Esc / Back / the HUD's PAUSE while a run or a boss fight is on): resume, or leave for the menu.
+const SDL_Rect PAUSE_RESUME_RECT = { 342, 236, 244, 44 };
+const SDL_Rect PAUSE_QUIT_RECT = { 342, 292, 244, 44 };
+// A reward that drops from a boss (material, rune): its icon hops out, rests on the ground with its name, fades.
+const float DROP_HOP_TIME = 0.45f;
+const float DROP_SHOW_TIME = 3.6f;
+const float DROP_FADE_TIME = 0.5f;
+const int DROP_REST_Y = 440;       // centre of the resting icon
+const int DROP_MAX = 4;
 // Sound on/off button (all states), drawn under ACC on the left of the HUD; M toggles it on a keyboard.
 const SDL_Rect SOUND_BUTTON_RECT = { 16, 66, 88, 24 };
-// Recipe hint on/off while playing (G on a keyboard), under the sound button. Spec §17: off by default; a run
-// that had it on is not ranked and sets no records.
+// Recipe hint on/off while playing (G on a keyboard), under the sound button. Spec §17: off by default; since
+// 1.6.1 a run that had it on is ranked like any other.
 const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Recipe reference (owner 2026-09-30): opened with H or this button on the Ready and Game Over screens, never
 // while Playing (no recipe hints in play, spec §17). Any key or tap closes it.
@@ -225,7 +241,7 @@ const SDL_Rect RUNE_CHOICE_RECT = { 234, 150, 460, 250 };
 const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune) stays on screen
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
-const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 474, 430, 230, 36 };
+const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 470, 464, 244, 34 };
 // Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
 // is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
 const SDL_Rect TUTORIAL_PANEL_RECT          = { 120, 8, 540, 128 };
@@ -234,8 +250,8 @@ const SDL_Rect TUTORIAL_PLAY_RECT           = { 140, 8 + 128 - 40, 250, 32 };
 const SDL_Rect TUTORIAL_MENU_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
 const float TUTORIAL_WRONG_FLASH = 0.6f;    // s: the expected key flashes after a wrong one
 const float TUTORIAL_SPAWN_FLASH = 3.0f;    // s: a new run enemy and its target are highlighted
-const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 224, 430, 230, 36 };
-const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU" HUD reminder, top-right
+const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 214, 464, 244, 34 };
+const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  PAUSE" HUD reminder, top-right
 
 // Boss mode (spec §25): the boss list (menu line BOSS FIGHTS / key B), the fight's HUD, the result screen.
 const SDL_Rect BOSS_SELECT_PANEL = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
@@ -316,6 +332,12 @@ protected:
 	practice::Inventory m_inventory = practice::EmptyInventory();  // items owned and equipped (spec §27), saved
 	SDL_Texture* m_itemIcons[practice::ITEM_COUNT][2] = {};  // level 1 / 2 icons (NULL when missing)
 	float m_itemFlash[practice::ITEM_SLOTS] = {};
+	SDL_Texture* m_materialIcons[practice::MATERIAL_COUNT] = {};  // 48 px, like the item icons (NULL when missing)
+	SDL_Texture* m_runeIcons[6] = {};    // indexed by practice::Rune (0 = None: never loaded)
+	struct Drop { bool active; float age; float x0, y0, x1; SDL_Texture* icon; char label[32]; };
+	Drop m_drops[DROP_MAX] = {};
+	bool m_paused = false;               // Esc while playing: the run (or boss fight) waits
+	int m_resultY = 0;                   // the next row of the result panel being drawn
 	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint
 	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topRuns
 	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
@@ -515,6 +537,26 @@ private:
 	const practice::BossSession& BossView() const { return m_bossActive ? m_boss : m_session.Overlord(); }
 	void RenderOverlordWarning();
 	void RenderOverlordBar();
+	// pause
+	bool CanPause() const
+	{
+		return !m_tutorialActive && (m_bossActive ? m_boss.State() == practice::BossState::Fighting
+			: m_session.State() == practice::GameState::Playing);
+	}
+	void HandlePauseKey(SDL_Keycode sym, bool& quit);
+	void HandlePausePointer(int x, int y, bool& quit);
+	void QuitFromPause(bool& quit);              // the run is given up: back to the menu (or the boss list)
+	void RenderPause();
+	// rewards with a picture: the material and the rune a boss leaves behind
+	void AddDrop(SDL_Texture* icon, const char* label, float x, float y, int offsetX);
+	void RenderDrops();
+	void RenderIconScaled(SDL_Texture* icon, int x, int y, int size);
+	// result screens: see RESULT_PANEL_* above
+	void ResultBegin(const char* title, SDL_Color titleColor, const char* subtitle, SDL_Color subtitleColor,
+		int rows, int separators, int extraHeight);
+	void ResultRow(const char* label, const char* value, const char* note = NULL, int style = 0);  // 0 white, 1 gold, 2 grey
+	void ResultSeparator();
+	void ResultButtons(const char* again, const char* back, bool extras);
 	// what the play view shows: the tutorial's invoker / enemy while it runs, the Practice session's otherwise
 	// (in a boss fight: the fight's invoker, and no Practice enemy)
 	const invoker::InvokerState& ShownInvoker() const
@@ -532,7 +574,6 @@ private:
 			|| m_session.State() == practice::GameState::Playing;
 	}
 	SDL_Rect TargetHintArea(invoker::SkillId target, int& textX) const;  // where RenderTargetHint draws
-	void RenderRecipesButton(const SDL_Rect& rect);
 	void RenderRecipes();
 	void RenderSmallOrb(invoker::Orb orb, int centerX, int centerY);
 	void DimScreen(Uint8 alpha);

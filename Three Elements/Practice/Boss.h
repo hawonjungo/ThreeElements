@@ -153,7 +153,7 @@ namespace practice
 		float Window() const { return m_window; }
 		BossInputResult Input(invoker::InputAction action);
 		BossUpdateResult Update(float dt);
-		void MarkAssisted() { if (m_state == BossState::Fighting) m_assisted = true; }  // recipe hint (B-12)
+		void MarkAssisted() { if (m_state == BossState::Fighting) m_assisted = true; }  // recipe hint: information only
 
 		// the fight
 		BossState State() const { return m_state; }

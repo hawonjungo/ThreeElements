@@ -1509,15 +1509,16 @@ static void TestInvokerThroughSession()
 	CHECK(p.Invoker().GetSlot(Slot::D) == SkillId::None && p.Invoker().OrbCount() == 2);
 }
 
-// ---------------------------------------------------------------- recipe hint (spec §17): assisted runs set no records
+// ---------------------------------------------------------------- recipe hint (spec §17): a hinted run counts like any other
 
 static void TestAssistedRuns()
 {
-	// MergeBests ignores an assisted run completely
+	// MergeBests takes an assisted run's records (owner 2026-10-01: the hint no longer keeps a run out of the ranks)
 	BestStats bests = { 3, 2, 10.0f };
 	Stats st = { 0, 3, 50, 0, 40, 60, 0, 300.0f, true };
 	BestUpdate u = MergeBests(bests, st);
-	CHECK(!u.Any() && bests.score == 3 && bests.combo == 2 && NearF(bests.survivalTime, 10.0f, 1e-6f));
+	CHECK(u.score && u.combo && u.survivalTime);
+	CHECK(bests.score == 50 && bests.combo == 40 && NearF(bests.survivalTime, 300.0f, 1e-6f));
 
 	// outside Playing MarkAssisted does nothing; a new run starts unassisted
 	PracticeSession s;
@@ -1527,21 +1528,19 @@ static void TestAssistedRuns()
 	s.Start(5);
 	CHECK(!s.GetStats().assisted);
 
-	// a new combo record reached earlier in the run is taken back when the hint is turned on ...
+	// turning the hint on marks the run and changes nothing else: the combo record keeps counting
 	Kill(s); Kill(s); Kill(s);
 	CHECK(s.GetStats().combo == 3 && s.GetStats().bestCombo == 3);
 	s.MarkAssisted();
-	CHECK(s.GetStats().assisted && s.GetStats().bestCombo == 2 && s.GetStats().combo == 3);
-	// ... and the rest of the run cannot raise it either
+	CHECK(s.GetStats().assisted && s.GetStats().bestCombo == 3 && s.GetStats().combo == 3);
 	Kill(s);
-	CHECK(s.GetStats().combo == 4 && s.GetStats().bestCombo == 2);
-	CHECK(s.GetStats().score == 4);       // score and combo still count up as usual on screen
+	CHECK(s.GetStats().combo == 4 && s.GetStats().bestCombo == 4 && s.GetStats().score == 4);
+	BestStats record = { 0, 0, 0.0f };
+	CHECK(MergeBests(record, s.GetStats()).Any() && record.score == 4 && record.combo == 4);
 
-	// the next run is a normal one again, from the unchanged record
+	// the mark ends with the run; the record stays
 	s.Start(6);
-	CHECK(!s.GetStats().assisted && s.GetStats().bestCombo == 2);
-	Kill(s); Kill(s); Kill(s);
-	CHECK(s.GetStats().bestCombo == 3);
+	CHECK(!s.GetStats().assisted && s.GetStats().bestCombo == 4);
 }
 
 // ---------------------------------------------------------------- leaderboard order (survival time)
