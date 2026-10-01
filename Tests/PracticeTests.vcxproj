@@ -85,6 +85,7 @@
     <ClCompile Include="..\Three Elements\Practice\Tutorial.cpp" />
     <ClCompile Include="..\Three Elements\Practice\Boss.cpp" />
     <ClCompile Include="..\Three Elements\Practice\Items.cpp" />
+    <ClCompile Include="..\Three Elements\TouchLayout.cpp" />
     <ClCompile Include="..\Three Elements\Core\Invoker.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -219,6 +219,8 @@ void GameManager::LoadAssets()
 #ifdef __ANDROID__
     m_showTouchControls = true;  // a phone: the on-screen Q/W/E/R/D/F buttons are the controls
 #endif
+    if (m_forceTouch)
+        m_showTouchControls = true;
 
     printf("Three Elements - Practice Mode. Press Enter to start.\n");
 
@@ -272,6 +274,21 @@ bool GameManager::RunFrame()
             // which == SDL_TOUCH_MOUSEID would be a synthetic mouse event for a tap SDL_FINGERDOWN
             // already handled above; a real mouse click (desktop testing) is not, and still works.
             HandlePointerDown(m_event.button.x, m_event.button.y, quit);
+        }
+        else if (m_showLayout && m_event.type == SDL_FINGERMOTION)  // the layout editor drags a block
+        {
+            int gameX = 0, gameY = 0;
+            TouchToGame(m_event.tfinger.x, m_event.tfinger.y, gameX, gameY);
+            LayoutPointerMove(gameX, gameY);
+        }
+        else if (m_showLayout && m_event.type == SDL_MOUSEMOTION && m_event.motion.which != SDL_TOUCH_MOUSEID)
+        {
+            LayoutPointerMove(m_event.motion.x, m_event.motion.y);
+        }
+        else if (m_showLayout && (m_event.type == SDL_FINGERUP
+            || (m_event.type == SDL_MOUSEBUTTONUP && m_event.button.which != SDL_TOUCH_MOUSEID)))
+        {
+            LayoutPointerUp();
         }
     }
 
@@ -419,6 +436,8 @@ bool GameManager::RunFrame()
         RenderBossSelect();
     if (m_showSettings)
         RenderSettings();
+    if (m_showLayout)
+        RenderLayoutEditor();
     if (m_showShop)
         RenderShop();
     RenderRuneChoice();
@@ -441,6 +460,12 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     if (m_showRecipes || m_showLeaderboard)  // an overlay is open: any key just closes it
     {
         m_showRecipes = m_showLeaderboard = false;
+        return;
+    }
+    if (m_showLayout)  // the layout editor: any of these closes it (the layout is saved as it is)
+    {
+        if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK || sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+            CloseLayoutEditor();
         return;
     }
     if (m_showSettings)
@@ -592,6 +617,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         m_showRecipes = m_showLeaderboard = false;
         return;
     }
+    if (m_showLayout)
+    {
+        LayoutPointerDown(x, y);
+        return;
+    }
     if (m_showSettings)
     {
         HandleSettingsPointer(x, y);
@@ -695,7 +725,7 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
                 return;
             for (int slot = 0; slot < practice::ITEM_SLOTS; ++slot)  // the item bar
             {
-                if (hit(LoadoutSlotRect(slot, ITEM_BAR_X, ITEM_BAR_Y)))
+                if (hit(LoadoutSlotRect(slot, ItemBarX(), ItemBarY())))
                 {
                     UseItemSlot(slot);
                     return;
@@ -704,9 +734,9 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         }
         for (int i = 0; i < 6 && m_showTouchControls; ++i)  // hidden buttons are not clickable either
         {
-            if (hit(kTouchButtons[i].rect))
+            if (hit(TouchButtonRect(i)))
             {
-                ProcessAction(kTouchButtons[i].action);
+                ProcessAction(kTouchActions[i]);
                 break;
             }
         }
@@ -804,12 +834,23 @@ void GameManager::RenderTouchControls()
 {
     if (!IsPlayView() || !m_showTouchControls)
         return;
+    DrawTouchButtons();
 
+    // tutorial: the button of the key to press now
+    char expected = m_tutorialActive ? m_tutorial.ExpectedKey() : 0;
+    const char letters[6] = { 'Q', 'W', 'E', 'R', 'D', 'F' };
+    for (int i = 0; i < 6 && expected != 0; ++i)
+        if (letters[i] == expected)
+            RenderHighlight(TouchButtonRect(i));
+}
+
+void GameManager::DrawTouchButtons()
+{
     Keyboard* icons[6] = { &m_keyQ, &m_keyW, &m_keyE, &m_keyR, &m_keyD, &m_keyF };
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     for (int i = 0; i < 6; ++i)
     {
-        const SDL_Rect& r = kTouchButtons[i].rect;
+        const SDL_Rect r = TouchButtonRect(i);
         SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 150);
         SDL_RenderFillRect(m_screen, &r);
         if (i < 3)  // Q/W/E: a band of their element colour along the bottom, matching the HUD orbs
@@ -826,19 +867,12 @@ void GameManager::RenderTouchControls()
         if (tex != NULL)
         {
             SDL_Rect src = { 0, 0, 32, 32 };  // the first (unpressed) frame of the 64x32, 2-frame sheet
-            const int pad = 10;
+            const int pad = r.w / 9;
             SDL_Rect dst = { r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2 };
             SDL_RenderCopy(m_screen, tex, &src, &dst);
         }
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-
-    // tutorial: the button of the key to press now
-    char expected = m_tutorialActive ? m_tutorial.ExpectedKey() : 0;
-    const char letters[6] = { 'Q', 'W', 'E', 'R', 'D', 'F' };
-    for (int i = 0; i < 6 && expected != 0; ++i)
-        if (letters[i] == expected)
-            RenderHighlight(kTouchButtons[i].rect);
 }
 
 // One log line per judged cast; shared by casts that are judged at once and by Tornado hits.
@@ -1295,7 +1329,18 @@ void GameManager::LoadSettings()
     int muted = 0;
     int tutorialDone = 0;
     int hint = 0;
+    // the touch layout (spec §30): split, size, then x y of the three blocks; missing or damaged = the default
+    int layout[8] = { 0, touchlayout::DEFAULT_SIZE, -1, -1, -1, -1, -1, -1 };
 #ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            var text = localStorage.getItem('threeElements_layout');
+            if (!text) return;
+            var values = String(text).split(',').map(Number);
+            for (var i = 0; i < 8 && i < values.length; ++i)
+                HEAP32[($0 >> 2) + i] = values[i] | 0;
+        } catch (e) {}
+    }, layout);
     hint = EM_ASM_INT({
         try { return localStorage.getItem('threeElements_recipeHint') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
@@ -1311,9 +1356,20 @@ void GameManager::LoadSettings()
     {
         if (fscanf(f, "muted %d tutorial %d hint %d", &muted, &tutorialDone, &hint) < 1)
             muted = 0;
+        if (fscanf(f, " layout %d %d %d %d %d %d %d %d", &layout[0], &layout[1], &layout[2], &layout[3], &layout[4],
+            &layout[5], &layout[6], &layout[7]) != 8)
+            layout[2] = -1;  // an older file: the default layout
         fclose(f);
     }
 #endif
+    m_layout.split = layout[0] != 0;
+    m_layout.size = layout[1];
+    for (int b = 0; b < touchlayout::BLOCK_COUNT; ++b)
+    {
+        m_layout.x[b] = layout[2 + b * 2];
+        m_layout.y[b] = layout[3 + b * 2];
+    }
+    touchlayout::Sanitize(m_layout);
     audio::SetMuted(muted != 0);
     m_tutorialDone = tutorialDone != 0;
     m_recipeHint = hint != 0;
@@ -1324,19 +1380,30 @@ void GameManager::SaveSettings()
     int muted = audio::IsMuted() ? 1 : 0;
     int tutorialDone = m_tutorialDone ? 1 : 0;
     int hint = m_recipeHint ? 1 : 0;
+    int layout[8] = { m_layout.split ? 1 : 0, m_layout.size };
+    for (int b = 0; b < touchlayout::BLOCK_COUNT; ++b)
+    {
+        layout[2 + b * 2] = m_layout.x[b];
+        layout[3 + b * 2] = m_layout.y[b];
+    }
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         try {
             localStorage.setItem('threeElements_muted', $0 ? '1' : '0');
             localStorage.setItem('threeElements_tutorialDone', $1 ? '1' : '0');
             localStorage.setItem('threeElements_recipeHint', $2 ? '1' : '0');
+            var values = [];
+            for (var i = 0; i < 8; ++i)
+                values.push(HEAP32[($3 >> 2) + i]);
+            localStorage.setItem('threeElements_layout', values.join(','));
         } catch (e) {}
-    }, muted, tutorialDone, hint);
+    }, muted, tutorialDone, hint, layout);
 #else
     FILE* f = fopen(SavePath("settings.txt").c_str(), "w");
     if (f != NULL)
     {
-        fprintf(f, "muted %d tutorial %d hint %d\n", muted, tutorialDone, hint);
+        fprintf(f, "muted %d tutorial %d hint %d layout %d %d %d %d %d %d %d %d\n", muted, tutorialDone, hint, layout[0],
+            layout[1], layout[2], layout[3], layout[4], layout[5], layout[6], layout[7]);
         fclose(f);
     }
 #endif
@@ -1501,32 +1568,46 @@ void GameManager::RenderMenu()
     }
 }
 
-// SETTINGS (owner 2026-10-01): sound and the recipe hint in one place. A row per setting, tap or Enter to switch it.
+// SETTINGS (owner 2026-10-01): sound and the recipe hint in one place; on a touch device also BUTTON LAYOUT (spec
+// §30). A row per setting, tap or Enter to switch it (or to open the layout editor).
+SDL_Rect GameManager::SettingsPanelRect() const
+{
+    int h = 160 + SettingsRowCount() * 70;
+    SDL_Rect r = { SETTINGS_PANEL_X, (SCREEN_HEIGHT - h) / 2 - 12, SETTINGS_PANEL_W, h };
+    return r;
+}
+
 SDL_Rect GameManager::SettingsRowRect(int row) const
 {
-    const SDL_Rect& p = SETTINGS_PANEL_RECT;
+    SDL_Rect p = SettingsPanelRect();
     SDL_Rect r = { p.x + 30, p.y + 70 + row * 70, p.w - 60, 50 };
     return r;
 }
 
 SDL_Rect GameManager::SettingsCloseRect() const
 {
-    const SDL_Rect& p = SETTINGS_PANEL_RECT;
+    SDL_Rect p = SettingsPanelRect();
     SDL_Rect r = { p.x + (p.w - 160) / 2, p.y + p.h - 50, 160, 34 };
     return r;
 }
 
+void GameManager::ActivateSettingsRow(int row)
+{
+    if (row == 0)
+        ToggleMute();
+    else if (row == 1)
+        ToggleRecipeHint();
+    else
+        OpenLayoutEditor();
+}
+
 void GameManager::HandleSettingsKey(SDL_Keycode sym)
 {
+    int n = SettingsRowCount();
     if (sym == SDLK_UP || sym == SDLK_DOWN)
-        m_settingsIndex = 1 - m_settingsIndex;
+        m_settingsIndex = (m_settingsIndex + (sym == SDLK_UP ? n - 1 : 1)) % n;
     else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
-    {
-        if (m_settingsIndex == 0)
-            ToggleMute();
-        else
-            ToggleRecipeHint();
-    }
+        ActivateSettingsRow(m_settingsIndex);
     else if (sym == SDLK_m)
         ToggleMute();
     else if (sym == SDLK_g)
@@ -1538,24 +1619,23 @@ void GameManager::HandleSettingsKey(SDL_Keycode sym)
 void GameManager::HandleSettingsPointer(int x, int y)
 {
     auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
-    if (hit(SettingsRowRect(0)))
+    for (int row = 0; row < SettingsRowCount(); ++row)
     {
-        m_settingsIndex = 0;
-        ToggleMute();
+        if (hit(SettingsRowRect(row)))
+        {
+            m_settingsIndex = row;
+            ActivateSettingsRow(row);
+            return;
+        }
     }
-    else if (hit(SettingsRowRect(1)))
-    {
-        m_settingsIndex = 1;
-        ToggleRecipeHint();
-    }
-    else if (hit(SettingsCloseRect()) || !hit(SETTINGS_PANEL_RECT))
+    if (hit(SettingsCloseRect()) || !hit(SettingsPanelRect()))
         m_showSettings = false;
 }
 
 void GameManager::RenderSettings()
 {
     DimScreen(170);
-    const SDL_Rect& panel = SETTINGS_PANEL_RECT;
+    const SDL_Rect panel = SettingsPanelRect();
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 240);
     SDL_RenderFillRect(m_screen, &panel);
@@ -1570,10 +1650,11 @@ void GameManager::RenderSettings()
     const SDL_Color off = { 220, 110, 110, 255 };
     pixeltext::DrawCentered(m_screen, "SETTINGS", SCREEN_WIDTH, panel.y + 18, 3, gold);
 
-    const char* names[2] = { "SOUND", "RECIPE HINT" };
-    const char* keys[2] = { "M", "G" };
-    bool values[2] = { !audio::IsMuted(), m_recipeHint };
-    for (int i = 0; i < 2; ++i)
+    const char* names[3] = { "SOUND", "RECIPE HINT", "BUTTON LAYOUT" };
+    const char* keys[3] = { "M", "G", "" };
+    bool values[3] = { !audio::IsMuted(), m_recipeHint, true };
+    int n = SettingsRowCount();
+    for (int i = 0; i < n; ++i)
     {
         SDL_Rect r = SettingsRowRect(i);
         bool selected = i == m_settingsIndex;
@@ -1584,6 +1665,11 @@ void GameManager::RenderSettings()
         SDL_RenderDrawRect(m_screen, &r);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
         pixeltext::DrawShadowed(m_screen, names[i], r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
+        if (i == 2)  // not a switch: it opens the editor
+        {
+            pixeltext::DrawShadowed(m_screen, "EDIT", r.x + r.w - pixeltext::Width("EDIT", 3) - 16, r.y + (r.h - 21) / 2, 3, gold);
+            continue;
+        }
         const char* value = values[i] ? "ON" : "OFF";
         int valueX = r.x + r.w - pixeltext::Width(value, 3) - 16;
         pixeltext::DrawShadowed(m_screen, value, valueX, r.y + (r.h - 21) / 2, 3, values[i] ? on : off);
@@ -1591,8 +1677,165 @@ void GameManager::RenderSettings()
             pixeltext::DrawShadowed(m_screen, keys[i], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
     }
     pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST A BOSS.", SCREEN_WIDTH,
-        panel.y + 212, 1, grey);
+        SettingsRowRect(n - 1).y + 62, 1, grey);
     RenderButton(SettingsCloseRect(), "CLOSE", false);
+}
+
+// ------------------------------------------------------------------ BUTTON LAYOUT editor (spec §30)
+
+void GameManager::OpenLayoutEditor()
+{
+    m_showSettings = false;
+    m_showLayout = true;
+    m_dragBlock = -1;
+}
+
+void GameManager::CloseLayoutEditor()
+{
+    LayoutPointerUp();  // a block still held goes where it may stay
+    m_showLayout = false;
+    SaveSettings();
+}
+
+// The four buttons along the top, or the block under the finger starts to move.
+void GameManager::LayoutPointerDown(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    if (hit(LAYOUT_SPLIT_RECT))  // one cluster <-> Q W E and R / D F apart: each starts from its own default
+        m_layout = touchlayout::Default(!m_layout.split, m_layout.size);
+    else if (hit(LAYOUT_SIZE_RECT))
+    {
+        m_layout.size = (m_layout.size + 1) % touchlayout::SIZE_COUNT;
+        for (int b = 0; b < touchlayout::BLOCK_COUNT; ++b)
+            touchlayout::Clamp(m_layout, b);
+        touchlayout::Sanitize(m_layout);  // larger buttons that no longer fit side by side: that mode's default
+    }
+    else if (hit(LAYOUT_RESET_RECT))
+        m_layout = touchlayout::Default(false, touchlayout::DEFAULT_SIZE);
+    else if (hit(LAYOUT_DONE_RECT))
+    {
+        CloseLayoutEditor();
+        return;
+    }
+    else
+    {
+        for (int b = touchlayout::BLOCK_COUNT - 1; b >= 0; --b)
+        {
+            touchlayout::Box box = touchlayout::BlockBox(m_layout, b);
+            if (box.w > 0 && x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h)
+            {
+                m_dragBlock = b;
+                m_dragDX = x - box.x;
+                m_dragDY = y - box.y;
+                m_dragFromX = box.x;
+                m_dragFromY = box.y;
+                return;
+            }
+        }
+        return;
+    }
+    audio::Play(audio::Sfx::Cast);
+    SaveSettings();
+}
+
+void GameManager::LayoutPointerMove(int x, int y)
+{
+    if (m_dragBlock < 0)
+        return;
+    m_layout.x[m_dragBlock] = x - m_dragDX;
+    m_layout.y[m_dragBlock] = y - m_dragDY;
+    touchlayout::Clamp(m_layout, m_dragBlock);
+}
+
+void GameManager::LayoutPointerUp()
+{
+    if (m_dragBlock < 0)
+        return;
+    if (!touchlayout::Valid(m_layout))  // dropped on another block: back where it came from
+    {
+        m_layout.x[m_dragBlock] = m_dragFromX;
+        m_layout.y[m_dragBlock] = m_dragFromY;
+        audio::Play(audio::Sfx::CastWrong);
+    }
+    m_dragBlock = -1;
+    SaveSettings();
+}
+
+// The buttons where they are now, each group in a frame the player drags; the orb row and the D / F slots are
+// drawn where they will be; the strip at the bottom stays free for the enemies.
+void GameManager::RenderLayoutEditor()
+{
+    const SDL_Color grey = { 170, 175, 190, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    DimScreen(235);  // the menu behind must not distract: only the layout is shown
+
+    // the area the groups may be in
+    SDL_Rect area = { touchlayout::AREA_LEFT, touchlayout::AREA_TOP, touchlayout::AREA_RIGHT - touchlayout::AREA_LEFT,
+        touchlayout::AREA_BOTTOM - touchlayout::AREA_TOP };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 40);
+    SDL_RenderDrawRect(m_screen, &area);
+
+    // the orb row and the D / F slots, where they go with this layout
+    int shift = touchlayout::HudShift(m_layout);
+    for (int i = 0; i < 3; ++i)
+    {
+        SDL_SetRenderDrawColor(m_screen, 200, 200, 210, 110);
+        draw::FillCircle(m_screen, elementPos[i].first + shift, elementPos[i].second, 20);
+        SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 160);
+        draw::FillCircle(m_screen, elementPos[i].first + shift, elementPos[i].second, 17);
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        SDL_Rect frame = { skillPos[i].first + shift - 2, skillPos[i].second - 2, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 4 };
+        SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
+        SDL_RenderFillRect(m_screen, &frame);
+        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 90);
+        SDL_RenderDrawRect(m_screen, &frame);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    pixeltext::DrawShadowed(m_screen, "D", skillPos[0].first + shift + 26, skillPos[0].second + 25, 2, grey);
+    pixeltext::DrawShadowed(m_screen, "F", skillPos[1].first + shift + 26, skillPos[1].second + 25, 2, grey);
+
+    // the item bar and the buttons
+    touchlayout::Box items = touchlayout::BlockBox(m_layout, touchlayout::BLOCK_ITEMS);
+    for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+    {
+        SDL_Rect r = LoadoutSlotRect(s, items.x, items.y);
+        SDL_SetRenderDrawColor(m_screen, 30, 32, 46, 255);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, 110, 115, 135, 255);
+        SDL_RenderDrawRect(m_screen, &r);
+    }
+    pixeltext::DrawShadowed(m_screen, "ITEMS", items.x + (items.w - pixeltext::Width("ITEMS", 2)) / 2, items.y + items.h / 2 - 7, 2, white);
+    DrawTouchButtons();
+
+    // a frame around each group: gold, red while it lies on another group
+    bool valid = touchlayout::Valid(m_layout);
+    for (int b = 0; b < touchlayout::BLOCK_COUNT; ++b)
+    {
+        touchlayout::Box box = touchlayout::BlockBox(m_layout, b);
+        if (box.w <= 0)
+            continue;
+        bool held = b == m_dragBlock;
+        if (held && !valid)
+            SDL_SetRenderDrawColor(m_screen, 235, 70, 70, 255);
+        else
+            SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 255);
+        for (int k = 3; k < (held ? 7 : 5); ++k)
+        {
+            SDL_Rect frame = { box.x - k, box.y - k, box.w + 2 * k, box.h + 2 * k };
+            SDL_RenderDrawRect(m_screen, &frame);
+        }
+    }
+
+    const char* sizes[touchlayout::SIZE_COUNT] = { "SIZE: SMALL", "SIZE: MEDIUM", "SIZE: LARGE" };
+    RenderButton(LAYOUT_SPLIT_RECT, m_layout.split ? "GROUPS: 2" : "GROUPS: 1", false);
+    RenderButton(LAYOUT_SIZE_RECT, sizes[m_layout.size], false);
+    RenderButton(LAYOUT_RESET_RECT, "RESET", false);
+    RenderButton(LAYOUT_DONE_RECT, "DONE", true);
+    pixeltext::DrawCentered(m_screen, "DRAG A GROUP TO WHERE YOUR THUMBS REST.  GROUPS: 2 = Q W E AND R D F APART.", SCREEN_WIDTH, 76, 1, grey);
+    pixeltext::DrawCentered(m_screen, "THE STRIP BELOW STAYS FREE FOR THE ENEMIES.", SCREEN_WIDTH, 92, 1, grey);
 }
 
 // The best three runs beside the menu; a tap on the panel opens the top 10.
@@ -1818,9 +2061,9 @@ bool GameManager::HandleTutorialPointer(int x, int y)
     }
     for (int i = 0; i < 6 && m_showTouchControls; ++i)
     {
-        if (hit(kTouchButtons[i].rect))
+        if (hit(TouchButtonRect(i)))
         {
-            ProcessTutorialAction(kTouchButtons[i].action);
+            ProcessTutorialAction(kTouchActions[i]);
             return true;
         }
     }
@@ -3265,7 +3508,7 @@ void GameManager::RenderItemBar()
     char buf[16];
     for (int s = 0; s < practice::ITEM_SLOTS; ++s)
     {
-        SDL_Rect r = LoadoutSlotRect(s, ITEM_BAR_X, ITEM_BAR_Y);
+        SDL_Rect r = LoadoutSlotRect(s, ItemBarX(), ItemBarY());
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 190);
         SDL_RenderFillRect(m_screen, &r);
@@ -3600,9 +3843,9 @@ bool GameManager::HandleBossPointer(int x, int y)
     }
     for (int i = 0; i < 6 && m_showTouchControls; ++i)
     {
-        if (hit(kTouchButtons[i].rect))
+        if (hit(TouchButtonRect(i)))
         {
-            ProcessBossAction(kTouchButtons[i].action);
+            ProcessBossAction(kTouchActions[i]);
             return true;
         }
     }

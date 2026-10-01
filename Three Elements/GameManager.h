@@ -15,6 +15,7 @@
 #include "Practice/Practice.h"
 #include "Practice/Tutorial.h"
 #include "Practice/Boss.h"
+#include "TouchLayout.h"
 #include <vector>
 using namespace std;
 //Screen dimension constants
@@ -136,25 +137,13 @@ const int SKILL_RECIPE_SIZE = 40;   // recipe reference list
 
 // The other 8 skills are drawn in code by SkillVfx.* (owner 2026-09-29; they replaced the TEST placeholder sheets).
 
-// Touch controls (mobile web): six buttons for Q/W/E/R/D/F, drawn with the six existing keyboard icons
-// (Keyboard class, assets/keyboard/*.png, already-loaded 2-frame 32x32 sheets) at a larger on-screen size.
-// No new art, no new input system: SDL_FINGERDOWN and SDL_MOUSEBUTTONDOWN both hit-test this same table and
-// feed the result through the same ProcessAction() path the keyboard already uses.
-// Layout (owner decision 2026-09-24, moved to the left side + raised + enlarged 2026-09-25): Q/W/E/R sit in
-// one row exactly like the top row of a physical keyboard (evenly spaced, touching gaps only); D/F sit in a
-// second row directly below, shifted right by half a key step so D lines up under E/R and F under R,
-// mirroring the real keyboard's home-row stagger. The cluster sits bottom-left.
-// Enlarged 72 -> 88 px (2026-09-23, owner: finger-sized); now that the orb/slot HUD sits in the centre, the
-// cluster can drop down to the bottom edge. Only drawn/hit-tested on touch devices (m_showTouchControls).
-const int TOUCH_BUTTON_SIZE = 88;
-const int TOUCH_BUTTON_GAP = 8;
-const int TOUCH_BUTTON_STEP = TOUCH_BUTTON_SIZE + TOUCH_BUTTON_GAP;  // 96: centre-to-centre spacing within a row
-const int TOUCH_CLUSTER_LEFT = 16;   // Q's left edge; E/R's row spans TOUCH_CLUSTER_LEFT .. +3*STEP+SIZE
-// Raised 344 -> 184 (owner 2026-09-30): mid-height on the left edge is where a thumb rests when a phone is held
-// sideways, and the buttons no longer cover the Injoker character and its orbs at the bottom left.
-const int TOUCH_CLUSTER_TOP  = 184;  // Q/W/E/R row's top edge; D/F row is one TOUCH_BUTTON_STEP below (ends y368)
-// With the touch buttons on screen the orb row and the D/F slots move right by this much, clear of the buttons.
-const int TOUCH_HUD_SHIFT_X = 160;
+// Touch controls (phones, the web on a touch screen): six buttons for Q/W/E/R/D/F, drawn with the six existing
+// keyboard icons (Keyboard class, assets/keyboard/*.png, 2-frame 32x32 sheets). No new input system: a touch or a
+// click is hit-tested against the buttons and goes through the same ProcessAction() path as the keyboard. Only
+// drawn and hit-tested on touch devices (m_showTouchControls).
+// Where they sit is the player's choice since 1.7.1 (TouchLayout.h, spec §30): by default Q/W/E/R in one row with
+// D/F below, shifted half a key like a keyboard, at the left edge; the player can move that cluster, split it into
+// Q W E and R / D F, and choose the size. The orb row and the D/F slots move sideways to stay clear of the buttons.
 // Element colours, indexed by invoker::Orb (owner 2026-09-23): Quas = ice, Wex = lightning, Exort = fire. Used
 // for the HUD orbs and the colour band on the Q/W/E touch buttons, so an active orb is recognisable at a glance.
 const SDL_Color kOrbColors[3] =
@@ -163,18 +152,13 @@ const SDL_Color kOrbColors[3] =
 	{ 190, 100, 255, 255 },  // Wex: electric violet
 	{ 255, 120,  30, 255 },  // Exort: fire orange
 };
-struct TouchButton { invoker::InputAction action; SDL_Rect rect; };
-const TouchButton kTouchButtons[6] =
+const invoker::InputAction kTouchActions[touchlayout::BUTTON_COUNT] =
 {
-	{ invoker::InputAction::Q, { TOUCH_CLUSTER_LEFT + 0 * TOUCH_BUTTON_STEP,                        TOUCH_CLUSTER_TOP,                    TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
-	{ invoker::InputAction::W, { TOUCH_CLUSTER_LEFT + 1 * TOUCH_BUTTON_STEP,                        TOUCH_CLUSTER_TOP,                    TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
-	{ invoker::InputAction::E, { TOUCH_CLUSTER_LEFT + 2 * TOUCH_BUTTON_STEP,                        TOUCH_CLUSTER_TOP,                    TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
-	{ invoker::InputAction::R, { TOUCH_CLUSTER_LEFT + 3 * TOUCH_BUTTON_STEP,                        TOUCH_CLUSTER_TOP,                    TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
-	{ invoker::InputAction::D, { TOUCH_CLUSTER_LEFT + 2 * TOUCH_BUTTON_STEP + TOUCH_BUTTON_STEP / 2, TOUCH_CLUSTER_TOP + TOUCH_BUTTON_STEP, TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
-	{ invoker::InputAction::F, { TOUCH_CLUSTER_LEFT + 3 * TOUCH_BUTTON_STEP + TOUCH_BUTTON_STEP / 2, TOUCH_CLUSTER_TOP + TOUCH_BUTTON_STEP, TOUCH_BUTTON_SIZE, TOUCH_BUTTON_SIZE } },
+	invoker::InputAction::Q, invoker::InputAction::W, invoker::InputAction::E,
+	invoker::InputAction::R, invoker::InputAction::D, invoker::InputAction::F,
 };
 // Generous tap zones over the existing Enter/Esc text/HUD reminder, so a touch-only player can start, restart,
-// back out and quit without a keyboard. Same idea as kTouchButtons: reuse what is already drawn, not new UI.
+// back out and quit without a keyboard. Same idea as the touch buttons: reuse what is already drawn, not new UI.
 // Result screens (Game Over of both modes, a boss fight's result; owner 2026-10-01): what happened is text in one
 // panel of label / value rows; what the player can do is always a button, in two rows under the panel.
 const int RESULT_PANEL_X = 214;
@@ -214,7 +198,8 @@ const int MENU_SMALL_H = 30;
 const int MENU_SMALL_GAP = 12;
 const int MENU_SMALL_Y = 362;            // ends above the running Injoker's head
 // SETTINGS: sound and the recipe hint in one panel (M / G still toggle them anywhere).
-const SDL_Rect SETTINGS_PANEL_RECT = { 234, 110, 460, 300 };
+const int SETTINGS_PANEL_X = 234;        // the panel's height depends on its rows: see SettingsPanelRect()
+const int SETTINGS_PANEL_W = 460;
 // SHOP (spec §27): the items in a 4-column grid, the selected item's details, the 2 x 3 loadout, CLOSE.
 const SDL_Rect SHOP_PANEL_RECT = { 24, 16, 880, 512 };
 const int SHOP_COLUMNS = 4;
@@ -233,8 +218,12 @@ const int ITEM_ICON = 48;               // assets/items/*.png (art/make_item_ico
 const int ITEM_SLOT = 52;               // a slot: the icon with a 2 px border
 const int ITEM_SLOT_GAP = 6;
 // The item bar while playing PLAY: 2 rows of 3 on the right edge, for the right hand (keys U I O / J K L).
-const int ITEM_BAR_X = SCREEN_WIDTH - 16 - (3 * 52 + 2 * 6);
-const int ITEM_BAR_Y = 292;
+// (its place is the ITEMS block of the touch layout, TouchLayout.h: by default the right edge, y 292)
+// BUTTON LAYOUT (spec §30): the editor's four buttons along the top; the blocks are dragged below them.
+const SDL_Rect LAYOUT_SPLIT_RECT = { 24, 20, 230, 40 };
+const SDL_Rect LAYOUT_SIZE_RECT = { 266, 20, 230, 40 };
+const SDL_Rect LAYOUT_RESET_RECT = { 508, 20, 180, 40 };
+const SDL_Rect LAYOUT_DONE_RECT = { 700, 20, 204, 40 };
 const float ITEM_FLASH_TIME = 0.35f;    // s the slot glows after a use
 // Aghanim's rune choice (§27 I-5): a panel with one row per rune.
 const SDL_Rect RUNE_CHOICE_RECT = { 234, 150, 460, 250 };
@@ -341,7 +330,12 @@ protected:
 	Drop m_drops[DROP_MAX] = {};
 	bool m_paused = false;               // Esc while playing: the run (or boss fight) waits
 	int m_resultY = 0;                   // the next row of the result panel being drawn
-	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint
+	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint, 2 = button layout (touch devices)
+	touchlayout::Layout m_layout = touchlayout::Default(false, touchlayout::DEFAULT_SIZE);  // saved with the settings
+	bool m_showLayout = false;           // the BUTTON LAYOUT editor is open
+	int m_dragBlock = -1;                // the block under the finger in the editor, or -1
+	int m_dragDX = 0, m_dragDY = 0;      // from the block's corner to the finger
+	int m_dragFromX = 0, m_dragFromY = 0;  // where the block was: it goes back there when dropped on another block
 	practice::BestStats m_bests = { 0, 0, 0.0f };       // persistent records (spec §13), saved like m_topRuns
 	practice::BestUpdate m_lastBestUpdate = { false, false, false };  // records beaten by the session that just ended
 
@@ -360,6 +354,7 @@ protected:
 	bool m_debug = false;                 // --debug: also print the enemy's target skill (development only)
 	Uint32 m_lastTick = 0;                // SDL_GetTicks() at the previous frame, for dt
 	bool m_hasPlayer = false;             // player sprite loaded
+	bool m_forceTouch = false;
 	bool m_showTouchControls = false;
 	bool m_audioReady = false;            // an audio device was opened
 	bool m_recipeHint = false;            // show the target's recipe above its icon (saved with the settings)
@@ -401,6 +396,7 @@ public:
 	void updateBackgroundLayers(float dt);
 
 	void SetDebug(bool on) { m_debug = on; }
+	void SetForceTouch(bool on) { m_forceTouch = on; }  // --touch: the phone's buttons on a PC (development only)
 
 	bool InitSDL();
 	void LoopGame();
@@ -463,7 +459,28 @@ private:
 	void RenderGameOverScreen();
 	void RenderTargetHint();
 	void RenderSoundButton();
-	int HudShiftX() const { return m_showTouchControls ? TOUCH_HUD_SHIFT_X : 0; }  // orb row / D-F slots
+	// orb row / D-F slots: sideways out of the way of the touch buttons (centred when there are none)
+	int HudShiftX() const { return m_showTouchControls ? touchlayout::HudShift(m_layout) : 0; }
+	// touch buttons and the item bar: where the layout puts them
+	SDL_Rect TouchButtonRect(int i) const
+	{
+		touchlayout::Box b = touchlayout::ButtonBox(m_layout, i);
+		SDL_Rect r = { b.x, b.y, b.w, b.h };
+		return r;
+	}
+	int ItemBarX() const { return m_layout.x[touchlayout::BLOCK_ITEMS]; }
+	int ItemBarY() const { return m_layout.y[touchlayout::BLOCK_ITEMS]; }
+	void DrawTouchButtons();          // the six buttons at their places (play view and the layout editor)
+	// BUTTON LAYOUT editor (spec §30)
+	void OpenLayoutEditor();
+	void CloseLayoutEditor();
+	void LayoutPointerDown(int x, int y);
+	void LayoutPointerMove(int x, int y);
+	void LayoutPointerUp();
+	void RenderLayoutEditor();
+	int SettingsRowCount() const { return m_showTouchControls ? 3 : 2; }
+	SDL_Rect SettingsPanelRect() const;
+	void ActivateSettingsRow(int row);
 	// main menu and leaderboard
 	int MenuItemCount() const;
 	MenuItem MenuItemAt(int index) const;

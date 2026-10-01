@@ -39,6 +39,7 @@ add_library(main SHARED
     "${GAME_DIR}/SkillVfx.cpp"
     "${GAME_DIR}/Audio.cpp"
     "${GAME_DIR}/Online.cpp"
+    "${GAME_DIR}/TouchLayout.cpp"
     "${GAME_DIR}/Core/Invoker.cpp"
     "${GAME_DIR}/Practice/Practice.cpp"
     "${GAME_DIR}/Practice/Tutorial.cpp"

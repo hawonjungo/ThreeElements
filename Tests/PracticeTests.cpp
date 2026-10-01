@@ -7,6 +7,7 @@
 #include "Practice/Practice.h"
 #include "Practice/Tutorial.h"
 #include "Practice/Boss.h"
+#include "TouchLayout.h"
 
 #include <cmath>
 #include <cstdio>
@@ -3146,6 +3147,84 @@ static void TestOverlordMilestones()
 }
 
 
+// ---------------------------------------------------------------- touch layout (spec §30; plain geometry, no SDL)
+
+static bool BoxesApart(const touchlayout::Box& a, const touchlayout::Box& b)
+{
+	return a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+}
+
+static void TestTouchLayout()
+{
+	using namespace touchlayout;
+	// the default is exactly where the buttons were before the layout could be changed
+	Layout d = Default(false, DEFAULT_SIZE);
+	const int old[BUTTON_COUNT][2] = { { 16, 184 }, { 112, 184 }, { 208, 184 }, { 304, 184 }, { 256, 280 }, { 352, 280 } };
+	for (int i = 0; i < BUTTON_COUNT; ++i)
+	{
+		Box b = ButtonBox(d, i);
+		CHECK(b.x == old[i][0] && b.y == old[i][1] && b.w == 88 && b.h == 88);
+	}
+	CHECK(d.x[BLOCK_ITEMS] == 744 && d.y[BLOCK_ITEMS] == 292 && BlockBox(d, BLOCK_CAST).w == 0);
+	CHECK(Valid(d) && HudShift(d) == HUD_SHIFT);  // the orb row moves right of the cluster, as it always did
+
+	// every default is valid, its buttons never overlap, and the split groups keep their shape
+	for (int split = 0; split < 2; ++split)
+	{
+		for (int size = 0; size < SIZE_COUNT; ++size)
+		{
+			Layout l = Default(split != 0, size);
+			CHECK(Valid(l) && l.size == size && l.split == (split != 0));
+			bool apart = true, inside = true;
+			for (int a = 0; a < BUTTON_COUNT; ++a)
+			{
+				Box box = ButtonBox(l, a);
+				Box block = BlockBox(l, l.split && a >= 3 ? BLOCK_CAST : BLOCK_MAIN);
+				inside = inside && box.x >= block.x && box.y >= block.y && box.x + box.w <= block.x + block.w
+					&& box.y + box.h <= block.y + block.h && box.w == SIZES[size];
+				for (int b = a + 1; b < BUTTON_COUNT; ++b)
+					apart = apart && BoxesApart(box, ButtonBox(l, b));
+			}
+			CHECK(apart && inside);
+		}
+	}
+	Layout s = Default(true, DEFAULT_SIZE);
+	int step = SIZES[DEFAULT_SIZE] + GAP;
+	CHECK(ButtonBox(s, 1).x == ButtonBox(s, 0).x + step && ButtonBox(s, 2).x == ButtonBox(s, 0).x + 2 * step);
+	CHECK(ButtonBox(s, 0).y == ButtonBox(s, 2).y && BlockBox(s, BLOCK_MAIN).h == SIZES[DEFAULT_SIZE]);
+	// R above D and F, half a step in: the same places they have in the whole cluster
+	CHECK(ButtonBox(s, 3).x - ButtonBox(s, 4).x == ButtonBox(d, 3).x - ButtonBox(d, 4).x);
+	CHECK(ButtonBox(s, 5).x - ButtonBox(s, 4).x == step && ButtonBox(s, 4).y - ButtonBox(s, 3).y == step);
+	CHECK(BlockBox(s, BLOCK_MAIN).x < 200 && BlockBox(s, BLOCK_CAST).x > 600);  // one group per thumb
+	CHECK(HudShift(s) == 0);                                                     // nothing in the middle: the orbs stay centred
+
+	// a block cannot leave the area, and two blocks cannot overlap
+	Layout m = d;
+	m.x[BLOCK_MAIN] = -500; m.y[BLOCK_MAIN] = 9999;
+	CHECK(!Valid(m));
+	Clamp(m, BLOCK_MAIN);
+	CHECK(m.x[BLOCK_MAIN] == AREA_LEFT && m.y[BLOCK_MAIN] + BlockBox(m, BLOCK_MAIN).h == AREA_BOTTOM && Valid(m));
+	m.x[BLOCK_MAIN] = 9999; m.y[BLOCK_MAIN] = -9999;
+	Clamp(m, BLOCK_MAIN);
+	CHECK(m.x[BLOCK_MAIN] + BlockBox(m, BLOCK_MAIN).w == AREA_RIGHT && m.y[BLOCK_MAIN] == AREA_TOP);
+	CHECK(!Valid(m));                       // it now lies on the item bar
+	Sanitize(m);
+	CHECK(Valid(m) && m.x[BLOCK_MAIN] == 16 && m.y[BLOCK_MAIN] == 184);  // anything invalid falls back to the default
+	Layout bad = d;
+	bad.size = 7;
+	CHECK(!Valid(bad));
+	Sanitize(bad);
+	CHECK(Valid(bad) && bad.size == DEFAULT_SIZE);
+	// the unused CAST block of a one-cluster layout never blocks anything
+	Layout u = d;
+	u.x[BLOCK_CAST] = u.x[BLOCK_ITEMS]; u.y[BLOCK_CAST] = u.y[BLOCK_ITEMS];
+	CHECK(Valid(u));
+	// the orbs go left when both the middle and the right are taken
+	Layout r = Default(true, DEFAULT_SIZE);
+	r.x[BLOCK_MAIN] = 400; r.y[BLOCK_MAIN] = 200;
+	CHECK(Valid(r) && HudShift(r) == -HUD_SHIFT);
+}
+
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
@@ -3215,6 +3294,7 @@ int main()
 	RunTest("overlord: contact, game over", TestOverlordContact);
 	RunTest("overlord: items", TestOverlordItems);
 	RunTest("overlord: 20/30/40, then harder", TestOverlordMilestones);
+	RunTest("touch layout: blocks, split, sizes", TestTouchLayout);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;

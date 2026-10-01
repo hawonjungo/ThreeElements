@@ -38,7 +38,7 @@ FEATURES
 - Boss fights: eight bosses that need all ten spells - quick chains, freezes, slows and a two-phase final boss - and only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Global leaderboards with Google Play Games (optional sign-in): PLAY by score and SURVIVAL by time, this week and all time.
 - Your 10 best runs on the device, plus your personal records.
-- On-screen buttons laid out like a keyboard, made for playing with your thumbs.
+- On-screen buttons laid out like a keyboard, made for playing with your thumbs - and you can move, split and resize them.
 - Chiptune sound effects, spell effects for all ten spells.
 - No ads. No account. Works offline.
 
@@ -64,6 +64,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.7.1, versionCode 19, max 500)
+
+```
+Your buttons, your way: in SETTINGS > BUTTON LAYOUT you can now drag the on-screen buttons where your thumbs rest, split them into two groups (Q W E for one thumb, R D F for the other) and choose their size. Also new in 1.7: global leaderboards with Google Play Games (optional sign-in) for PLAY and SURVIVAL, this week and all time.
+```
 
 ## Release notes (1.7.0, versionCode 18, max 500)
 
