@@ -9,9 +9,8 @@ namespace practice
 	namespace
 	{
 		// §32 M-6: the five Immortals, by the length of their combo (4, 5, 6, 7, 8), the combos Invoker players use
-		// most. The first three have their own art (assets/enemies/<name>/, the body is given here in field pixels);
-		// the last two are still an enemy of kEnemies drawn larger and tinted (3 dark wiz, 6 necromancer) until the
-		// owner's art is there. The eight bosses of 1.2 / 1.5 are gone from the game; the tests keep them as
+		// most. Each has its own art (assets/enemies/immortals/, the body is given here in field pixels; all five
+		// since 1.9.1); the enemy index, scale and tint are what is drawn if a sheet is missing. The eight bosses of 1.2 / 1.5 are gone from the game; the tests keep them as
 		// definitions of their own, to exercise the guided cue, the holds and the two phases.
 		const BossDefinition kBosses[BOSS_COUNT] =
 		{
@@ -28,11 +27,11 @@ namespace practice
 			{ "VOLTARA", 3, 3.2f, { 190, 215, 255 },
 				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::ChaosMeteor,
 				  SkillId::DeafeningBlast, SkillId::IceWall }, 7,
-				45.0f, 1.2f, false, {}, 0, 0.0f, 0.0f },
+				45.0f, 1.2f, false, {}, 0, 140.0f, 205.0f },
 			{ "THE HOLLOW KING", 6, 2.4f, { 255, 235, 200 },
 				{ SkillId::ForgeSpirit, SkillId::Alacrity, SkillId::IceWall, SkillId::ColdSnap, SkillId::Tornado,
 				  SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 8,
-				40.0f, 1.2f, false, {}, 0, 0.0f, 0.0f },
+				40.0f, 1.2f, false, {}, 0, 120.0f, 205.0f },
 		};
 
 		const float PROJECTILE_STEP_TIME = TORNADO_MAX_STEP / TORNADO_SPEED;  // hit test at least every 10 px

@@ -280,14 +280,17 @@ const int BOSS_COMBO_GAP = 22;          // room for the ">" between two tiles
 const int BOSS_COMBO_TILE_SMALL = 32;   // combos of six to eight spells (1.9): smaller tiles, no ">"
 const int BOSS_COMBO_GAP_SMALL = 12;
 // The Immortals with their own art (spec §32 M-6): two sheets each, a 4 x 4 grid of frames already at the size they
-// are drawn (art/make_bosses.py), facing left. The others are an enemy sprite drawn larger and tinted.
-const int IMMORTAL_ART_COUNT = 3;
+// are drawn (art/make_bosses.py), facing left. All five have it since 1.9.1; one whose sheet is missing falls back
+// to an enemy sprite drawn larger and tinted.
+const int IMMORTAL_ART_COUNT = 5;
 const char* const IMMORTAL_RUN_SHEETS[IMMORTAL_ART_COUNT] = { "assets/enemies/immortals/rimefang_run.png",
-	"assets/enemies/immortals/cindermaw_run.png", "assets/enemies/immortals/gravehorn_run.png" };
+	"assets/enemies/immortals/cindermaw_run.png", "assets/enemies/immortals/gravehorn_run.png",
+	"assets/enemies/immortals/voltara_run.png", "assets/enemies/immortals/hollowking_run.png" };
 const char* const IMMORTAL_HIT_SHEETS[IMMORTAL_ART_COUNT] = { "assets/enemies/immortals/rimefang_hit.png",
-	"assets/enemies/immortals/cindermaw_hit.png", "assets/enemies/immortals/gravehorn_hit.png" };
-const float IMMORTAL_RUN_FPS[IMMORTAL_ART_COUNT] = { 14.0f, 11.0f, 8.0f };
-const int IMMORTAL_FEET[IMMORTAL_ART_COUNT] = { 3, 3, 1 };  // px of the cell under the feet line
+	"assets/enemies/immortals/cindermaw_hit.png", "assets/enemies/immortals/gravehorn_hit.png",
+	"assets/enemies/immortals/voltara_hit.png", "assets/enemies/immortals/hollowking_hit.png" };
+const float IMMORTAL_RUN_FPS[IMMORTAL_ART_COUNT] = { 14.0f, 11.0f, 8.0f, 10.0f, 8.0f };
+const int IMMORTAL_FEET[IMMORTAL_ART_COUNT] = { 3, 3, 1, 9, 5 };  // px of the cell under the feet line
 const int IMMORTAL_FRAMES = 16;
 const float IMMORTAL_HIT_TIME = 0.55f;  // s the "got hit" animation plays after a spell of the combo scored
 // The chance of an Immortal (§32 M-3), bottom centre while no Immortal is there: label, bar, percent.

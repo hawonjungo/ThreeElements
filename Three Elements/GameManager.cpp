@@ -3042,7 +3042,7 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         {
             if (m_floatTexts[i].left <= 0.0f)
             {
-                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, SCREEN_WIDTH / 2 + 40, IMMORTAL_BAR_Y - 16, m_meterText, violet };
+                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, SCREEN_WIDTH / 2 + 40, IMMORTAL_BAR_Y - 36, m_meterText, violet };
                 break;
             }
         }
@@ -5311,8 +5311,12 @@ void GameManager::Close()
         }
     }
     SDL_Texture** sheets[5 + 2 * IMMORTAL_ART_COUNT] = { &m_playerRunSheet, &m_playerCastSheet, &m_meteorSheet, &m_forgeSheet,
-        &m_iceWallSheet, &m_immortalRun[0], &m_immortalRun[1], &m_immortalRun[2], &m_immortalHit[0], &m_immortalHit[1],
-        &m_immortalHit[2] };
+        &m_iceWallSheet };
+    for (int i = 0; i < IMMORTAL_ART_COUNT; ++i)
+    {
+        sheets[5 + 2 * i] = &m_immortalRun[i];
+        sheets[6 + 2 * i] = &m_immortalHit[i];
+    }
     for (SDL_Texture** sheet : sheets)
     {
         if (*sheet != NULL)

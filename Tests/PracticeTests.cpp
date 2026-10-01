@@ -1925,7 +1925,7 @@ static void TestBossDefinitions()
 		CHECK(d.combo[d.comboLength - 1] == (i == 2 ? SkillId::ForgeSpirit : i == 3 ? SkillId::IceWall : SkillId::DeafeningBlast));
 		CHECK(d.speed > 0.0f && d.window > BOSS_GREAT_TIME);
 		CHECK(d.enemyDefinition >= 0 && d.enemyDefinition < ENEMY_TYPE_COUNT);
-		CHECK((d.bodyWidth > 0.0f) == (i < 3) && (d.bodyHeight > 0.0f) == (i < 3));  // the first three have their own art
+		CHECK(d.bodyWidth > 100.0f && d.bodyHeight > 100.0f);  // each has its own art, with its body in field pixels
 		BossSession s;
 		s.Start(i);
 		CHECK(s.BossIndex() == i && s.ComboLength() == 4 + i);

@@ -66,6 +66,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
+## Release notes (1.9.1, versionCode 24, max 500)
+
+```
+All five IMMORTALS now have their own art and animations: Rimefang, Cindermaw, Gravehorn, Voltara and The Hollow King, with real combos of 4 to 8 spells. Beat elites (every 15th, 25th... enemy) and overlords (20th, 30th...) to raise the IMMORTAL chance shown on screen - when it hits, war horns sound. Only Immortals drop upgrade materials. Practise each one in the IMMORTALS menu. Also: a new Ice Wall, fairer enemy sizes, a smaller download.
+```
+
 ## Release notes (1.9.0, versionCode 23, max 500)
 
 ```
