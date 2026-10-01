@@ -39,6 +39,11 @@ và dấu vân tay **SHA-1**. Cần tạo **một credential cho mỗi khóa**:
 
 Thiếu khóa nào thì bản tương ứng sẽ không đăng nhập được (game vẫn chơi bình thường, chỉ không có bảng toàn cầu).
 
+**Đã gặp thật (2026-10-01):** mới có credential cho app signing key thì bản debug trên máy ảo báo
+"Could not sign in to Google Play Games"; log (`adb logcat`, tag `PlayGamesServices[SignInAuthenticator]`) ghi
+`DEVELOPER_ERROR` kèm package, SHA-1 và App ID mà app đang dùng. Thêm credential cho khóa debug là hết.
+SHA-1 của khóa upload (đọc từ file AAB): `CA:93:E7:7D:C0:C8:BD:8B:B6:61:80:A0:3C:6C:47:0C:60:F7:50:6E`.
+
 ## Bước 3 — Tạo hai bảng xếp hạng
 
 **Play Games Services** → **Setup and management** → **Leaderboards** → **Add leaderboard**:
@@ -80,5 +85,6 @@ bản (1.7.0), build, và thử đăng nhập trên máy ảo có tài khoản t
 - Thư viện: `com.google.android.gms:play-services-games-v2:21.0.0` (bản mới nhất còn hỗ trợ Android 5; bản 22 cần
   Android 7 trở lên).
 - Máy ảo để thử phải là loại có Google Play và đã đăng nhập một tài khoản tester.
-- Chưa thử được với dự án thật: đăng nhập thành công, gửi điểm, mở màn hình bảng xếp hạng của Google. Mới thử được
-  là app không crash, nút hiện đúng, và bấm nút thì mở luồng đăng nhập của Google.
+- Đã thử trên máy ảo với tài khoản của chủ project (2026-10-01): tự đăng nhập lúc mở app, nút đổi thành GLOBAL
+  RANKING, màn hình của Google hiện hai bảng, kết quả tốt nhất của máy đã lên bảng. Chưa thử: bản tải từ Play
+  (khóa app signing) trên điện thoại thật.
