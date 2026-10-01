@@ -66,6 +66,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
+## Release notes (1.8.1, versionCode 22, max 500)
+
+```
+Smoother spells: an enemy beaten by Forge Spirit or Chaos Meteor now stays until the spirit or the meteor actually hits it. Score pop-ups are green, so they are no longer mistaken for gold. New in 1.8: first-time tips for elites, bosses, runes, items and overlords, and a GUIDE in the menu.
+```
+
 ## Release notes (1.8.0, versionCode 21, max 500)
 
 ```

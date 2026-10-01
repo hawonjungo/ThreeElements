@@ -328,8 +328,8 @@ bool GameManager::RunFrame()
         PresentBossUpdate(update.boss, true);
     if (update.kill.overlord)  // above "GOOD" and "COMBO -n%", which are rising there already
     {
-        const SDL_Color gold = { 255, 215, 80, 255 };
-        BossText(PointsText(update.kill.points), gold, 72);
+        const SDL_Color points = { 120, 235, 130, 255 };  // the same green as every other score text
+        BossText(PointsText(update.kill.points), points, 72);
     }
     if (update.cast != practice::CastOutcome::None)
         OnCastJudged(update.cast, enemyBefore, update.cast != practice::CastOutcome::Correct ? NULL
@@ -795,6 +795,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
 {
     // A correct cast removes the enemy inside Input() itself, so its position has to be read before that call.
     bool hadEnemy = m_session.Enemy().active;
+    practice::ActiveEnemy enemyBefore = m_session.Enemy();
     practice::Bounds enemyBody = hadEnemy ? practice::EnemyBounds(m_session.Enemy()) : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
     if (OverlordFight())
         enemyBody = BossDrawnBody();  // effects aimed at the OVERLORD go where it is drawn
@@ -820,7 +821,15 @@ void GameManager::ProcessAction(invoker::InputAction action)
     const char* label = r.cast != practice::CastOutcome::Correct ? NULL : r.kill.killed ? PointsText(r.kill.points) : "HIT";
     PresentInvokerResult(action, r.invoker, r.cast, hadEnemy, enemyBody, label);
     if (r.kill.killed)
+    {
         OnKill(r.kill, enemyBody);
+        float wait = KillImpactDelay(r.invoker.skill);  // the Forge Spirit / the meteor is still on its way
+        if (wait > 0.0f)
+        {
+            m_beatenEnemy = enemyBefore;
+            m_beatenLeft = wait;
+        }
+    }
 
     const invoker::InvokerState& inv = m_session.Invoker();
     const char* slotName = action == invoker::InputAction::D ? "D" : "F";
@@ -1044,17 +1053,32 @@ void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
 // The single active enemy, drawn where the Practice session says it is.
 void GameManager::RenderEnemy()
 {
+    // the enemy just beaten, still there until the spell that beat it arrives (see FORGE_HIT_TIME)
+    if (m_beatenLeft > 0.0f && !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Playing)
+        DrawEnemy(m_beatenEnemy, false, BEATEN_ENEMY_ALPHA);
     const practice::ActiveEnemy& e = ShownEnemy();
-    if (!e.active)
-        return;
+    if (e.active)
+        DrawEnemy(e, m_enemyFlashLeft > 0.0f, 255);  // red tint after a wrong cast
+}
 
+float GameManager::KillImpactDelay(invoker::SkillId skill) const
+{
+    if (skill == invoker::SkillId::ForgeSpirit && m_forgeSheet != NULL)
+        return FORGE_HIT_TIME;
+    if (skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL)
+        return METEOR_FALL_TIME;
+    return 0.0f;
+}
+
+void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha)
+{
     const practice::EnemyDefinition& def = practice::GetEnemyDefinition(e.definition);
     EnemyObject& sprite = m_enemySprites[e.definition];
     // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
     sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow);
-    bool flash = m_enemyFlashLeft > 0.0f && sprite.p_object_ != NULL;  // red tint after a wrong cast
     if (sprite.p_object_ == NULL)
         return;
+    SDL_SetTextureAlphaMod(sprite.p_object_, alpha);
     if (flash)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
     else if (e.kind == practice::EnemyKind::Elite)  // PLAY: elites and bosses are larger and tinted (P3-2)
@@ -1067,6 +1091,7 @@ void GameManager::RenderEnemy()
     else
         sprite.Render(m_screen);
     SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sprite.p_object_, 255);
 }
 
 // Loads the Tornado sprite sheet as a plain texture: no colour key (BaseObject::LoadImg would make grey pixels
@@ -1133,6 +1158,7 @@ void GameManager::ResetVisualEffects()
     for (int i = 0; i < DROP_MAX; ++i)
         m_drops[i].active = false;
     m_enemyFlashLeft = m_leakFlashLeft = m_shakeLeft = m_hpBlinkLeft = 0.0f;
+    m_beatenLeft = 0.0f;
 }
 
 // ------------------------------------------------------------------ feedback (presentation only)
@@ -1167,14 +1193,15 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
         m_enemyFlashLeft = FEEDBACK_ENEMY_FLASH;
     }
 
-    const SDL_Color gold = { 255, 215, 80, 255 };
+    // points are green: gold is kept for the "+5 GOLD" text, so "+1" is not read as one gold (owner 2026-10-01)
+    const SDL_Color points = { 120, 235, 130, 255 };
     const SDL_Color red = { 255, 90, 90, 255 };
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
     {
         if (m_floatTexts[i].left <= 0.0f)
         {
             m_floatTexts[i] = { FEEDBACK_TEXT_TIME, textX, static_cast<int>(enemy.y) - 10,
-                label != NULL ? label : correct ? "+1" : "MISS", correct ? gold : red };
+                label != NULL ? label : correct ? "+1" : "MISS", correct ? points : red };
             break;
         }
     }
@@ -1210,6 +1237,7 @@ void GameManager::UpdateFeedback(float dt)
     m_leakFlashLeft -= dt;
     m_shakeLeft -= dt;
     m_hpBlinkLeft -= dt;
+    m_beatenLeft -= dt;
 }
 
 

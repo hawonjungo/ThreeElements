@@ -125,6 +125,11 @@ const int FORGE_FEET_ROW = 243;
 const int FORGE_DRAW = 104;
 const float FORGE_WALK_TIME = 0.5f;
 const float FORGE_ATTACK_TIME = 0.7f;
+// An enemy beaten by a spell that visibly travels stays on screen, faded and standing still, until the spell
+// reaches it: the Forge Spirit's lunge, the Chaos Meteor's fall (owner 2026-10-01: the spirit used to run at an
+// enemy that had already vanished). Presentation only: the kill itself is still judged at the cast.
+const float FORGE_HIT_TIME = FORGE_WALK_TIME + 0.25f;  // the walk, then the lunge
+const Uint8 BEATEN_ENEMY_ALPHA = 150;
 
 // Centre of the player's visible body; shared by every effect drawn on the player (Ghost Walk, Alacrity...).
 const int PLAYER_BODY_CENTER_X = 86;
@@ -366,6 +371,8 @@ protected:
 	FloatText m_floatTexts[FEEDBACK_MAX_TEXTS] = {};
 	Burst m_bursts[FEEDBACK_MAX_BURSTS] = {};
 	float m_enemyFlashLeft = 0.0f;
+	practice::ActiveEnemy m_beatenEnemy = {};  // the enemy just beaten, kept on screen until the spell reaches it
+	float m_beatenLeft = 0.0f;
 	float m_leakFlashLeft = 0.0f;
 	float m_shakeLeft = 0.0f;
 	float m_hpBlinkLeft = 0.0f;
@@ -470,6 +477,8 @@ private:
 
 	void RenderOrb(invoker::Orb orb, int centerX, int centerY);
 	void RenderEnemy();
+	void DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha);
+	float KillImpactDelay(invoker::SkillId skill) const;  // s the beaten enemy stays visible (0 for instant spells)
 	void RenderTornadoes();
 	void RenderGhostWalk();
 	void RenderSkillVfx();
