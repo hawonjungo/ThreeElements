@@ -10,7 +10,8 @@ An elemental-combining keyboarding game that blends fast typing with quick tacti
 
 ## 📸 Preview
 
-![Game Screenshot](https://github-production-user-asset-6210df.s3.amazonaws.com/27058497/413826596-e19d2eab-d79f-4b94-a7ef-5ac2e9e33ee5.mp4)
+<img width="935" height="546" alt="image" src="https://github.com/user-attachments/assets/69aeacba-892a-43e5-a721-c0539359c289" />
+
 
 ---
 
