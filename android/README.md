@@ -45,11 +45,10 @@ connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-t
 - Store listing texts, declarations and images: `art/store/` (`listing.md`, icon, feature graphic, screenshots).
   Privacy policy: https://injoker.relifes.net/policy (`web/policy/index.html`); terms `/terms`, support `/support`; the old `/privacy.html` redirects to `/policy/`.
 
-## Online leaderboards (Google Play Games) — prepared, switched off
+## Online leaderboards (Google Play Games) — on since 1.7.0
 
-GAMEPLAY_SPEC.md §29. The app is built **without** Play Games (no library, no global boards) until
-`android/play-games.properties` exists with the three ids from the Play Console; copy
-`play-games.properties.example`. The owner's Console steps are in [PLAY_GAMES_SETUP.md](PLAY_GAMES_SETUP.md).
+GAMEPLAY_SPEC.md §29. The ids from the Play Console are in `android/play-games.properties`; without that file
+(see `play-games.properties.example`) the app is built **without** Play Games (no library, no global boards). The owner's Console steps are in [PLAY_GAMES_SETUP.md](PLAY_GAMES_SETUP.md).
 `OnlineBoards` exists twice: `app/src/online/java` (Play Games Services v2 21.0.0) and `app/src/offline/java` (empty
 stand-in); `app/build.gradle` picks one. The C++ side is `Three Elements/Online.h/.cpp` (JNI calls on the activity).
 Even the Play Games build requests no permission.

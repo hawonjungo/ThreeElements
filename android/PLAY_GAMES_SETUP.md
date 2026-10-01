@@ -1,7 +1,11 @@
 # Bật bảng xếp hạng Google Play Games — việc cần làm trên Play Console
 
-Phần code đã có sẵn (GAMEPLAY_SPEC.md §29) nhưng **đang tắt**. Nó chỉ bật khi có file `android/play-games.properties`
-chứa ba mã lấy từ Play Console. Tài liệu này là các bước để lấy ba mã đó. Tên các mục trên Console có thể hơi khác
+**Trạng thái 2026-10-01:** chủ project đã tạo hai bảng và gửi mã; `android/play-games.properties` đã có ba mã và bản
+1.7.0 đã bật tính năng. Việc còn lại trên Console: kiểm tra `appId`, khai đủ ba SHA-1 (Bước 2), thêm tester
+(Bước 4), và Bước 6.
+
+Phần code (GAMEPLAY_SPEC.md §29) chỉ bật khi có file `android/play-games.properties` chứa ba mã lấy từ Play Console.
+Tài liệu này là các bước để lấy ba mã đó. Tên các mục trên Console có thể hơi khác
 tùy thời điểm và ngôn ngữ giao diện.
 
 Kết quả cuối cùng cần gửi lại cho Claude (hoặc tự điền vào `android/play-games.properties`, mẫu ở

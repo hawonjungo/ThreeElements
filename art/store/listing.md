@@ -36,7 +36,8 @@ FEATURES
 - A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
 - SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
 - Boss fights: eight bosses that need all ten spells - quick chains, freezes, slows and a two-phase final boss - and only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
-- Your 10 best runs by survival time, plus your personal records.
+- Global leaderboards with Google Play Games (optional sign-in): PLAY by score and SURVIVAL by time, this week and all time.
+- Your 10 best runs on the device, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs.
 - Chiptune sound effects, spell effects for all ten spells.
 - No ads. No account. Works offline.
@@ -57,12 +58,18 @@ Train your fingers. Remember the recipes. Beat your best time.
 |---|---|
 | Privacy policy | https://injoker.relifes.net/policy |
 | Ads | **No**, the app does not contain ads |
-| App access | **All functionality is available without special access** (no login) |
+| App access | **All functionality is available without special access**. The only sign-in is the optional Google Play Games sign-in for the global leaderboards; nothing is locked behind it. |
 | Content rating (IARC questionnaire) | Category **Game**. Violence: spells make cartoon monsters vanish — **fantasy / cartoon violence against non-human characters, no blood, no gore**. Everything else **No**: sexuality, language, drugs/alcohol/tobacco, gambling, horror/fear, user interaction or chat, sharing location, digital purchases. Expect about **PEGI 7 / ESRB Everyone 10+** (Play shows the final result). |
 | Target audience | **13 and over** (13-15, 16-17, 18+). Not designed for children, so the Families policy does not apply. |
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
-| Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (**To do with the release that switches the global leaderboards on, spec §29:** a signed-in player's results go to Google Play Games; follow Google's data-disclosure page for the Play Games Services SDK. The app still has no permission.) (Update this before adding Google Play Games leaderboards.) |
+| Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.7.0, versionCode 18, max 500)
+
+```
+Global leaderboards with Google Play Games: open LEADERBOARD and tap GLOBAL RANKING to see how you rank in PLAY (score) and SURVIVAL (time) - today, this week and all time. Signing in is optional; without it you keep the leaderboard of your device and the game plays exactly as before.
+```
 
 ## Release notes (1.6.1, versionCode 17, max 500)
 
