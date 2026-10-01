@@ -200,6 +200,17 @@ Proposed new bosses (to confirm in B1): Frost Troll — Cold Snap → Sun Strike
 
 Boss art format for the owner: PNG with transparency, square frames of 256 px in a grid (like the Injoker sheets), boss **facing left** (it walks toward the player), feet on the same row in every frame; sheets: walk (8-16 frames), hit (4-8), death (8-16); optional idle. One sheet per animation, file names `assets/bosses/<name>-walk.png` etc.
 
+#### 1.6.0 — OVERLORD in PLAY and material drops  *(spec §28 PROPOSED 2026-10-01, waiting for the owner's approval; no code yet)*
+
+Owner idea 2026-10-01: Boss Fights bosses appear inside PLAY as **OVERLORDS** (20th / 30th / 40th enemy: Dark Wizard, Shadow Assassin, Archon; random and harder from the 50th on), fought by the Boss-mode rules with the run's lives and slots; a warning with a sound per tier; contact costs 1 life; the difficulty clock stops during the fight; Refresher Orb = the next combo deals x2. Each overlord drops a **material** (Point Booster, Mystic Staff, Sacred Relic) that the shop requires for Aghanim's Scepter and for every level-2 upgrade.
+
+| Step | Work |
+|---|---|
+| C1 | Owner approves spec §28 (numbers: +50 points, +100 gold, scaling, material table) |
+| C2 | Practice layer: overlord hand-off in `PracticeSession` (shared invoker, lives, items, clock), materials and requirements in `Practice/Items.*`, tests |
+| C3 | Presentation: warning banner and three synthesised warning sounds, the Boss-mode HUD inside PLAY, drop and Game Over lines, shop requirement lines and material counts |
+| C4 | Saving materials, privacy page, store text; release on PC / web / Android |
+
 ### Phase 8 — Future Combat / Story  *(deliberately not started)*
 Design note only, when the MVP has proven fun: Threne story, Evil King, hero roles, assign-cards screens, real skill effects/damage, bosses, multi-target hard modes, beginner-mode hints. Builds on Core; no code before this phase is explicitly opened.
 

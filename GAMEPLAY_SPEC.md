@@ -459,3 +459,35 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
   In combos with a Tornado the landing spells are listed in the order they have to be cast (the longest delay first).
 - **B-19 [CONFIRMED]** **Two phases** (boss 8): once its HP is at 50 % or less, its combo changes to the second list (announced on screen); it never changes back.
 - **B-20 [CONFIRMED]** The boss list shows all eight bosses in compact rows (name, the combo as small icons, best time); keys 1-8, arrows + Enter, or a tap.
+
+## 28. OVERLORD — Boss-Fights bosses inside PLAY, and material drops (update 1.6)
+
+**Status: PROPOSED 2026-10-01 from the owner's decisions in the discussion; waiting for the owner's approval before any code.** PLAY (§26) stays as it is: normal enemies, elites, chain bosses. An **OVERLORD** is a Boss Fights boss (§25) that appears inside a PLAY run and is fought by the Boss-mode rules; when it dies the stage is cleared and PLAY goes on.
+
+### When
+
+- **O-1** The **20th, 30th and 40th enemy** of a run are overlords instead of chain bosses: 20 → Dark Wizard (boss 2), 30 → Shadow Assassin (boss 7), 40 → Archon (boss 8). The 10th enemy stays a chain boss. (Owner: fixed milestones first; "change later if it does not fit".)
+- **O-2** From the 50th enemy on, **every 10th enemy is an overlord chosen at random** among the eight bosses (never the same twice in a row), and each one is harder than the last: with n = overlords already beaten beyond the third, its walking speed is ×(1 + 0.15 n) and its landing window ×(1 − 0.10 n), never below 0.6 s.
+- **O-3** **Warning:** 2.5 s before the fight the screen announces `OVERLORD INCOMING` with the boss's name and a warning sound of its tier (tier 1 at the 20th enemy, tier 2 at the 30th, tier 3 from the 40th on: one, two, three horn calls, synthesised like every other sound). No other enemy is on the field during the warning or the fight; the combo strip of Boss Fights is shown.
+
+### The fight
+
+- **O-4** The rules are §25 (lift, delays, landing and quick steps, grades, holds, phases, the boss's HP in %). The run's **lives, orbs and D/F slots carry over** into the fight and back out. The overlord reaching the player costs **1 life** and it is knocked back (not the 3 lives of a chain boss); the fight goes on until one side is dead.
+- **O-5** The **difficulty clock stops** during the warning and the fight (the run's time shown on the HUD keeps running), so the enemies after the fight are as fast as they were before it.
+- **O-6** **Runes and items:** Frost and Smoke slow the overlord, a Shield or a Black King Bar blocks its contact, Double Damage doubles the points. Blink Dagger makes it walk back, Eul's Scepter makes it stand still (Wind Waker also pushes it back), Healing Salve / Cheese heal. **Refresher Orb is redefined for overlords: the next combo that deals damage deals ×2** (it stays armed until then; its cooldown starts when it is used). Hand of Midas, Octarine Core and Aghanim's Scepter keep their effects (gold, cooldowns, rune choice).
+- **O-7** The RECIPE HINT setting works as in Boss Fights (recipe orbs under the combo, timing bars); as always a hinted run is not ranked (§17). There is no separate help for a first encounter (owner: the player decides).
+
+### Victory, defeat
+
+- **O-8** An overlord beaten: **+50 points**, **+100 gold**, a **rune** (as after a chain boss; a choice with Aghanim), **one material** (O-10), the next stage; PLAY goes on with its normal loop. It counts as a boss defeated.
+- **O-9** Lives at 0: Game Over as usual; the screen adds `DEFEATED BY <NAME> - PRACTISE IT IN BOSS FIGHTS`.
+
+### Materials and the shop
+
+- **O-10** Every overlord beaten drops **exactly one material** (no chance involved; reaching it is the hard part). Three materials, by boss: bosses 1-3 → **Point Booster** · bosses 4-7 → **Mystic Staff** · boss 8 → **Sacred Relic** (so the 20th / 30th / 40th enemy give one of each). Materials are kept across runs and saved with the inventory (99 at most of each); the drop is shown when it falls and on the Game Over screen.
+- **O-11** **Shop requirements** (on top of the gold; one material is used up by the purchase): **Aghanim's Scepter** needs a Point Booster. **Every level-2 upgrade needs a material:** Swift Blink and Wind Waker a Point Booster · BKB II, Midas II and Octarine II a Mystic Staff · Refresher Orb II and Aghanim's Blessing a Sacred Relic. Level 1 of the other items and all consumables need gold only. Items already owned stay owned. The shop shows the materials the player has and what an item needs (`NEEDS POINT BOOSTER`).
+- **O-12** The PLAY leaderboard still ranks by score (§26 P3-5).
+
+### Architecture
+
+- **O-13** `PracticeSession` (PLAY) owns a `BossSession` for the overlord and hands the run to it for the fight (shared invoker state, lives, item effects); both stay in the Practice layer and are tested there. Materials live in `Practice/Items.*` (inventory, requirements, buying). The warning sounds, the banner, the drop and the shop lines are presentation.
