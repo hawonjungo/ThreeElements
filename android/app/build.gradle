@@ -45,6 +45,17 @@ if (signingPath != null && new File(signingPath).exists()) {
     new File(signingPath).withInputStream { signingProps.load(it) }
 }
 
+// ---- Google Play Games (online leaderboards, GAMEPLAY_SPEC.md §29). The three ids come from
+// android/play-games.properties (see play-games.properties.example and PLAY_GAMES_SETUP.md). Without that file the
+// app is built without Play Games: no library, no internet permission, and OnlineBoards is the empty stand-in.
+def playGames = new Properties()
+def playGamesFile = rootProject.file('play-games.properties')
+if (playGamesFile.exists()) {
+    playGamesFile.withInputStream { playGames.load(it) }
+}
+def playGamesId = { String key -> (playGames.getProperty(key) ?: '').trim() }
+def onlineBoards = playGamesId('appId') != '' && playGamesId('leaderboardPlay') != '' && playGamesId('leaderboardSurvival') != ''
+
 android {
     namespace 'net.relifes.threeelements'
     compileSdk 36
@@ -65,6 +76,10 @@ android {
         // The built files carry the version (owner 2026-09-30), e.g. injoker-1.2.2-vc4-release.aab and
         // injoker-1.2.2-vc4-debug.apk, so builds of different versions are never mixed up.
         setProperty('archivesBaseName', "injoker-${versionName}-vc${versionCode}")
+        // Play Games ids as string resources (the manifest and OnlineBoards read them); "0" when the feature is off
+        resValue 'string', 'game_services_project_id', onlineBoards ? playGamesId('appId') : '0'
+        resValue 'string', 'leaderboard_play', onlineBoards ? playGamesId('leaderboardPlay') : '0'
+        resValue 'string', 'leaderboard_survival', onlineBoards ? playGamesId('leaderboardSurvival') : '0'
         externalNativeBuild {
             cmake {
                 // FLEXIBLE_PAGE_SIZES: native libraries aligned for 16 KB memory pages, required by Google Play for
@@ -108,6 +123,7 @@ android {
 
     sourceSets.main {
         assets.srcDirs = [gameAssetsRoot]
+        java.srcDirs += onlineBoards ? 'src/online/java' : 'src/offline/java'  // OnlineBoards: real or stand-in
     }
 
     compileOptions {
@@ -117,5 +133,12 @@ android {
 
     lint {
         abortOnError false
+    }
+}
+
+dependencies {
+    if (onlineBoards) {
+        // v2 21.0.0: the newest that still supports minSdk 21 (22.x needs 24)
+        implementation 'com.google.android.gms:play-services-games-v2:21.0.0'
     }
 }

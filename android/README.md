@@ -45,6 +45,15 @@ connect the cable and accept the prompt. `adb devices` (in the SDK's `platform-t
 - Store listing texts, declarations and images: `art/store/` (`listing.md`, icon, feature graphic, screenshots).
   Privacy policy: https://injoker.relifes.net/policy (`web/policy/index.html`); terms `/terms`, support `/support`; the old `/privacy.html` redirects to `/policy/`.
 
+## Online leaderboards (Google Play Games) — prepared, switched off
+
+GAMEPLAY_SPEC.md §29. The app is built **without** Play Games (no library, no global boards) until
+`android/play-games.properties` exists with the three ids from the Play Console; copy
+`play-games.properties.example`. The owner's Console steps are in [PLAY_GAMES_SETUP.md](PLAY_GAMES_SETUP.md).
+`OnlineBoards` exists twice: `app/src/online/java` (Play Games Services v2 21.0.0) and `app/src/offline/java` (empty
+stand-in); `app/build.gradle` picks one. The C++ side is `Three Elements/Online.h/.cpp` (JNI calls on the activity).
+Even the Play Games build requests no permission.
+
 ## Checking other screen shapes (emulator)
 
 The APK also contains `x86_64`, so it runs in the Android Studio emulator (AVD `Medium_Phone_API_36.0`, 1080×2400).

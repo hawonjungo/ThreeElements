@@ -72,6 +72,9 @@
     <ClCompile Include="Audio.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Online.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GameManager.h">
@@ -117,6 +120,9 @@
       <Filter>Practice</Filter>
     </ClInclude>
     <ClInclude Include="PixelText.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Online.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Draw.h">

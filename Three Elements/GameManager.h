@@ -242,6 +242,9 @@ const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
 const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 470, 464, 244, 34 };
+// On the LEADERBOARD screen, only where online boards exist (Android with Google Play Games, spec §29): opens
+// Google's leaderboard screen (names, avatars, this week / all time).
+const SDL_Rect GLOBAL_BOARDS_BUTTON_RECT = { 264, 398, 400, 38 };
 // Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
 // is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
 const SDL_Rect TUTORIAL_PANEL_RECT          = { 120, 8, 540, 128 };
@@ -469,6 +472,7 @@ private:
 	void RenderMenu();
 	void RenderTop3Panel();
 	void RenderLeaderboard();
+	void OpenGlobalBoards();      // spec §29: this device's best results go up first, then Google's screen opens
 	void RenderSettings();
 	// shop and items (spec §27)
 	void LoadInventory();

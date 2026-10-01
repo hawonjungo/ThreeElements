@@ -61,7 +61,7 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Content rating (IARC questionnaire) | Category **Game**. Violence: spells make cartoon monsters vanish — **fantasy / cartoon violence against non-human characters, no blood, no gore**. Everything else **No**: sexuality, language, drugs/alcohol/tobacco, gambling, horror/fear, user interaction or chat, sharing location, digital purchases. Expect about **PEGI 7 / ESRB Everyone 10+** (Play shows the final result). |
 | Target audience | **13 and over** (13-15, 16-17, 18+). Not designed for children, so the Families policy does not apply. |
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
-| Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
+| Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (**To do with the release that switches the global leaderboards on, spec §29:** a signed-in player's results go to Google Play Games; follow Google's data-disclosure page for the Play Games Services SDK. The app still has no permission.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
 ## Release notes (1.6.1, versionCode 17, max 500)

@@ -9,6 +9,7 @@
 #include "PixelText.h"
 #include "Draw.h"
 #include "Audio.h"
+#include "Online.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -581,6 +582,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     };
 
     bool menu = !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Ready;
+    if (m_showLeaderboard && online::Available() && hit(GLOBAL_BOARDS_BUTTON_RECT))
+    {
+        OpenGlobalBoards();  // the list stays open underneath
+        return;
+    }
     if (m_showRecipes || m_showLeaderboard)  // an overlay is open: a tap anywhere closes it
     {
         m_showRecipes = m_showLeaderboard = false;
@@ -879,6 +885,11 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
         m_lastRank = SubmitRun(st);
         if (m_lastRank > 0)
             printf("[practice] rank %d on this device\n", m_lastRank);
+        // the global boards (Android with Play Games, spec §29): PLAY by score, SURVIVAL by time in milliseconds
+        if (m_session.Mode() == practice::SessionMode::Play)
+            online::Submit(online::Board::Play, st.score);
+        else
+            online::Submit(online::Board::Survival, static_cast<long long>(st.survivalTime * 1000.0f));
     }
 }
 
@@ -1657,9 +1668,21 @@ void GameManager::RenderLeaderboard()
         snprintf(buf, sizeof(buf), "%2d. %s", i + 1, empty ? "--:--" : time);
         pixeltext::DrawShadowed(m_screen, buf, rightX, y, 2, empty ? grey : c);
     }
+    if (online::Available())  // spec §29: the global boards are Google's screen, one tap away
+        RenderButton(GLOBAL_BOARDS_BUTTON_RECT, online::SignedIn() ? "GLOBAL RANKING" : "SIGN IN FOR GLOBAL RANKING", true);
     snprintf(buf, sizeof(buf), "GOLD BANK %d", m_goldBank);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, panel.y + panel.h - 54, 2, gold);
-    pixeltext::DrawCentered(m_screen, "PRESS ANY KEY OR TAP TO CLOSE", SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
+    pixeltext::DrawCentered(m_screen, online::Available() ? "TAP OUTSIDE THE BUTTON TO CLOSE" : "PRESS ANY KEY OR TAP TO CLOSE",
+        SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
+}
+
+// A player who played as a guest (or offline) and signs in later still gets this device's best results on the
+// global boards: they are sent again every time the boards are opened (a lower score never replaces a higher one).
+void GameManager::OpenGlobalBoards()
+{
+    online::Submit(online::Board::Play, m_playRuns[0].score);
+    online::Submit(online::Board::Survival, static_cast<long long>(m_topRuns[0].survivalTime * 1000.0f));
+    online::ShowBoards();
 }
 
 // The player (no magic ring under the feet any more, owner 2026-10-01): the loaded orbs circling the character (behind it on the far

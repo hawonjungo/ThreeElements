@@ -173,6 +173,7 @@
     <ClCompile Include="Draw.cpp" />
     <ClCompile Include="SkillVfx.cpp" />
     <ClCompile Include="Audio.cpp" />
+    <ClCompile Include="Online.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseObject.h" />
@@ -186,6 +187,7 @@
     <ClInclude Include="Core\Invoker.h" />
     <ClInclude Include="Practice\Practice.h" />
     <ClInclude Include="Practice\Tutorial.h" />
+    <ClInclude Include="Online.h" />
     <ClInclude Include="Practice\Boss.h" />
     <ClInclude Include="Practice\Field.h" />
     <ClInclude Include="Practice\Items.h" />

@@ -1,0 +1,16 @@
+# Google Play Games (online leaderboards, GAMEPLAY_SPEC.md §29).
+#
+# Copy this file to "play-games.properties" (same folder) and fill in the three ids from the Play Console
+# (Play Games Services > Setup and management > Configuration / Leaderboards). See PLAY_GAMES_SETUP.md.
+#
+# While play-games.properties does not exist, the app is built WITHOUT Play Games: no library, no internet
+# permission, no global leaderboards - exactly the app as it was before.
+#
+# These ids are not secrets (they are in every released APK), so play-games.properties is committed to git.
+
+# The Play Games project id: digits only, e.g. 123456789012
+appId=
+
+# Leaderboard ids, e.g. CgkI...AQ
+leaderboardPlay=
+leaderboardSurvival=

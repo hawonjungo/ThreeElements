@@ -10,6 +10,7 @@
     <uses-feature android:name="android.hardware.type.pc" android:required="false" />
 
     <application
+        android:name=".InjokerApplication"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
@@ -17,6 +18,12 @@
         android:hardwareAccelerated="true"
         android:appCategory="game"
         android:enableOnBackInvokedCallback="false">
+
+        <!-- Google Play Games project id (online leaderboards); "0" in a build without Play Games, where nothing
+             reads it. The value comes from android/play-games.properties through app/build.gradle. -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/game_services_project_id" />
 
         <activity
             android:name=".ThreeElementsActivity"
