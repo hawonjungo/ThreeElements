@@ -9,14 +9,35 @@ namespace practice
 	namespace
 	{
 		// B-9. The enemy indices are those of kEnemies in Practice.cpp (9 knight, 3 dark wiz, 8 kitsune).
+		const SkillId NONE = SkillId::None;
 		const BossDefinition kBosses[BOSS_COUNT] =
 		{
 			{ "STONE KNIGHT", 9, 3.0f, { 190, 200, 215 },
-				{ SkillId::Tornado, SkillId::SunStrike, SkillId::None, SkillId::None }, 2, 40.0f, 1.2f, true },
+				{ SkillId::Tornado, SkillId::SunStrike, NONE, NONE, NONE }, 2, 40.0f, 1.2f, true,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
 			{ "DARK WIZARD", 3, 2.5f, { 200, 150, 255 },
-				{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::None }, 3, 45.0f, 1.0f, false },
+				{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE, NONE }, 3, 45.0f, 1.0f, false,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
 			{ "KITSUNE QUEEN", 8, 1.8f, { 255, 150, 120 },
-				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 4, 50.0f, 1.0f, false },
+				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE }, 4, 50.0f, 1.0f, false,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
+			// update 1.5 (B-18): the other five skills. Enemy indices: 0 goblin, 1 skeleton, 2 fire wiz, 6 necro, 4 eyes.
+			{ "FROST TROLL", 0, 3.0f, { 150, 210, 255 },
+				{ SkillId::ColdSnap, SkillId::SunStrike, NONE, NONE, NONE }, 2, 45.0f, 1.0f, false,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
+			{ "GLACIER GOLEM", 1, 2.6f, { 190, 225, 255 },
+				{ SkillId::IceWall, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE, NONE }, 3, 50.0f, 1.0f, false,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
+			{ "FIRE IMP", 2, 2.0f, { 255, 170, 110 },
+				{ SkillId::ColdSnap, SkillId::Alacrity, SkillId::ForgeSpirit, NONE, NONE }, 3, 55.0f, 1.0f, false,
+				{ NONE, NONE, NONE, NONE, NONE }, 0 },
+			{ "SHADOW ASSASSIN", 6, 2.0f, { 170, 130, 220 },
+				{ SkillId::GhostWalk, SkillId::Tornado, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
+				50.0f, 1.2f, false, { NONE, NONE, NONE, NONE, NONE }, 0 },
+			{ "ARCHON", 4, 3.4f, { 255, 225, 120 },
+				{ SkillId::Tornado, SkillId::EMP, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
+				50.0f, 1.4f, false,
+				{ SkillId::IceWall, SkillId::ColdSnap, SkillId::ForgeSpirit, SkillId::Alacrity, NONE }, 4 },
 		};
 
 		const float PROJECTILE_STEP_TIME = TORNADO_MAX_STEP / TORNADO_SPEED;  // hit test at least every 10 px
@@ -65,6 +86,17 @@ namespace practice
 		if (afterLanding <= BOSS_PERFECT_TIME)
 			return HitGrade::Perfect;
 		if (afterLanding <= BOSS_GREAT_TIME)
+			return HitGrade::Great;
+		return HitGrade::Good;
+	}
+
+	HitGrade GradeQuick(float sincePrevious)
+	{
+		if (sincePrevious < 0.0f || sincePrevious > BOSS_QUICK_LIMIT)
+			return HitGrade::Miss;
+		if (sincePrevious <= BOSS_QUICK_PERFECT)
+			return HitGrade::Perfect;
+		if (sincePrevious <= BOSS_QUICK_GREAT)
 			return HitGrade::Great;
 		return HitGrade::Good;
 	}
@@ -124,6 +156,10 @@ namespace practice
 		m_landTime = 0.0f;
 		m_lastFail = ComboFail::None;
 		m_lastDamage = 0;
+		for (int i = 0; i < BOSS_MAX_COMBO; ++i)
+			m_castTime[i] = 0.0f;
+		m_comboPhase = 0;
+		m_freezeLeft = m_slowLeft = m_confuseLeft = 0.0f;
 
 		m_projectiles.clear();
 		m_pendingCount = 0;
@@ -149,14 +185,51 @@ namespace practice
 
 	bool BossSession::StepDone(int step) const
 	{
-		if (!m_running || step < 0 || step >= Def().comboLength)
+		if (!m_running || step < 0 || step >= ComboLength())
 			return false;
-		return step == 0 ? m_tornadoHit : m_grades[step] != HitGrade::None;
+		if (step == 0)  // the opener: a Tornado once it has hit, any other spell at once
+			return Combo()[0] == SkillId::Tornado ? m_tornadoHit : true;
+		return m_grades[step] != HitGrade::None;
 	}
 
 	HitGrade BossSession::StepGrade(int step) const
 	{
-		return m_running && step > 0 && step < Def().comboLength ? m_grades[step] : HitGrade::None;
+		return m_running && step > 0 && step < ComboLength() ? m_grades[step] : HitGrade::None;
+	}
+
+	// B-16: a landing step is Sun Strike / Chaos Meteor / EMP / Deafening Blast after a Tornado in the same combo;
+	// every other follow-up is a quick step.
+	BossStepKind BossSession::StepKind(int step) const
+	{
+		if (step <= 0)
+			return BossStepKind::Opener;
+		const SkillId* combo = Combo();
+		SkillId s = combo[step];
+		bool landingSpell = BossSpellDelay(s) > 0.0f || s == SkillId::DeafeningBlast;
+		bool tornadoBefore = false;
+		for (int i = 0; i < step; ++i)
+			tornadoBefore = tornadoBefore || combo[i] == SkillId::Tornado;
+		return landingSpell && tornadoBefore ? BossStepKind::Landing : BossStepKind::Quick;
+	}
+
+	bool BossSession::QuickTiming(int step, float& left, float& total) const
+	{
+		if (m_state != BossState::Fighting || !m_running || step != m_castIndex || step >= ComboLength()
+			|| StepKind(step) != BossStepKind::Quick)
+			return false;
+		total = BOSS_QUICK_LIMIT;
+		left = BOSS_QUICK_LIMIT - (m_elapsed - m_castTime[step - 1]);
+		return true;
+	}
+
+	void BossSession::ApplyHold(SkillId skill)
+	{
+		if (skill == SkillId::ColdSnap)
+			m_freezeLeft = BOSS_FREEZE_TIME;
+		else if (skill == SkillId::IceWall)
+			m_slowLeft = BOSS_ICE_WALL_TIME;
+		else if (skill == SkillId::GhostWalk)
+			m_confuseLeft = BOSS_CONFUSE_TIME;
 	}
 
 	float BossSession::ImpactDelay(SkillId skill) const
@@ -198,12 +271,11 @@ namespace practice
 
 	bool BossSession::StepTiming(int step, float& untilIdeal, float& span) const
 	{
-		const BossDefinition& def = Def();
 		float landing = 0.0f;
-		if (m_state != BossState::Fighting || step < 1 || step >= def.comboLength || step < m_castIndex
-			|| !LandingTime(landing))
+		if (m_state != BossState::Fighting || step < 1 || step >= ComboLength() || step < m_castIndex
+			|| StepKind(step) != BossStepKind::Landing || !LandingTime(landing))
 			return false;
-		float delay = ImpactDelay(def.combo[step]);
+		float delay = ImpactDelay(Combo()[step]);
 		if (delay < 0.0f)
 			return false;
 		float ideal = landing + BOSS_IDEAL_AFTER_LANDING - delay;
@@ -218,9 +290,9 @@ namespace practice
 	{
 		const BossDefinition& def = Def();
 		if (!def.guided || m_state != BossState::Fighting || !m_running || m_phase != BossPhase::Airborne
-			|| m_liftAttempt != m_attempt || m_castIndex >= def.comboLength)
+			|| m_liftAttempt != m_attempt || m_castIndex >= ComboLength() || StepKind(m_castIndex) != BossStepKind::Landing)
 			return false;
-		float delay = ImpactDelay(def.combo[m_castIndex]);
+		float delay = ImpactDelay(Combo()[m_castIndex]);
 		if (delay < 0.0f)
 			return false;
 		float impact = m_airTime + delay;  // in "air time", the boss lands at BOSS_LIFT_TIME
@@ -240,7 +312,7 @@ namespace practice
 
 	BossInputResult BossSession::Input(invoker::InputAction action)
 	{
-		BossInputResult result = { false, { invoker::InvokerEvent::OrbAdded, SkillId::None }, false, ComboFail::None };
+		BossInputResult result = { false, { invoker::InvokerEvent::OrbAdded, SkillId::None }, false, ComboFail::None, HitGrade::None };
 		if (m_state != BossState::Fighting)
 			return result;
 		result.accepted = true;
@@ -253,25 +325,37 @@ namespace practice
 	// B-7 steps 1 and 2: which attempt a cast belongs to, then what it sets in motion.
 	void BossSession::Cast(SkillId skill, BossInputResult& result)
 	{
-		const BossDefinition& def = Def();
+		const SkillId* combo = Combo();
+		int length = ComboLength();
 		int tag = 0;
 		if (m_running)
 		{
-			if (m_castIndex < def.comboLength && skill == def.combo[m_castIndex])
+			if (m_castIndex < length && skill == combo[m_castIndex])
 			{
 				tag = m_attempt;
+				int step = m_castIndex;
+				m_castTime[step] = m_elapsed;
+				if (StepKind(step) == BossStepKind::Quick)  // B-16: graded now, by how fast it followed
+				{
+					m_grades[step] = result.grade = GradeQuick(m_elapsed - m_castTime[step - 1]);
+					if (m_grades[step] == HitGrade::Miss)
+						m_missReasons[step] = ComboFail::TooLate;
+				}
 				++m_castIndex;
+				ApplyHold(skill);
 			}
-			else if (m_castIndex >= def.comboLength || skill == def.combo[m_castIndex - 1])
+			else if (m_castIndex >= length || skill == combo[m_castIndex - 1])
 				tag = 0;  // the whole list is cast already, or a double tap of the last spell: ignored
 			else
 				Fail(ComboFail::WrongSpell, result.fail);
 		}
-		else if (skill == def.combo[0] && m_phase != BossPhase::Airborne)
+		else if (skill == combo[0] && m_phase != BossPhase::Airborne)
 		{
 			++m_attempt;
 			m_running = true;
 			m_attemptStart = m_elapsed;
+			m_castTime[0] = m_elapsed;
+			ApplyHold(skill);
 			m_castIndex = 1;
 			m_tornadoHit = false;
 			for (int i = 0; i < BOSS_MAX_COMBO; ++i)
@@ -314,9 +398,9 @@ namespace practice
 		{
 			const BossDefinition& def = Def();
 			int step = -1;
-			for (int i = 1; i < def.comboLength; ++i)
+			for (int i = 1; i < ComboLength(); ++i)
 			{
-				if (def.combo[i] == skill && m_grades[i] == HitGrade::None)
+				if (Combo()[i] == skill && m_grades[i] == HitGrade::None && StepKind(i) == BossStepKind::Landing)
 				{
 					step = i;
 					break;
@@ -353,10 +437,10 @@ namespace practice
 	void BossSession::Resolve(BossUpdateResult& result)
 	{
 		const BossDefinition& def = Def();
-		int followUps = def.comboLength - 1;
+		int followUps = ComboLength() - 1;
 		int total = 0;
 		ComboFail firstMiss = ComboFail::None;
-		for (int i = 1; i < def.comboLength; ++i)
+		for (int i = 1; i < ComboLength(); ++i)
 		{
 			total += GradeScore(m_grades[i]);
 			if (m_grades[i] == HitGrade::Miss && firstMiss == ComboFail::None)
@@ -380,6 +464,11 @@ namespace practice
 			m_state = BossState::Won;
 			result.won = true;
 			return;
+		}
+		if (m_comboPhase == 0 && def.combo2Length > 0 && m_bossHp <= BOSS_PHASE2_HP)  // B-19
+		{
+			m_comboPhase = 1;
+			result.phaseChanged = true;
 		}
 		if (m_phase == BossPhase::Walking)
 		{
@@ -426,8 +515,11 @@ namespace practice
 				m_phase = BossPhase::Walking;
 			}
 		}
-		else
-			m_x -= def.speed * dt;
+		else if (m_freezeLeft <= 0.0f && m_confuseLeft <= 0.0f)  // B-17: frozen / confused bosses do not move
+			m_x -= def.speed * (m_slowLeft > 0.0f ? BOSS_ICE_WALL_SPEED : 1.0f) * dt;
+		m_freezeLeft = m_freezeLeft > dt ? m_freezeLeft - dt : 0.0f;
+		m_slowLeft = m_slowLeft > dt ? m_slowLeft - dt : 0.0f;
+		m_confuseLeft = m_confuseLeft > dt ? m_confuseLeft - dt : 0.0f;
 
 		// ---- projectiles: a Tornado lifts a grounded boss, a Deafening Blast is graded when it reaches it
 		for (size_t i = 0; i < m_projectiles.size(); ++i)
@@ -484,14 +576,29 @@ namespace practice
 		m_pendingCount = keptPending;
 
 		// ---- the attempt ends: every follow-up graded, or the window closed on the rest (TOO LATE)
+		// a quick step that was not cast in time is missed (B-16); a missed Tornado ends the attempt
+		if (m_running && m_castIndex < ComboLength() && StepKind(m_castIndex) == BossStepKind::Quick
+			&& m_elapsed - m_castTime[m_castIndex - 1] > BOSS_QUICK_LIMIT)
+		{
+			if (Combo()[m_castIndex] == SkillId::Tornado)
+				Fail(ComboFail::TooLate, result.fail);
+			else
+			{
+				m_grades[m_castIndex] = HitGrade::Miss;
+				m_missReasons[m_castIndex] = ComboFail::TooLate;
+				m_castTime[m_castIndex] = m_elapsed;  // the next quick step's time starts now
+				++m_castIndex;
+				result.quickMissed = true;
+			}
+		}
 		if (m_running)
 		{
 			bool allGraded = true;
-			for (int i = 1; i < def.comboLength; ++i)
+			for (int i = 1; i < ComboLength(); ++i)
 				allGraded = allGraded && m_grades[i] != HitGrade::None;
 			if (!allGraded && m_landed && m_elapsed > m_landTime + def.window)
 			{
-				for (int i = 1; i < def.comboLength; ++i)
+				for (int i = 1; i < ComboLength(); ++i)
 				{
 					if (m_grades[i] == HitGrade::None)
 					{

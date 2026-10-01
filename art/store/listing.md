@@ -35,7 +35,7 @@ FEATURES
 - PLAY: elites, bosses, runes, stages and gold.
 - A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
 - SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
-- Boss fights: three bosses that only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
+- Boss fights: eight bosses that need all ten spells - quick chains, freezes, slows and a two-phase final boss - and only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Your 10 best runs by survival time, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs.
 - Chiptune sound effects, spell effects for all ten spells.
@@ -63,6 +63,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.5.0, versionCode 15, max 500)
+
+```
+Boss Fights grow up: five new bosses that use all ten spells. Freeze a boss with Cold Snap, slow it with Ice Wall, slip away with Ghost Walk, then chain your spells fast - every quick step is graded PERFECT, GREAT or GOOD. The final boss, the Archon, changes its combo at half health. Also: the shop price display is fixed.
+```
 
 ## Release notes (1.4.0, versionCode 13, max 500)
 

@@ -437,3 +437,25 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **I-5 [CONFIRMED]** Effects in detail: Blink — the current enemy walks backwards at its own speed (never past its spawn point). Eul's — the current enemy does not move (Wind Waker also pushes it back 150 px at once). Refresher — counts as breaking skills of the chain (no points, no combo). BKB — while it lasts a leak costs no life (the enemy is still removed). Smoke — stacks with Frost. Midas — multiplies every gold gain (rounded). Aghanim — after a boss the game pauses on the rune choice; the player picks with 1 / 2 / 3 or a tap.
 - **I-6 [CONFIRMED]** Items change what a run can reach; the PLAY leaderboard accepts it (owner 2026-09-30: everyone can buy them by playing).
 - **I-7 [RECOMMENDED]** Architecture: `Practice/Items.*` (item table, inventory, buying and equipping — pure, tested) and the item effects inside `PracticeSession` in PLAY mode (tested); the shop screen, the in-game item bar, the icons and saving the inventory are presentation.
+
+### Boss mode, update 1.5: all ten skills, longer combos  *(§25 continued)*
+
+**Status: CONFIRMED by the owner 2026-10-01** ("thực hiện bản 1.5", the plan in PLAN.md). B-1 … B-15 stay as they are; this adds what the five other skills do in Boss mode and five new bosses. The boss art is still a placeholder (enemy sprites drawn larger and tinted) until the owner's boss sheets arrive (format in PLAN.md).
+
+- **B-16 [CONFIRMED]** **Any spell can open a combo** (the first spell of the boss's list, cast while the boss is on the ground). Each later spell is one of two kinds:
+  - **Landing step** (as before, B-7 / B-14): Sun Strike, Chaos Meteor, EMP or Deafening Blast **after a Tornado** in the same combo. It is graded by how soon after the boss comes down it lands.
+  - **Quick step**: every other spell of a combo. It is graded **when it is cast**, by how long after the previous spell of the combo it came: **PERFECT** ≤ 1.2 s · **GREAT** ≤ 2.0 s · **GOOD** ≤ 3.2 s. After 3.2 s the step is missed (`TOO LATE`, only its share is lost) and the combo goes on to the next spell; a Tornado that is missed this way ends the attempt. A bar under the spell's icon shows the time left for the next quick step (always, not only with the hint).
+- **B-17 [CONFIRMED]** **Holds.** When they are cast as the right spell of the combo: **Cold Snap** freezes the boss for 3.2 s (it does not move) · **Ice Wall** slows it to 30 % for 4 s · **Ghost Walk** makes it lose the player and stand still for 3.2 s. **Forge Spirit** and **Alacrity** have no effect on the boss's movement (the spirit and the aura are drawn). Outside a combo these spells do nothing to the boss.
+- **B-18 [CONFIRMED]** **Bosses 4-8** (HP 100 %, as B-4; damage = the average grade of the follow-up spells):
+
+| # | Boss | Combo | Speed | Window |
+|---|---|---|---|---|
+| 4 | Frost Troll | Cold Snap → Sun Strike | 45 px/s | — |
+| 5 | Glacier Golem | Ice Wall → Chaos Meteor → Deafening Blast | 50 px/s | — |
+| 6 | Fire Imp | Cold Snap → Alacrity → Forge Spirit | 55 px/s | — |
+| 7 | Shadow Assassin | Ghost Walk → Tornado → Sun Strike → Chaos Meteor → Deafening Blast | 50 px/s | 1.2 s |
+| 8 | Archon (final) | phase 1: Tornado → EMP → Sun Strike → Chaos Meteor → Deafening Blast · phase 2: Ice Wall → Cold Snap → Forge Spirit → Alacrity | 50 px/s | 1.4 s |
+
+  In combos with a Tornado the landing spells are listed in the order they have to be cast (the longest delay first).
+- **B-19 [CONFIRMED]** **Two phases** (boss 8): once its HP is at 50 % or less, its combo changes to the second list (announced on screen); it never changes back.
+- **B-20 [CONFIRMED]** The boss list shows all eight bosses in compact rows (name, the combo as small icons, best time); keys 1-8, arrows + Enter, or a tap.

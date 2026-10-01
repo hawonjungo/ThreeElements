@@ -3257,6 +3257,10 @@ void GameManager::ProcessBossAction(invoker::InputAction action)
     PresentInvokerResult(action, r.invoker, practice::CastOutcome::None, true, body);
     if (r.attemptStarted)
         printf("[boss] combo attempt started\n");
+    if (r.grade == practice::HitGrade::Miss)  // a quick step cast too late (B-16)
+        OnBossFail(practice::ComboFail::TooLate);
+    else if (r.grade != practice::HitGrade::None)
+        OnBossGrade(r.grade);
     if (r.fail != practice::ComboFail::None)
         OnBossFail(r.fail);
 }
@@ -3285,22 +3289,18 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
             missShown = true;
         }
         else if (impact.grade != practice::HitGrade::None)  // B-14: PERFECT! / GREAT / GOOD
-        {
-            const SDL_Color cyan = { 110, 210, 255, 255 };
-            const SDL_Color white = { 235, 235, 240, 255 };
-            bool perfect = impact.grade == practice::HitGrade::Perfect;
-            BossText(perfect ? "PERFECT!" : impact.grade == practice::HitGrade::Great ? "GREAT" : "GOOD",
-                perfect ? gold : impact.grade == practice::HitGrade::Great ? cyan : white);
-            for (int k = 0; k < FEEDBACK_MAX_BURSTS; ++k)
-            {
-                if (m_bursts[k].left <= 0.0f)
-                {
-                    m_bursts[k] = { FEEDBACK_BURST_TIME, static_cast<int>(body.x + body.w * 0.5f), static_cast<int>(body.y + body.h * 0.5f) };
-                    break;
-                }
-            }
-            audio::Play(audio::Sfx::CastCorrect);
-        }
+            OnBossGrade(impact.grade);
+    }
+    if (r.quickMissed)  // a quick step ran out of time: only its share is lost (B-16)
+    {
+        OnBossFail(practice::ComboFail::TooLate);
+        missShown = true;
+    }
+    if (r.phaseChanged)  // B-19
+    {
+        BossText("PHASE 2!", gold, 84);
+        audio::Play(audio::Sfx::Start);
+        printf("[boss] phase 2\n");
     }
     if (r.fail != practice::ComboFail::None && !missShown)  // WRONG SPELL, a Tornado that missed, the window closing
         OnBossFail(r.fail);
@@ -3336,6 +3336,26 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
         audio::Play(audio::Sfx::GameOver);
         printf("[boss] defeated by %s\n", m_boss.Def().name);
     }
+}
+
+void GameManager::OnBossGrade(practice::HitGrade grade)
+{
+    const SDL_Color gold = { 255, 215, 80, 255 };
+    const SDL_Color cyan = { 110, 210, 255, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    bool perfect = grade == practice::HitGrade::Perfect;
+    BossText(perfect ? "PERFECT!" : grade == practice::HitGrade::Great ? "GREAT" : "GOOD",
+        perfect ? gold : grade == practice::HitGrade::Great ? cyan : white);
+    practice::Bounds body = m_boss.Body();
+    for (int k = 0; k < FEEDBACK_MAX_BURSTS; ++k)
+    {
+        if (m_bursts[k].left <= 0.0f)
+        {
+            m_bursts[k] = { FEEDBACK_BURST_TIME, static_cast<int>(body.x + body.w * 0.5f), static_cast<int>(body.y + body.h * 0.5f) };
+            break;
+        }
+    }
+    audio::Play(audio::Sfx::CastCorrect);
 }
 
 void GameManager::OnBossFail(practice::ComboFail reason)
@@ -3493,12 +3513,25 @@ void GameManager::RenderBoss()
     int x = static_cast<int>(body.x - e.bodyLeft * def.scale);
     int y = static_cast<int>(practice::GROUND_LINE_Y - e.feetRow * def.scale - lift);
     bool flash = m_enemyFlashLeft > 0.0f;
+    // B-17 holds: frozen = ice blue, slowed by the Ice Wall = pale blue, confused by Ghost Walk = a "?" above it
     if (flash)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
+    else if (m_boss.FreezeLeft() > 0.0f)
+        SDL_SetTextureColorMod(sprite.p_object_, 120, 190, 255);
+    else if (m_boss.SlowLeft() > 0.0f)
+        SDL_SetTextureColorMod(sprite.p_object_, 190, 220, 255);
     else
         SDL_SetTextureColorMod(sprite.p_object_, def.tint[0], def.tint[1], def.tint[2]);
     sprite.RenderFrameScaled(m_screen, x, y, def.scale);
     SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+    const char* hold = m_boss.FreezeLeft() > 0.0f ? "FROZEN" : m_boss.ConfuseLeft() > 0.0f ? "?" : m_boss.SlowLeft() > 0.0f ? "SLOWED" : NULL;
+    if (hold != NULL && m_boss.State() == practice::BossState::Fighting)
+    {
+        const SDL_Color ice = { 170, 225, 255, 255 };
+        int scale = hold[0] == '?' ? 4 : 2;
+        pixeltext::DrawShadowed(m_screen, hold, cx - pixeltext::Width(hold, scale) / 2,
+            static_cast<int>(body.y - lift) - 12 - 7 * scale, scale, ice);
+    }
 }
 
 // Where each delayed spell will land: a faint circle of its reach and a ring closing in on the impact point.
@@ -3597,7 +3630,8 @@ void GameManager::RenderBossCombo()
     const SDL_Color red = { 255, 110, 110, 255 };
     char buf[64];
 
-    int n = def.comboLength;
+    const invoker::SkillId* combo = m_boss.Combo();  // the second phase's once the boss is at 50 % (B-19)
+    int n = m_boss.ComboLength();
     int width = n * BOSS_COMBO_TILE + (n - 1) * BOSS_COMBO_GAP;
     int x0 = SCREEN_WIDTH - 16 - width;
     bool running = m_boss.AttemptRunning();
@@ -3607,7 +3641,7 @@ void GameManager::RenderBossCombo()
     if (running && next >= n)
         snprintf(buf, sizeof(buf), "COMBO CAST - WAIT FOR IT");
     else
-        snprintf(buf, sizeof(buf), "NEXT: %s", invoker::GetSkillDefinition(def.combo[next]).name);
+        snprintf(buf, sizeof(buf), "NEXT: %s", invoker::GetSkillDefinition(combo[next]).name);
     pixeltext::DrawShadowed(m_screen, buf, SCREEN_WIDTH - 16 - pixeltext::Width(buf, 2), 64, 2, gold);
 
     for (int i = 0; i < n; ++i)
@@ -3619,7 +3653,7 @@ void GameManager::RenderBossCombo()
         SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
         SDL_RenderFillRect(m_screen, &tile);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-        m_skillIcons[static_cast<int>(def.combo[i])].RenderAt(m_screen, tile.x + 2, tile.y + 2, BOSS_COMBO_TILE - 4);
+        m_skillIcons[static_cast<int>(combo[i])].RenderAt(m_screen, tile.x + 2, tile.y + 2, BOSS_COMBO_TILE - 4);
         if (done)
             SDL_SetRenderDrawColor(m_screen, 90, 230, 110, 255);
         else if (cast)
@@ -3665,9 +3699,24 @@ void GameManager::RenderBossCombo()
                 SDL_RenderDrawRect(m_screen, &back);
             }
         }
+        // B-16: the next quick step shows how long is left to cast it (always, with or without the hint)
+        float quickLeft = 0.0f, quickTotal = 0.0f;
+        if (m_boss.QuickTiming(i, quickLeft, quickTotal))
+        {
+            SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
+            SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
+            SDL_RenderFillRect(m_screen, &back);
+            float f = quickLeft / quickTotal;
+            SDL_Rect bar = back;
+            bar.w = static_cast<int>(BOSS_COMBO_TILE * (f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f)));
+            bool perfect = quickTotal - quickLeft <= practice::BOSS_QUICK_PERFECT;
+            bool great = quickTotal - quickLeft <= practice::BOSS_QUICK_GREAT;
+            SDL_SetRenderDrawColor(m_screen, perfect ? 255 : (great ? 110 : 235), perfect ? 215 : (great ? 210 : 235), perfect ? 80 : (great ? 255 : 240), 255);
+            SDL_RenderFillRect(m_screen, &bar);
+        }
         if (m_recipeHint)
         {
-            const invoker::Recipe& r = invoker::GetSkillDefinition(def.combo[i]).recipe;
+            const invoker::Recipe& r = invoker::GetSkillDefinition(combo[i]).recipe;
             const int counts[3] = { r.quas, r.wex, r.exort };
             int ox = tile.x + BOSS_COMBO_TILE / 2 - 15;  // three 14 px orbs, 15 px apart, centred under the tile
             for (int element = 0; element < 3; ++element)
@@ -3690,11 +3739,13 @@ void GameManager::RenderBossCombo()
 
     if (def.guided)
         pixeltext::DrawCentered(m_screen, "TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", SCREEN_WIDTH, 100, 1, grey);
+    else if (n > 1 && m_boss.StepKind(1) == practice::BossStepKind::Quick)
+        pixeltext::DrawCentered(m_screen, "QUICK COMBO: CAST EACH SPELL RIGHT AFTER THE LAST ONE.", SCREEN_WIDTH, 100, 1, grey);
     if (nowStep > 0)
     {
         float t = SDL_GetTicks() / 1000.0f;
         SDL_Color pulse = { 90, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 110, 255 };
-        snprintf(buf, sizeof(buf), "CAST %s NOW!", invoker::GetSkillDefinition(def.combo[nowStep]).name);
+        snprintf(buf, sizeof(buf), "CAST %s NOW!", invoker::GetSkillDefinition(combo[nowStep]).name);
         int scale = pixeltext::Width(buf, 3) <= 400 ? 3 : 2;  // long names: keep clear of the combo strip
         pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 116, scale, pulse);
     }
@@ -3728,10 +3779,12 @@ void GameManager::RenderBossSelect()
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color white = { 235, 235, 240, 255 };
     const SDL_Color grey = { 150, 155, 170, 255 };
-    pixeltext::DrawCentered(m_screen, "BOSS FIGHTS", SCREEN_WIDTH, panel.y + 16, 3, gold);
-    pixeltext::DrawCentered(m_screen, "ONLY A FULL COMBO HURTS A BOSS", SCREEN_WIDTH, panel.y + 48, 1, grey);
+    pixeltext::DrawShadowed(m_screen, "BOSS FIGHTS", panel.x + 24, panel.y + 14, 3, gold);
+    pixeltext::DrawShadowed(m_screen, "ONLY ITS COMBO HURTS A BOSS", panel.x + 250, panel.y + 22, 1, grey);
 
-    char buf[96], time[16];
+    // one compact row per boss (B-20): number and name, best time, and the combo as small icons (both phases)
+    char buf[64], time[16];
+    const int icon = 28, step = 33;
     for (int i = 0; i < practice::BOSS_COUNT; ++i)
     {
         const practice::BossDefinition& def = practice::GetBossDefinition(i);
@@ -3744,16 +3797,8 @@ void GameManager::RenderBossSelect()
         SDL_RenderDrawRect(m_screen, &r);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
-        snprintf(buf, sizeof(buf), "%d  %s", i + 1, def.name);
-        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 12, 3, selected ? gold : white);
-        buf[0] = '\0';
-        for (int k = 0; k < def.comboLength; ++k)
-        {
-            if (k > 0)
-                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), " > ");
-            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%s", invoker::GetSkillDefinition(def.combo[k]).name);
-        }
-        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 50, 2, white);
+        snprintf(buf, sizeof(buf), "%d %s", i + 1, def.name);
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 6, 2, selected ? gold : white);
         if (m_bossBest[i] > 0.0f)
         {
             FormatTime(time, sizeof(time), m_bossBest[i]);
@@ -3761,12 +3806,21 @@ void GameManager::RenderBossSelect()
         }
         else
             snprintf(buf, sizeof(buf), "NOT BEATEN YET");
-        pixeltext::DrawShadowed(m_screen, buf, r.x + 16, r.y + 80, 2, m_bossBest[i] > 0.0f ? gold : grey);
-        if (selected)
-            RenderHighlight(r);
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 28, 1, m_bossBest[i] > 0.0f ? gold : grey);
+
+        int x = r.x + 232;
+        for (int k = 0; k < def.comboLength; ++k, x += step)
+            m_skillIcons[static_cast<int>(def.combo[k])].RenderAt(m_screen, x, r.y + 8, icon);
+        if (def.combo2Length > 0)
+        {
+            pixeltext::DrawShadowed(m_screen, "+", x + 2, r.y + 15, 2, grey);
+            x += 20;
+            for (int k = 0; k < def.combo2Length; ++k, x += step)
+                m_skillIcons[static_cast<int>(def.combo2[k])].RenderAt(m_screen, x, r.y + 8, icon);
+        }
     }
-    const char* help = m_showTouchControls ? "TAP A BOSS TO FIGHT   TAP OUTSIDE TO GO BACK" : "1-3 / ENTER: FIGHT     ESC: BACK";
-    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
+    const char* help = m_showTouchControls ? "TAP A BOSS TO FIGHT   -   TAP OUTSIDE TO GO BACK" : "1-8 OR ARROWS + ENTER: FIGHT   -   ESC: BACK";
+    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, panel.y + panel.h - 20, 1, grey);
 }
 
 // Victory or defeat: the time, the best time, and how to go on (the same tap zones as Practice's Game Over).

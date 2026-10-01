@@ -38,8 +38,18 @@ namespace practice
 	const float BOSS_RESET_X = 760.0f;          // knocked back here after it reaches the player
 	const float BOSS_PUSHBACK = 200.0f;         // px pushed back by a combo (at most to BOSS_RESET_X)
 	const float BOSS_PUSH_SPEED = 600.0f;       // px/s while being pushed back
-	const int   BOSS_MAX_COMBO = 4;
-	const int   BOSS_COUNT = 3;
+	const int   BOSS_MAX_COMBO = 5;
+	const int   BOSS_COUNT = 8;                 // 1-3 from update 1.2, 4-8 from update 1.5 (all ten skills)
+
+	// ---- update 1.5 (B-16, B-17, B-19): quick steps, holds, phases. INITIAL TUNING VALUES. ----
+	const float BOSS_QUICK_PERFECT = 1.2f;      // s after the previous spell of the combo: PERFECT up to here
+	const float BOSS_QUICK_GREAT = 2.0f;        //                                          GREAT up to here
+	const float BOSS_QUICK_LIMIT = 3.2f;        // GOOD up to here; later the step is missed (TOO LATE)
+	const float BOSS_FREEZE_TIME = 3.2f;        // Cold Snap: the boss does not move
+	const float BOSS_ICE_WALL_TIME = 4.0f;      // Ice Wall: the boss moves at BOSS_ICE_WALL_SPEED
+	const float BOSS_ICE_WALL_SPEED = 0.3f;
+	const float BOSS_CONFUSE_TIME = 3.2f;       // Ghost Walk: the boss lost the player and stands still
+	const int   BOSS_PHASE2_HP = 50;            // % at or below which a two-phase boss changes its combo
 	const int   BOSS_MAX_PENDING = 16;          // delayed spells waiting to land (more are dropped, never judged)
 
 	// Delay from cast to impact of a delayed ground spell (Sun Strike, Chaos Meteor, EMP); 0 for any other spell.
@@ -52,6 +62,9 @@ namespace practice
 	// Grade of a spell that hit the grounded boss `afterLanding` seconds after it came down (Miss past the window).
 	HitGrade GradeHit(float afterLanding, float window);
 	int GradeScore(HitGrade grade);                 // 100 / 60 / 35, 0 for Miss and None
+	// Grade of a quick step cast `sincePrevious` seconds after the previous spell of the combo (B-16).
+	HitGrade GradeQuick(float sincePrevious);
+	enum class BossStepKind { Opener, Landing, Quick };
 
 	struct BossDefinition
 	{
@@ -64,6 +77,8 @@ namespace practice
 		float speed;                       // px/s while walking
 		float window;                      // s after landing in which a follow-up spell still scores
 		bool guided;                       // boss 1: the CAST NOW cue (B-10)
+		invoker::SkillId combo2[BOSS_MAX_COMBO];  // the second phase's combo (B-19); combo2Length 0 = one phase
+		int combo2Length;
 	};
 	const BossDefinition& GetBossDefinition(int index);  // 0 <= index < BOSS_COUNT
 
@@ -98,8 +113,9 @@ namespace practice
 	{
 		bool accepted;                  // false unless Fighting
 		invoker::InvokerResult invoker; // what the Core did with the key
-		bool attemptStarted;            // this Tornado cast started a combo attempt
+		bool attemptStarted;            // this cast started a combo attempt
 		ComboFail fail;                 // WrongSpell when this cast broke the running attempt
+		HitGrade grade;                 // a quick step: its grade, given at once (None otherwise)
 	};
 
 	struct BossUpdateResult
@@ -111,6 +127,8 @@ namespace practice
 		bool comboComplete;   // an attempt ended with damage
 		int damage;           // % taken by that combo
 		ComboFail fail;       // an attempt ended without damage (or broke) during this update
+		bool quickMissed;     // a quick step ran out of time (TOO LATE); the combo goes on
+		bool phaseChanged;    // the boss switched to its second combo (B-19)
 		bool playerHit;       // the boss reached the player: HP -1
 		bool won;
 		bool lost;
@@ -143,6 +161,18 @@ namespace practice
 		Bounds Body() const;                          // visible body on the ground (the lift is not included)
 		float CenterX() const;
 
+		// the combo (the second phase's once the boss is at 50 % or less)
+		const invoker::SkillId* Combo() const { return m_comboPhase == 1 ? Def().combo2 : Def().combo; }
+		int ComboLength() const { return m_comboPhase == 1 ? Def().combo2Length : Def().comboLength; }
+		int ComboPhase() const { return m_comboPhase; }
+		BossStepKind StepKind(int step) const;        // Opener for step 0; see B-16
+		// the next quick step: seconds left to cast it and the limit. false = the next step is not a quick one
+		bool QuickTiming(int step, float& left, float& total) const;
+		// holds (B-17), seconds left
+		float FreezeLeft() const { return m_freezeLeft; }
+		float SlowLeft() const { return m_slowLeft; }
+		float ConfuseLeft() const { return m_confuseLeft; }
+
 		// the combo attempt
 		bool AttemptRunning() const { return m_running; }
 		int CastSteps() const { return m_castIndex; } // combo spells cast so far in the running attempt
@@ -168,6 +198,7 @@ namespace practice
 		void Resolve(BossUpdateResult& result);         // the attempt ends: damage from its grades
 		float ImpactDelay(invoker::SkillId skill) const;  // from a cast now to its impact on the boss (-1 = none)
 		bool LandingTime(float& when) const;            // the running attempt's landing (m_elapsed terms), if known
+		void ApplyHold(invoker::SkillId skill);         // Cold Snap / Ice Wall / Ghost Walk as a step of the combo
 
 		BossState m_state;
 		int m_boss;
@@ -195,6 +226,11 @@ namespace practice
 		float m_landTime;           // m_elapsed when it came down
 		ComboFail m_lastFail;
 		int m_lastDamage;
+		float m_castTime[BOSS_MAX_COMBO];   // m_elapsed when each step of the running attempt was cast
+		int m_comboPhase;                   // 0, or 1 once a two-phase boss is at BOSS_PHASE2_HP or less
+		float m_freezeLeft;
+		float m_slowLeft;
+		float m_confuseLeft;
 
 		std::vector<BossProjectile> m_projectiles;
 		PendingSpell m_pending[BOSS_MAX_PENDING];

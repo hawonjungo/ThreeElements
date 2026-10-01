@@ -1878,7 +1878,7 @@ static void TestBossDefinitions()
 	{
 		const BossDefinition& d = GetBossDefinition(i);
 		CHECK(d.comboLength >= 2 && d.comboLength <= BOSS_MAX_COMBO);
-		CHECK(d.combo[0] == SkillId::Tornado);  // B-6: every combo starts with Tornado
+		CHECK(i >= 3 || d.combo[0] == SkillId::Tornado);  // the first three bosses (1.2) open with Tornado
 		CHECK(d.speed > 0.0f && d.window > BOSS_GREAT_TIME);
 		CHECK(d.enemyDefinition >= 0 && d.enemyDefinition < ENEMY_TYPE_COUNT);
 	}
@@ -2172,6 +2172,170 @@ static void TestBossLose()
 	CHECK(ta.landed && !a.AttemptRunning() && a.PlayerHp() == START_HP - 1);
 }
 
+
+// ---------------------------------------------------------------- Boss mode, update 1.5 (spec §25 B-16..B-20)
+
+static void TestBossAllSkills()
+{
+	CHECK(BOSS_COUNT == 8);
+	bool used[invoker::SKILL_COUNT] = {};
+	for (int i = 0; i < BOSS_COUNT; ++i)
+	{
+		const BossDefinition& d = GetBossDefinition(i);
+		for (int k = 0; k < d.comboLength; ++k)
+			used[static_cast<int>(d.combo[k])] = true;
+		for (int k = 0; k < d.combo2Length; ++k)
+			used[static_cast<int>(d.combo2[k])] = true;
+		CHECK(d.combo2Length == 0 || i == BOSS_COUNT - 1);  // only the final boss has two phases
+	}
+	for (int s = 0; s < invoker::SKILL_COUNT; ++s)
+		CHECK(used[s]);  // every one of the ten skills is needed by some boss
+	CHECK(GetBossDefinition(BOSS_COUNT - 1).combo2Length == 4);
+	// B-16: quick grades
+	CHECK(GradeQuick(0.0f) == HitGrade::Perfect && GradeQuick(BOSS_QUICK_PERFECT) == HitGrade::Perfect);
+	CHECK(GradeQuick(BOSS_QUICK_PERFECT + 0.01f) == HitGrade::Great && GradeQuick(BOSS_QUICK_GREAT) == HitGrade::Great);
+	CHECK(GradeQuick(BOSS_QUICK_GREAT + 0.01f) == HitGrade::Good && GradeQuick(BOSS_QUICK_LIMIT) == HitGrade::Good);
+	CHECK(GradeQuick(BOSS_QUICK_LIMIT + 0.01f) == HitGrade::Miss);
+	// step kinds: landing only after a Tornado
+	BossSession s;
+	s.Start(3);  // Cold Snap -> Sun Strike
+	CHECK(s.StepKind(0) == BossStepKind::Opener && s.StepKind(1) == BossStepKind::Quick);
+	s.Start(6);  // Ghost Walk -> Tornado -> Sun Strike -> Chaos Meteor -> Deafening Blast
+	CHECK(s.StepKind(1) == BossStepKind::Quick && s.StepKind(2) == BossStepKind::Landing && s.StepKind(4) == BossStepKind::Landing);
+	s.Start(0);
+	CHECK(s.StepKind(1) == BossStepKind::Landing);
+}
+
+// Frost Troll: Cold Snap freezes the boss, Sun Strike right after it is a PERFECT quick step.
+static void TestBossQuickCombo()
+{
+	BossSession s;
+	s.Start(3);
+	BossTotals t = {};
+	BossKeys(s, "QQQR" "EEER");  // D = Sun Strike, F = Cold Snap
+	BossWait(s, t, 1.0f);
+	float x = s.X();
+	BossInputResult r = s.Input(InputAction::F);
+	CHECK(r.attemptStarted && s.AttemptRunning() && s.StepDone(0) && s.FreezeLeft() == BOSS_FREEZE_TIME);
+	float left = 0.0f, total = 0.0f;
+	CHECK(s.QuickTiming(1, left, total) && total == BOSS_QUICK_LIMIT && NearF(left, BOSS_QUICK_LIMIT, 1e-3f));
+	BossWait(s, t, 0.5f);
+	CHECK(s.X() == x);  // frozen: it does not move
+	CHECK(s.QuickTiming(1, left, total) && NearF(left, BOSS_QUICK_LIMIT - 0.5f, 0.02f));
+	r = s.Input(InputAction::D);
+	CHECK(r.grade == HitGrade::Perfect && !s.QuickTiming(1, left, total));
+	CHECK(BossRunUntil(s, t, ComboResolved, 1.0f));
+	CHECK(t.comboComplete && t.damage == 100 && t.won);
+
+	// too slow: the quick step runs out (TOO LATE), nothing else to score -> the attempt fails
+	BossSession late;
+	late.Start(3);
+	BossTotals tl = {};
+	BossKeys(late, "QQQR" "EEER" "F");
+	BossWait(late, tl, BOSS_QUICK_LIMIT + 0.2f);
+	CHECK(tl.fail == ComboFail::TooLate && !late.AttemptRunning() && late.BossHp() == BOSS_FULL_HP);
+
+	// outside a combo Cold Snap does nothing to the boss (Stone Knight needs Tornado)
+	BossSession other;
+	other.Start(0);
+	BossKeys(other, "QQQR" "D");
+	CHECK(other.FreezeLeft() == 0.0f && !other.AttemptRunning());
+}
+
+// Fire Imp: Cold Snap -> Alacrity (after 1.5 s: GREAT) -> Forge Spirit (at once: PERFECT) = 80 %.
+static void TestBossQuickGrades()
+{
+	BossSession s;
+	s.Start(5);
+	BossTotals t = {};
+	BossKeys(s, "WWER" "QQQR");  // D = Cold Snap, F = Alacrity
+	s.Input(InputAction::D);
+	BossWait(s, t, 1.5f);
+	CHECK(s.Input(InputAction::F).grade == HitGrade::Great);
+	BossKeys(s, "QEER");         // D = Forge Spirit
+	CHECK(s.Input(InputAction::D).grade == HitGrade::Perfect);
+	CHECK(BossRunUntil(s, t, ComboResolved, 1.0f));
+	CHECK(t.comboComplete && t.damage == 80 && s.BossHp() == 20);
+
+	// Glacier Golem: Ice Wall slows the boss; a missed quick step only loses its share
+	BossSession g;
+	g.Start(4);
+	BossTotals tg = {};
+	BossKeys(g, "WEER" "QQER");  // D = Ice Wall, F = Chaos Meteor
+	float x0 = g.X();
+	BossWait(g, tg, 0.5f);
+	float normal = x0 - g.X();
+	g.Input(InputAction::D);
+	CHECK(g.SlowLeft() == BOSS_ICE_WALL_TIME);
+	x0 = g.X();
+	BossWait(g, tg, 0.5f);
+	CHECK(NearF(x0 - g.X(), normal * BOSS_ICE_WALL_SPEED, 0.5f));
+	BossWait(g, tg, BOSS_QUICK_LIMIT);   // Chaos Meteor never comes: TOO LATE, the combo goes on
+	CHECK(tg.fail == ComboFail::None && g.AttemptRunning() && g.CastSteps() == 2);
+	BossKeys(g, "QWER");                 // D = Deafening Blast
+	CHECK(g.Input(InputAction::D).grade == HitGrade::Perfect);
+	CHECK(BossRunUntil(g, tg, ComboResolved, 1.0f));
+	CHECK(tg.comboComplete && tg.damage == 50);  // (0 + 100) / 2
+}
+
+// Shadow Assassin: Ghost Walk -> Tornado (quick) -> Sun Strike -> Chaos Meteor -> Deafening Blast (landing steps).
+static void TestBossFiveSpellCombo()
+{
+	BossSession s;
+	s.Start(6);
+	BossTotals t = {};
+	BossKeys(s, "QQWR" "QWWR");  // D = Tornado, F = Ghost Walk
+	BossWait(s, t, 0.5f);
+	float x = s.X();
+	s.Input(InputAction::F);
+	CHECK(s.ConfuseLeft() == BOSS_CONFUSE_TIME);
+	BossWait(s, t, 0.3f);
+	CHECK(s.X() == x);           // it lost the player and stands still
+	CHECK(s.Input(InputAction::D).grade == HitGrade::Perfect);  // Tornado, quick
+	BossKeys(s, "EEER");
+	CHECK(BossWaitIdeal(s, t, 2));
+	BossKeys(s, "D", &t);        // Sun Strike
+	BossKeys(s, "WEER");
+	CHECK(BossWaitIdeal(s, t, 3));
+	BossKeys(s, "D", &t);        // Chaos Meteor
+	BossKeys(s, "QWER");
+	CHECK(BossWaitIdeal(s, t, 4));
+	BossKeys(s, "D", &t);        // Deafening Blast
+	CHECK(t.fail == ComboFail::None && s.CastSteps() == 5);
+	CHECK(BossRunUntil(s, t, ComboResolved, 4.0f));
+	CHECK(t.comboComplete && t.perfect == 3 && t.damage == 100 && t.won);
+}
+
+// Archon: at 50 % or less the combo changes to the second phase for good.
+static void TestBossPhases()
+{
+	BossSession s;
+	s.Start(7);
+	BossTotals t = {};
+	CHECK(s.ComboPhase() == 0 && s.ComboLength() == 5 && s.Combo()[0] == SkillId::Tornado);
+	// two attempts with only EMP landed: (100 + 0 + 0 + 0) / 4 = 25 % each
+	for (int attempt = 0; attempt < 2; ++attempt)
+	{
+		BossKeys(s, "QWWR" "WWWR");  // D = EMP, F = Tornado
+		CHECK(BossRunUntil(s, t, ReadyForTornado, 6.0f));
+		s.Input(InputAction::F);
+		CHECK(BossWaitIdeal(s, t, 1));
+		BossKeys(s, "D", &t);
+		t.comboComplete = false;
+		CHECK(BossRunUntil(s, t, ComboOrEnd, 6.0f));
+	}
+	CHECK(s.BossHp() == 50 && s.ComboPhase() == 1 && t.damage == 50);
+	CHECK(s.ComboLength() == 4 && s.Combo()[0] == SkillId::IceWall && s.Combo()[3] == SkillId::Alacrity);
+	CHECK(s.StepKind(1) == BossStepKind::Quick && s.StepKind(3) == BossStepKind::Quick);
+	// phase 2, all quick and all at once: Ice Wall -> Cold Snap -> Forge Spirit -> Alacrity
+	CHECK(BossRunUntil(s, t, ReadyForTornado, 6.0f));
+	BossKeys(s, "QQER" "D", &t);
+	BossKeys(s, "QQQR" "D", &t);
+	BossKeys(s, "QEER" "D", &t);
+	BossKeys(s, "WWER" "D", &t);
+	CHECK(BossRunUntil(s, t, [](const BossSession& b, const BossTotals&) { return b.State() != BossState::Fighting; }, 2.0f));
+	CHECK(s.State() == BossState::Won && t.fail == ComboFail::None);
+}
 
 // ---------------------------------------------------------------- PLAY mode (spec §26)
 
@@ -2622,6 +2786,11 @@ int main()
 	RunTest("boss: four-spell combo (boss 3)", TestBossFourSpellCombo);
 	RunTest("boss: win", TestBossWin);
 	RunTest("boss: lose", TestBossLose);
+	RunTest("boss 1.5: all ten skills, kinds", TestBossAllSkills);
+	RunTest("boss 1.5: quick combo (Frost Troll)", TestBossQuickCombo);
+	RunTest("boss 1.5: quick grades, slow, miss", TestBossQuickGrades);
+	RunTest("boss 1.5: five-spell combo", TestBossFiveSpellCombo);
+	RunTest("boss 1.5: two phases (Archon)", TestBossPhases);
 	RunTest("play: tables", TestPlayTables);
 	RunTest("play: survival unchanged", TestPlaySurvivalUnchanged);
 	RunTest("play: boss every 10, elites", TestPlayBossCadence);

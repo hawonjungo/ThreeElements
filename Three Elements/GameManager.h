@@ -239,9 +239,9 @@ const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  MENU
 
 // Boss mode (spec §25): the boss list (menu line BOSS FIGHTS / key B), the fight's HUD, the result screen.
 const SDL_Rect BOSS_SELECT_PANEL = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
-const int BOSS_SELECT_ROW_Y = 94;       // the first boss's row
-const int BOSS_SELECT_ROW_H = 108;
-const int BOSS_SELECT_ROW_STEP = 120;
+const int BOSS_SELECT_ROW_Y = 78;       // the first boss's row (eight compact rows since update 1.5)
+const int BOSS_SELECT_ROW_H = 44;
+const int BOSS_SELECT_ROW_STEP = 50;
 const int BOSS_COMBO_TILE = 40;         // the combo strip at the top right: one icon tile per spell
 const int BOSS_COMBO_GAP = 22;          // room for the ">" between two tiles
 const int BOSS_COMBO_Y = 84;            // under "NEXT: ..." (y 64), clear of the orb row (y 150) even with the hint orbs
@@ -483,6 +483,7 @@ private:
 	void ProcessBossAction(invoker::InputAction action);
 	void PresentBossUpdate(const practice::BossUpdateResult& result);
 	void OnBossFail(practice::ComboFail reason);
+	void OnBossGrade(practice::HitGrade grade);  // PERFECT! / GREAT / GOOD above the boss, with the gold ring
 	void BossText(const char* text, SDL_Color color, int raise = 0);  // rises above the boss, like "+1" / "MISS"
 	void LoadBossTimes();
 	void SaveBossTimes();

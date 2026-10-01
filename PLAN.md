@@ -184,7 +184,7 @@ Proposed item table (to confirm in A1; effects are this game's, not Dota's):
 
 Keys proposed: **U I O / J K L** (the 2 x 3 grid under the right hand), numpad 7 8 9 / 4 5 6 as well; on phones a 2 x 3 block of buttons on the right edge (the Q/W/E/R/D/F cluster is on the left).
 
-#### 1.5.0 — Boss Fights: long combos with all 10 skills
+#### 1.5.0 — Boss Fights: long combos with all 10 skills  *(rules and placeholder art done 2026-10-01, spec §25 B-16..B-20; waiting for the owner's boss sheets)*
 
 Owner: Boss Fights gets longer combo chains for new bosses; **the owner makes the boss art**.
 
@@ -240,4 +240,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-10-01 — **1.3.7:** the owner's second Injoker art: new run sheet and a cast sheet played on every D / F cast (drawn at 50 %); versionCode 12.
 - 2026-10-01 — **1.4.0 Shop and items** (spec §27): `Practice/Items.*` + item effects in PLAY, SHOP screen, 2 x 3 item bar (U I O / J K L), Aghanim rune choice, pixel icons (`art/make_item_icons.py`), inventory saved; 83 new test checks → Practice tests 1231; versionCode 13.
 - 2026-10-01 — **1.4.1:** shop: the price is written on the BUY / UPGRADE button (the label under it was crossed by the button's pulsing frame), and a line says how much gold is missing; versionCode 14.
+- 2026-10-01 — **1.5.0 Boss Fights with all ten skills** (spec §25 B-16..B-20): quick steps graded on cast speed, holds (Cold Snap freeze, Ice Wall slow, Ghost Walk confusion), five new bosses with combos of up to five spells, the two-phase Archon, compact boss list for eight bosses; 88 new test checks → Practice tests 1319; versionCode 15. Boss art still placeholder (owner draws it).
 - Next (owner): **shop** for the gold (Invoker-only items with Dota-like pixel icons, 6 activatable item slots, mix of permanent and consumable, high prices; Refresher Orb removes 2 skills of a chain, Blink Dagger makes enemies walk back for 3 s) — to be confirmed again with the owner before any code; then Boss Fights with all 10 skills; then stage backgrounds (owner looking for art) with difficulty tuning.
