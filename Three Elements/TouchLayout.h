@@ -21,11 +21,12 @@ namespace touchlayout
 	const int AREA_BOTTOM = 404;
 	const int ITEM_BLOCK_W = 168;             // 3 slots of 52 px with 6 px gaps
 	const int ITEM_BLOCK_H = 110;             // 2 rows
-	// The orb row and the D / F slots in the middle of the screen; they move sideways to stay clear of the blocks.
+	// The orb row in the middle of the screen; it moves sideways to stay clear of the blocks. (Until 1.7.1 the box
+	// also held the D / F slots under the orbs; on a touch screen the D / F buttons are the slots now, spec §30 L-8.)
 	const int HUD_X = 376;
 	const int HUD_Y = 146;
 	const int HUD_W = 176;
-	const int HUD_H = 176;
+	const int HUD_H = 48;
 	const int HUD_SHIFT = 160;
 
 	enum Block { BLOCK_MAIN, BLOCK_CAST, BLOCK_ITEMS, BLOCK_COUNT };

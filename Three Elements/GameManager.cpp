@@ -851,6 +851,51 @@ void GameManager::DrawTouchButtons()
     for (int i = 0; i < 6; ++i)
     {
         const SDL_Rect r = TouchButtonRect(i);
+        if (i >= 4)  // D / F: the button is the slot itself - the skill's icon, tapped to cast it (spec §30 L-8)
+        {
+            int slot = i - 4;
+            invoker::SkillId spell = ShownInvoker().GetSlot(slot == 0 ? invoker::Slot::D : invoker::Slot::F);
+            if (spell != m_slotShown[slot])
+            {
+                if (spell != invoker::SkillId::None)
+                    m_slotFlash[slot] = SLOT_FLASH_TIME;  // a new skill went in: glow, so a glance is enough
+                m_slotShown[slot] = spell;
+            }
+            SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
+            SDL_RenderFillRect(m_screen, &r);
+            if (spell != invoker::SkillId::None)
+            {
+                m_skillIcons[static_cast<int>(spell)].RenderAt(m_screen, r.x + 2, r.y + 2, r.w - 4);
+                SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+            }
+            SDL_SetRenderDrawColor(m_screen, 255, 255, 255, spell != invoker::SkillId::None ? 150 : 70);
+            SDL_RenderDrawRect(m_screen, &r);
+            // the key's letter in the corner (large and dim in an empty slot)
+            const char* letter = slot == 0 ? "D" : "F";
+            const SDL_Color white = { 255, 255, 255, 255 };
+            const SDL_Color dim = { 120, 125, 140, 255 };
+            if (spell != invoker::SkillId::None)
+            {
+                SDL_Rect tag = { r.x + 1, r.y + 1, 22, 22 };
+                SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 200);
+                SDL_RenderFillRect(m_screen, &tag);
+                pixeltext::Draw(m_screen, letter, r.x + 7, r.y + 5, 2, white);
+            }
+            else
+                pixeltext::Draw(m_screen, letter, r.x + (r.w - pixeltext::Width(letter, 4)) / 2, r.y + (r.h - 28) / 2, 4, dim);
+            if (m_slotFlash[slot] > 0.0f)
+            {
+                SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(m_screen, 255, 215, 90, static_cast<Uint8>(255 * m_slotFlash[slot] / SLOT_FLASH_TIME));
+                for (int k = 0; k < 4; ++k)
+                {
+                    SDL_Rect glow = { r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k };
+                    SDL_RenderDrawRect(m_screen, &glow);
+                }
+            }
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+            continue;
+        }
         SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 150);
         SDL_RenderFillRect(m_screen, &r);
         if (i < 3)  // Q/W/E: a band of their element colour along the bottom, matching the HUD orbs
@@ -1102,6 +1147,8 @@ void GameManager::UpdateFeedback(float dt)
         m_floatTexts[i].left -= dt;
     for (int i = 0; i < practice::ITEM_SLOTS; ++i)
         m_itemFlash[i] -= dt;
+    m_slotFlash[0] -= dt;
+    m_slotFlash[1] -= dt;
     for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
         m_bursts[i].left -= dt;
     for (int i = 0; i < DROP_MAX; ++i)
@@ -1761,8 +1808,8 @@ void GameManager::LayoutPointerUp()
     SaveSettings();
 }
 
-// The buttons where they are now, each group in a frame the player drags; the orb row and the D / F slots are
-// drawn where they will be; the strip at the bottom stays free for the enemies.
+// The buttons where they are now, each group in a frame the player drags; the orb row is drawn where it will be;
+// the strip at the bottom stays free for the enemies.
 void GameManager::RenderLayoutEditor()
 {
     const SDL_Color grey = { 170, 175, 190, 255 };
@@ -1776,7 +1823,7 @@ void GameManager::RenderLayoutEditor()
     SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 40);
     SDL_RenderDrawRect(m_screen, &area);
 
-    // the orb row and the D / F slots, where they go with this layout
+    // the orb row, where it goes with this layout
     int shift = touchlayout::HudShift(m_layout);
     for (int i = 0; i < 3; ++i)
     {
@@ -1785,17 +1832,7 @@ void GameManager::RenderLayoutEditor()
         SDL_SetRenderDrawColor(m_screen, 0, 0, 0, 160);
         draw::FillCircle(m_screen, elementPos[i].first + shift, elementPos[i].second, 17);
     }
-    for (int i = 0; i < 2; ++i)
-    {
-        SDL_Rect frame = { skillPos[i].first + shift - 2, skillPos[i].second - 2, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 4 };
-        SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 170);
-        SDL_RenderFillRect(m_screen, &frame);
-        SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 90);
-        SDL_RenderDrawRect(m_screen, &frame);
-    }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-    pixeltext::DrawShadowed(m_screen, "D", skillPos[0].first + shift + 26, skillPos[0].second + 25, 2, grey);
-    pixeltext::DrawShadowed(m_screen, "F", skillPos[1].first + shift + 26, skillPos[1].second + 25, 2, grey);
 
     // the item bar and the buttons
     touchlayout::Box items = touchlayout::BlockBox(m_layout, touchlayout::BLOCK_ITEMS);
@@ -2156,7 +2193,11 @@ void GameManager::RenderTutorial()
     for (int i = 0; i < 2; ++i)
     {
         int bit = i == 0 ? practice::HIGHLIGHT_SLOT_D : practice::HIGHLIGHT_SLOT_F;
-        if (flags & bit)
+        if (!(flags & bit))
+            continue;
+        if (m_showTouchControls)  // the D / F button is the slot there
+            RenderHighlight(TouchButtonRect(4 + i));
+        else
             RenderHighlight({ (skillPos[i].first + HudShiftX()) - 2, skillPos[i].second - 38, SKILL_SLOT_SIZE + 4, SKILL_SLOT_SIZE + 40 });
     }
 
@@ -2502,6 +2543,11 @@ void GameManager::RenderInvokerHud()
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     for (int i = 0; i < inv.OrbCount(); ++i)
         RenderOrb(inv.GetOrb(i), (elementPos[i].first + HudShiftX()), elementPos[i].second);
+
+    // On a touch screen the D / F buttons show the skills themselves (DrawTouchButtons): no second copy under the
+    // orbs (owner 2026-10-01). With a keyboard there are no such buttons, so the slots are drawn here.
+    if (m_showTouchControls)
+        return;
 
     // frames for the two slots, so an empty slot is visible too (the icons are cut-outs, the frame is their tile)
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);

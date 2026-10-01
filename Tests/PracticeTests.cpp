@@ -3221,8 +3221,10 @@ static void TestTouchLayout()
 	CHECK(Valid(u));
 	// the orbs go left when both the middle and the right are taken
 	Layout r = Default(true, DEFAULT_SIZE);
-	r.x[BLOCK_MAIN] = 400; r.y[BLOCK_MAIN] = 200;
+	r.x[BLOCK_MAIN] = 400; r.y[BLOCK_MAIN] = 150;
 	CHECK(Valid(r) && HudShift(r) == -HUD_SHIFT);
+	r.y[BLOCK_MAIN] = 200;                  // below the orb row: nothing to avoid
+	CHECK(Valid(r) && HudShift(r) == 0);
 }
 
 int main()

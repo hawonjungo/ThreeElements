@@ -65,6 +65,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
+## Release notes (1.7.2, versionCode 20, max 500)
+
+```
+Cleaner controls: the D and F buttons now show your two spells themselves - tap the spell to cast it. Move, split and resize the on-screen buttons in SETTINGS > BUTTON LAYOUT. Global leaderboards with Google Play Games (optional sign-in) for PLAY and SURVIVAL, this week and all time.
+```
+
 ## Release notes (1.7.1, versionCode 19, max 500)
 
 ```

@@ -220,6 +220,7 @@ const int ITEM_SLOT_GAP = 6;
 // The item bar while playing PLAY: 2 rows of 3 on the right edge, for the right hand (keys U I O / J K L).
 // (its place is the ITEMS block of the touch layout, TouchLayout.h: by default the right edge, y 292)
 // BUTTON LAYOUT (spec §30): the editor's four buttons along the top; the blocks are dragged below them.
+const float SLOT_FLASH_TIME = 0.45f;     // s a D / F button glows after a new skill went into it
 const SDL_Rect LAYOUT_SPLIT_RECT = { 24, 20, 230, 40 };
 const SDL_Rect LAYOUT_SIZE_RECT = { 266, 20, 230, 40 };
 const SDL_Rect LAYOUT_RESET_RECT = { 508, 20, 180, 40 };
@@ -332,6 +333,9 @@ protected:
 	int m_resultY = 0;                   // the next row of the result panel being drawn
 	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint, 2 = button layout (touch devices)
 	touchlayout::Layout m_layout = touchlayout::Default(false, touchlayout::DEFAULT_SIZE);  // saved with the settings
+	// touch screens: the D / F buttons are the skill slots (spec §30 L-8); a slot glows when a new skill enters it
+	invoker::SkillId m_slotShown[2] = { invoker::SkillId::None, invoker::SkillId::None };
+	float m_slotFlash[2] = {};
 	bool m_showLayout = false;           // the BUTTON LAYOUT editor is open
 	int m_dragBlock = -1;                // the block under the finger in the editor, or -1
 	int m_dragDX = 0, m_dragDY = 0;      // from the block's corner to the finger
