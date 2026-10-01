@@ -231,6 +231,7 @@ namespace practice
 			}
 		}
 		m_enemy = { true, definition, target, SPAWN_X, speed };
+		m_enemy.scale = GetEnemyDefinition(definition).size;  // drawn like everywhere else (§32 M-8)
 		m_lastTarget = target;
 	}
 

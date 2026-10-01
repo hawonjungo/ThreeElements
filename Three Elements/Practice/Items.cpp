@@ -72,7 +72,7 @@ namespace practice
 
 	Material MaterialOfBoss(int boss)
 	{
-		return boss <= 2 ? Material::PointBooster : boss <= 6 ? Material::MysticStaff : Material::SacredRelic;
+		return boss <= 0 ? Material::PointBooster : boss == 1 ? Material::MysticStaff : Material::SacredRelic;
 	}
 
 	// O-11: level 1 of Aghanim's Scepter and every level-2 upgrade need a material; consumables never do.

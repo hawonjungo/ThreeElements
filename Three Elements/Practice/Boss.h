@@ -2,8 +2,9 @@
 #ifndef BOSS_H_
 #define BOSS_H_
 
-// Boss mode (GAMEPLAY_SPEC.md §25, update 1.2): one boss that only takes damage from a combo, with Dota-like spell
-// timings. Tornado lifts the boss; the follow-up spells should land just as it comes down, and each is graded by
+// The Immortal fight (GAMEPLAY_SPEC.md §25 and §32; "Boss mode" of update 1.2, and the name Boss stays in the code
+// for this engine): one boss that only takes damage from a combo, with Dota-like spell timings. Since 1.9 the five
+// bosses of the table are the IMMORTALS, with combos of 4 to 8 spells, met in PLAY and practised in the menu. Tornado lifts the boss; the follow-up spells should land just as it comes down, and each is graded by
 // how close it came (PERFECT / GREAT / GOOD); the combo's damage is the average of those grades.
 //
 // Same layer and same habits as PracticeSession and TutorialSession: no SDL, no clock (dt is passed in), no
@@ -38,8 +39,8 @@ namespace practice
 	const float BOSS_RESET_X = 760.0f;          // knocked back here after it reaches the player
 	const float BOSS_PUSHBACK = 200.0f;         // px pushed back by a combo (at most to BOSS_RESET_X)
 	const float BOSS_PUSH_SPEED = 600.0f;       // px/s while being pushed back
-	const int   BOSS_MAX_COMBO = 5;
-	const int   BOSS_COUNT = 8;                 // 1-3 from update 1.2, 4-8 from update 1.5 (all ten skills)
+	const int   BOSS_MAX_COMBO = 8;
+	const int   BOSS_COUNT = 5;                 // the Immortals of update 1.9 (§32): combos of 4, 5, 6, 7 and 8 spells
 
 	// ---- update 1.5 (B-16, B-17, B-19): quick steps, holds, phases. INITIAL TUNING VALUES. ----
 	const float BOSS_QUICK_PERFECT = 1.2f;      // s after the previous spell of the combo: PERFECT up to here
@@ -51,7 +52,7 @@ namespace practice
 	const float BOSS_CONFUSE_TIME = 3.2f;       // Ghost Walk: the boss lost the player and stands still
 	const int   BOSS_PHASE2_HP = 50;            // % at or below which a two-phase boss changes its combo
 	const int   BOSS_MAX_PENDING = 16;          // delayed spells waiting to land (more are dropped, never judged)
-	const float BOSS_MIN_WINDOW = 0.6f;         // a scaled OVERLORD's landing window never gets shorter than this
+	const float BOSS_MIN_WINDOW = 0.6f;         // a scaled IMMORTAL's landing window never gets shorter than this
 
 	// Delay from cast to impact of a delayed ground spell (Sun Strike, Chaos Meteor, EMP); 0 for any other spell.
 	float BossSpellDelay(invoker::SkillId skill);
@@ -80,6 +81,8 @@ namespace practice
 		bool guided;                       // boss 1: the CAST NOW cue (B-10)
 		invoker::SkillId combo2[BOSS_MAX_COMBO];  // the second phase's combo (B-19); combo2Length 0 = one phase
 		int combo2Length;
+		float bodyWidth;                   // its own art: the visible body in field pixels (0 = the enemy's body
+		float bodyHeight;                  // times `scale`, as before 1.9)
 	};
 	const BossDefinition& GetBossDefinition(int index);  // 0 <= index < BOSS_COUNT
 
@@ -131,7 +134,7 @@ namespace practice
 		bool quickMissed;     // a quick step ran out of time (TOO LATE); the combo goes on
 		bool phaseChanged;    // the boss switched to its second combo (B-19)
 		bool playerHit;       // the boss reached the player: HP -1 (unless contactBlocked)
-		bool contactBlocked;  // OVERLORD only: a Shield or a Black King Bar took that contact
+		bool contactBlocked;  // IMMORTAL only: a Shield or a Black King Bar took that contact
 		bool won;
 		bool lost;
 	};
@@ -142,9 +145,10 @@ namespace practice
 		BossSession();
 
 		void Start(int boss);                 // new fight against GetBossDefinition(boss)
-		// ---- as an OVERLORD inside a PLAY run (spec §28): the run's lives and invoker come in, the boss may be
+		void Start(const BossDefinition& def);  // ... against any definition (tests; BossIndex() is -1 then)
+		// ---- as an IMMORTAL inside a PLAY run (spec §28): the run's lives and invoker come in, the boss may be
 		// faster and its window shorter (never below BOSS_MIN_WINDOW), and the run sets its effects every frame.
-		void StartOverlord(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale);
+		void StartImmortal(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale);
 		void SetPlayerHp(int hp) { m_playerHp = hp; }
 		// speedFactor: Frost / Smoke; still: Eul's; walkBack: Blink; contactBlocked: Shield / BKB; damageMultiplier: Refresher
 		void SetModifiers(float speedFactor, bool still, bool walkBack, bool contactBlocked, int damageMultiplier);
@@ -158,7 +162,7 @@ namespace practice
 		// the fight
 		BossState State() const { return m_state; }
 		int BossIndex() const { return m_boss; }
-		const BossDefinition& Def() const { return GetBossDefinition(m_boss); }
+		const BossDefinition& Def() const { return m_def; }
 		int BossHp() const { return m_bossHp; }       // % left, 0..BOSS_FULL_HP
 		int PlayerHp() const { return m_playerHp; }
 		float Elapsed() const { return m_elapsed; }   // s since the fight started (the result time)
@@ -176,7 +180,7 @@ namespace practice
 		const invoker::SkillId* Combo() const { return m_comboPhase == 1 ? Def().combo2 : Def().combo; }
 		int ComboLength() const { return m_comboPhase == 1 ? Def().combo2Length : Def().comboLength; }
 		int ComboPhase() const { return m_comboPhase; }
-		BossStepKind StepKind(int step) const;        // Opener for step 0; see B-16
+		BossStepKind StepKind(int step) const;        // Opener for step 0; see B-16 and B-21
 		// the next quick step: seconds left to cast it and the limit. false = the next step is not a quick one
 		bool QuickTiming(int step, float& left, float& total) const;
 		// holds (B-17), seconds left
@@ -213,6 +217,7 @@ namespace practice
 
 		BossState m_state;
 		int m_boss;
+		BossDefinition m_def;
 		int m_bossHp;
 		int m_playerHp;
 		float m_elapsed;
@@ -242,9 +247,9 @@ namespace practice
 		float m_freezeLeft;
 		float m_slowLeft;
 		float m_confuseLeft;
-		float m_speed;              // px/s and window of this fight (the definition's, scaled for a later OVERLORD)
+		float m_speed;              // px/s and window of this fight (the definition's, scaled for a later IMMORTAL)
 		float m_window;
-		float m_speedFactor;        // OVERLORD modifiers, set by the run every frame (neutral in Boss Fights)
+		float m_speedFactor;        // IMMORTAL modifiers, set by the run every frame (neutral in Boss Fights)
 		bool m_still;
 		bool m_walkBack;
 		bool m_contactBlocked;

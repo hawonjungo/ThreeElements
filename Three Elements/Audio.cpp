@@ -87,12 +87,12 @@ namespace audio
 			// start: two rising notes
 			Tone(c[(int)Sfx::Start], 0.0f, 0.1f, 523.25f, 523.25f, Wave::Triangle, 0.45f);
 			Tone(c[(int)Sfx::Start], 0.08f, 0.18f, 783.99f, 783.99f, Wave::Triangle, 0.45f);
-			// overlord warning: low horn calls (a triangle with a square an octave down and a fifth on top), one per tier;
+			// immortal warning: low horn calls (a triangle with a square an octave down and a fifth on top), one per tier;
 			// the last call of tiers 2 and 3 is higher
 			const float calls[3][3] = { { 146.83f, 0.0f, 0.0f }, { 146.83f, 174.61f, 0.0f }, { 146.83f, 174.61f, 220.0f } };
 			for (int tier = 0; tier < 3; ++tier)
 			{
-				std::vector<float>& horn = c[(int)Sfx::Overlord1 + tier];
+				std::vector<float>& horn = c[(int)Sfx::Immortal1 + tier];
 				for (int i = 0; i <= tier; ++i)
 				{
 					float f = calls[tier][i], at = i * 0.42f;

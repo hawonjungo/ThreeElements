@@ -333,6 +333,8 @@ A short guided introduction for players who have never played Invoker. Owner dec
 
 ## 25. Boss mode (update 1.2)
 
+> **Since 1.9 (§32):** the tiers are renamed and rescheduled. What this section calls a *boss* of PLAY (a chain of 3) is now the **OVERLORD**; what it calls an *OVERLORD* (a combo fight inside PLAY) and the bosses of *Boss Fights* are now the **IMMORTALS**. Where §32 says otherwise, §32 wins.
+
 **Status: CONFIRMED by the owner 2026-09-30 and implemented the same day** (`Practice/Boss.*`, tested in `Tests/PracticeTests`; drawn by `GameManager::RenderBoss*`; "triển khai 2 3 4": the proposals of the Combo/Boss discussion recorded in PLAN.md, taken as they were proposed). A separate mode next to Practice and the Tutorial. It trains the Invoker skill Practice cannot: **timing** delayed spells so they land together, and invoking 3–4 spells with only two slots. Practice rules (§§3–19) are unchanged; everything below applies to Boss mode only.
 
 ### Entering and leaving
@@ -392,6 +394,8 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **B-13 [CONFIRMED]** Architecture: a `BossSession` in the Practice layer (`Practice/Boss.*`, no SDL, time passed in as `dt`, unit-tested like `TutorialSession`); the Core and `PracticeSession` are untouched. The presentation draws the boss (lift, shadow, HP bar), impact rings, the combo panel, the grades, the timing bars (hint), the cue and the result screens.
 
 ## 26. PLAY mode — the main game (update 1.3)
+
+> **Since 1.9 (§32):** the tiers are renamed and rescheduled. What this section calls a *boss* of PLAY (a chain of 3) is now the **OVERLORD**; what it calls an *OVERLORD* (a combo fight inside PLAY) and the bosses of *Boss Fights* are now the **IMMORTALS**. Where §32 says otherwise, §32 wins.
 
 **Status: CONFIRMED by the owner 2026-09-30 / 2026-10-01** (discussion recorded in PLAN.md). PLAY is the main mode. It plays by the **Practice rules, renamed SURVIVAL** in the menu (§§3–19: instant judging, the Tornado projectile, wrong cast = MISS), with longer targets, gold and rewards on top. None of the Boss-mode delays (§25) apply here. SURVIVAL itself is unchanged.
 
@@ -463,6 +467,8 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 
 ## 28. OVERLORD — Boss-Fights bosses inside PLAY, and material drops (update 1.6)
 
+> **Since 1.9 (§32):** the tiers are renamed and rescheduled. What this section calls a *boss* of PLAY (a chain of 3) is now the **OVERLORD**; what it calls an *OVERLORD* (a combo fight inside PLAY) and the bosses of *Boss Fights* are now the **IMMORTALS**. Where §32 says otherwise, §32 wins.
+
 **Status: CONFIRMED by the owner 2026-10-01 ("Đồng ý, làm đi") and implemented in 1.6.0.** The numbers (+50 points, +100 gold, +15 % speed / −10 % window per later overlord, the material table) are initial tuning values like the rest of PLAY. PLAY (§26) stays as it is: normal enemies, elites, chain bosses. An **OVERLORD** is a Boss Fights boss (§25) that appears inside a PLAY run and is fought by the Boss-mode rules; when it dies the stage is cleared and PLAY goes on.
 
 ### When
@@ -528,3 +534,29 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **G-3** SETTINGS has a row **TIPS**: it makes every card show once more.
 - **G-4** **GUIDE**: its own button in the row of small buttons of the menu. A reference in five tabs, each line short, the numbers taken from the rules: **BASICS** (orbs, invoke, slots, the two modes) · **ENEMIES** (normal / elite / boss / overlord: spells needed, lives lost, points, gold) · **RUNES** (the five, with icons) · **ITEMS** (the eleven, with icon, effect, cooldown and upgrade: the shop's own texts) · **BOSSES** (the combo, the Tornado lift and the spell delays, the grades, quick steps, holds, the timing bars). Arrows / Tab change the tab, Esc or CLOSE leaves. RECIPES stays a separate button.
 - **G-5** All of it is English like the rest of the game (the pixel font has no Vietnamese letters).
+
+## 32. Tiers: Normal, Elite, Overlord, Immortal (update 1.9)
+
+**Status: CONFIRMED by the owner 2026-10-02** (the names and "only Immortals drop materials" 2026-10-01; the five combos, the schedule, the chance, "replace the Boss Fights roster", the drops, the asset clean-up and the enemy sizes 2026-10-02). The numbers are initial tuning values like the rest of PLAY. Where this section and §25 / §26 / §28 disagree, this section wins; everything it does not mention stays as written there.
+
+- **M-1** **Names.** "Boss" was too general a word (owner). The four tiers of PLAY are **NORMAL** (1 spell), **ELITE** (a chain of 2), **OVERLORD** (a chain of 3: the *boss* of §26) and **IMMORTAL** (a combo fight with a life bar: the *OVERLORD* of §28). The menu entry *BOSS FIGHTS* is **IMMORTALS**. In the code the fight engine keeps its name (`BossSession`); `EnemyKind::Overlord` is the chain of 3, and everything named `Immortal` is the combo fight.
+- **M-2** **A fixed schedule** (it replaces the random elites of P3-2 and the boss on every 10th enemy). The first **14** enemies of a run are normal. The **15th, 25th, 35th ...** enemy is an **elite**. The **20th, 30th, 40th ...** is an **overlord**. Every other enemy is normal. Leak damage, points, gold, speed and size of each tier are unchanged (§26); an overlord still leaves a rune and starts the next stage.
+- **M-3** **The Immortal comes by chance.** A run has an *Immortal chance*, 0 % at the start and shown on the HUD (bottom centre: `IMMORTAL`, a bar, the percentage). Beating an elite adds **10 %**, beating an overlord **20 %** (at most 100 %); one that reaches the player adds nothing. Right after each addition the chance is rolled. On a hit, the Immortal is the next thing to appear, before the next enemy, and the chance goes back to 0 %. It is an **extra**: it takes no enemy number, so the schedule of M-2 does not move. Beating every elite and overlord, the chance is 10, 30, 40, 60, 70, 90, 100 % after the 15th, 20th, 25th ... 45th enemy: the first Immortal usually comes around the 20th to 30th enemy and never later than the 45th. Survival has no elites, overlords or Immortals.
+- **M-4** **Which one.** The first five Immortals of a run come in the order of M-6 (combos of 4, 5, 6, 7, 8). From the sixth on it is a random one of the five, never the same twice in a row, each one 15 % faster with a 10 % shorter landing window than the one before (O-2's scaling, never below 0.6 s).
+- **M-5** **The warning** lasts **4 s** (2.5 s before): `IMMORTAL INCOMING`, its name, the horn (one call for a combo of 4, two for 5 or 6, three for 7 or 8), and its combo strip at the top right, so the first spells can be prepared. The fight itself is §28's (lives and slots of the run, contact costs 1 life, the difficulty clock stops, the items act as in O-6). Reward: +50 points, +100 gold, a rune, the next stage, and materials (M-7). Beating an Immortal does not add to the chance.
+- **M-6** **The five Immortals** replace the eight bosses of §25 in the menu and in PLAY. Their combos are the ones Invoker players use most, in rising length:
+
+  | # | Immortal | Combo | Speed, window |
+  |---|---|---|---|
+  | 1 | **Rimefang** | Tornado → EMP → Chaos Meteor → Deafening Blast | 50 px/s, 1.0 s |
+  | 2 | **Cindermaw** | Tornado → EMP → Sun Strike → Chaos Meteor → Deafening Blast | 50 px/s, 1.4 s |
+  | 3 | **Gravehorn** | Tornado → Sun Strike → Chaos Meteor → Deafening Blast → Cold Snap → Forge Spirit | 45 px/s, 1.2 s |
+  | 4 | **Voltara** | Tornado → EMP → Chaos Meteor → Deafening Blast → Chaos Meteor → Deafening Blast → Ice Wall | 45 px/s, 1.2 s |
+  | 5 | **The Hollow King** | Forge Spirit → Alacrity → Ice Wall → Cold Snap → Tornado → Sun Strike → Chaos Meteor → Deafening Blast | 40 px/s, 1.2 s |
+
+  A combo may have up to **eight** spells. The combo strip uses smaller tiles from six spells on. Damage is still the average of the grades of all the follow-ups, so one perfect combo still wins. None of the five is guided or has two phases (the rules for both stay in the engine and in the tests). Best times are kept per Immortal in a new file (`immortals.txt` / `threeElements_immortalTimes`); the times of the eight old bosses are not shown any more.
+- **B-21** *(§25 continued)* **Long combos.** (a) A spell catches the landing once: Sun Strike, Chaos Meteor, EMP or Deafening Blast is a *landing step* only the first time it appears after the Tornado; the same spell again after that Tornado (the "Refresher" part of Voltara's combo) is a *quick step*, graded when cast like any other. (b) When the window after the landing closes, the landing steps not yet scored are missed (TOO LATE) as before, and the ones never cast are **passed over**: the combo goes on with the quick steps after them, whose time starts at that moment.
+- **M-7** **Materials.** Only Immortals drop them. Rimefang drops a **Point Booster**, Cindermaw a **Mystic Staff**, Gravehorn a **Sacred Relic**; Voltara and The Hollow King drop **two random materials**. The shop's needs are unchanged (O-11).
+- **M-8** **Enemy sizes.** The enemy sheets come from different packs: next to a player of about 106 px some bodies were only 30 to 40 px tall. Each enemy now has a whole-number size (so the pixels stay square): knight ×3; goblin, skeleton, dark wizard, eye and mushroom ×2; the others ×1. Every enemy is now 66 to 102 px tall. The hit box grows with it; the contact line is measured from the body's front as before, so the time an enemy takes to arrive does not change. Elites (×1.4) and overlords (×2) multiply on top.
+- **M-9** **Art and assets.** Rimefang, Cindermaw and Gravehorn have the owner's art: a moving sheet and a "got hit" sheet (4 × 4 frames). It runs while it walks, stands while it is lifted, frozen or pushed back, and flinches when a spell of the combo scores. Voltara and The Hollow King are still an enemy sprite drawn larger and tinted, waiting for their art. `art/make_bosses.py` brings the two sheets of a character to one scale and to the size it is drawn at, mirrors them (the originals face right) and stores them with a palette. Ice Wall has the owner's sprite (one pillar in front of the player). **Originals stay in `art/` at full quality; `assets/` only holds files at the size the game draws them**: the assets folder went from 21 MB to under 4 MB.
+- **M-10** **Guide and tips** (§31) use the new names: the cards ELITE and OVERLORD say that beating one raises the Immortal chance; the GUIDE's ENEMIES tab lists the schedule and the chance, and its last tab is IMMORTALS.

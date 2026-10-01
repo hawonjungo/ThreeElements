@@ -29,8 +29,10 @@ def installedCmake = newestVersionIn('cmake')
 
 // ---- the game's images and sprites: the C++ code opens "assets/...", so the APK's asset root must contain a
 // folder named "assets". They are copied from the one shared copy in "Three Elements/assets" at build time.
+// Sync, not Copy: a file removed from the game's assets must leave the package too (until 1.9.0 old files stayed
+// in the build folder and were shipped: 4.8 MB of pictures the game no longer used).
 def gameAssetsRoot = layout.buildDirectory.dir('generated/gameAssets').get().asFile
-task copyGameAssets(type: Copy) {
+task copyGameAssets(type: Sync) {
     from "${rootDir}/../Three Elements/assets"
     into new File(gameAssetsRoot, 'assets')
 }
@@ -71,8 +73,8 @@ android {
         // Google Play requires a recent target (Android 15 = 35 from Aug 2025, Android 16 = 36 expected from Aug 2026).
         targetSdk 36
         // versionCode must grow with every upload to Play; versionName is what players see.
-        versionCode 22
-        versionName '1.8.1'
+        versionCode 23
+        versionName '1.9.0'
         // The built files carry the version (owner 2026-09-30), e.g. injoker-1.2.2-vc4-release.aab and
         // injoker-1.2.2-vc4-debug.apk, so builds of different versions are never mixed up.
         setProperty('archivesBaseName', "injoker-${versionName}-vc${versionCode}")

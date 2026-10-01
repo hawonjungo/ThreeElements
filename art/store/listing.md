@@ -36,7 +36,7 @@ FEATURES
 - PLAY: elites, bosses, runes, stages and gold.
 - A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
 - SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
-- Boss fights: eight bosses that need all ten spells - quick chains, freezes, slows and a two-phase final boss - and only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
+- IMMORTALS: five great foes with real Invoker combos of 4 to 8 spells - they come by chance in PLAY, the more elites and overlords you beat, and you can practise each one from the menu. They only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
 - Global leaderboards with Google Play Games (optional sign-in): PLAY by score and SURVIVAL by time, this week and all time.
 - Your 10 best runs on the device, plus your personal records.
 - On-screen buttons laid out like a keyboard, made for playing with your thumbs - and you can move, split and resize them.
@@ -65,6 +65,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.9.0, versionCode 23, max 500)
+
+```
+IMMORTALS arrive: Rimefang, Cindermaw, Gravehorn and two more, with real combos of 4 to 8 spells. Beat elites (every 15th, 25th... enemy) and overlords (20th, 30th...) to raise the IMMORTAL chance shown on screen - when it hits, war horns sound. Only Immortals drop upgrade materials. Practise each one in the new IMMORTALS menu. Also: new art and animations, a new Ice Wall, fairer enemy sizes, and a much smaller download.
+```
 
 ## Release notes (1.8.1, versionCode 22, max 500)
 

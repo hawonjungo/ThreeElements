@@ -199,6 +199,12 @@ void GameManager::LoadAssets()
     m_playerRunSheet = LoadSheet(PLAYER_RUN_SHEET_PATH, PLAYER_RUN_COLUMNS * PLAYER_RUN_FRAME);
     m_playerCastSheet = LoadSheet(PLAYER_CAST_SHEET_PATH, PLAYER_RUN_COLUMNS * PLAYER_RUN_FRAME);
     m_meteorSheet = LoadSheet(METEOR_SHEET_PATH, METEOR_COLUMNS * METEOR_FRAME);
+    m_iceWallSheet = LoadSheet(ICE_WALL_SHEET_PATH, ICE_WALL_COLUMNS * ICE_WALL_FRAME);
+    for (int i = 0; i < IMMORTAL_ART_COUNT; ++i)  // missing art: that Immortal is drawn as a tinted enemy sprite
+    {
+        m_immortalRun[i] = LoadTexture(IMMORTAL_RUN_SHEETS[i]);
+        m_immortalHit[i] = LoadTexture(IMMORTAL_HIT_SHEETS[i]);
+    }
     m_forgeSheet = LoadSheet(FORGE_SHEET_PATH, FORGE_COLUMNS * FORGE_FRAME);
     LoadTopRuns();
     LoadBests();
@@ -296,8 +302,8 @@ bool GameManager::RunFrame()
     // The enemy's position is read first: a Tornado hit removes it inside Update(), and the "+1" goes where it was.
     practice::Bounds enemyBefore = m_session.Enemy().active ? practice::EnemyBounds(m_session.Enemy())
                                                             : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
-    if (OverlordFight())
-        enemyBefore = BossDrawnBody();  // the points of a beaten OVERLORD rise from where it stood
+    if (ImmortalFight())
+        enemyBefore = BossDrawnBody();  // the points of a beaten IMMORTAL rise from where it stood
     if (m_paused && !CanPause())
         m_paused = false;
     bool frozen = m_paused || TipShown();  // a first-time tip is being read: the run waits, like a pause
@@ -311,22 +317,22 @@ bool GameManager::RunFrame()
     {
         if (m_session.Enemy().kind == practice::EnemyKind::Elite)
             QueueTip(TIP_ELITE);
-        else if (m_session.Enemy().kind == practice::EnemyKind::Boss)
-            QueueTip(TIP_BOSS);
+        else if (m_session.Enemy().kind == practice::EnemyKind::Overlord)
+            QueueTip(TIP_OVERLORD);
     }
-    if (update.overlordWarning)
-        QueueTip(TIP_OVERLORD);
-    if (update.overlordWarning)  // spec §28 O-3: the banner (RenderOverlordWarning) and a horn call per tier
+    if (update.immortalWarning)
+        QueueTip(TIP_IMMORTAL);
+    if (update.immortalWarning)  // spec §28 O-3: the banner (RenderImmortalWarning) and a horn call per tier
     {
-        audio::Play(update.overlordTier >= 3 ? audio::Sfx::Overlord3
-            : update.overlordTier == 2 ? audio::Sfx::Overlord2 : audio::Sfx::Overlord1);
-        printf("[play] OVERLORD incoming: %s (tier %d)\n", practice::GetBossDefinition(update.overlordBoss).name, update.overlordTier);
+        audio::Play(update.immortalTier >= 3 ? audio::Sfx::Immortal3
+            : update.immortalTier == 2 ? audio::Sfx::Immortal2 : audio::Sfx::Immortal1);
+        printf("[play] IMMORTAL incoming: %s (tier %d)\n", practice::GetBossDefinition(update.immortalBoss).name, update.immortalTier);
     }
-    if (update.overlordFight)
+    if (update.immortalFight)
         audio::Play(audio::Sfx::Start);
-    if (update.overlordUpdated)
+    if (update.immortalUpdated)
         PresentBossUpdate(update.boss, true);
-    if (update.kill.overlord)  // above "GOOD" and "COMBO -n%", which are rising there already
+    if (update.kill.immortal)  // above "GOOD" and "COMBO -n%", which are rising there already
     {
         const SDL_Color points = { 120, 235, 130, 255 };  // the same green as every other score text
         BossText(PointsText(update.kill.points), points, 72);
@@ -363,6 +369,9 @@ bool GameManager::RunFrame()
     if (m_bossActive && !frozen)
         PresentBossUpdate(m_boss.Update(dt));
     m_bossDamageLeft -= dt;
+    m_bossAnimTime += dt;
+    m_bossHitLeft -= dt;
+    m_meterFlashLeft -= dt;
     m_announceLeft -= dt;  // the fight's clock stops by itself once it is won or lost
     m_tutorialWrongFlash -= dt;
     m_orbFlash -= dt;
@@ -422,8 +431,9 @@ bool GameManager::RunFrame()
     RenderStatsHud();
     RenderTargetHint();
     RenderBossCombo();
-    RenderOverlordWarning();
-    RenderOverlordBar();
+    RenderImmortalWarning();
+    RenderImmortalBar();
+    RenderImmortalMeter();
     RenderItemBar();
 
     if (m_tutorialActive)
@@ -797,13 +807,13 @@ void GameManager::ProcessAction(invoker::InputAction action)
     bool hadEnemy = m_session.Enemy().active;
     practice::ActiveEnemy enemyBefore = m_session.Enemy();
     practice::Bounds enemyBody = hadEnemy ? practice::EnemyBounds(m_session.Enemy()) : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
-    if (OverlordFight())
-        enemyBody = BossDrawnBody();  // effects aimed at the OVERLORD go where it is drawn
+    if (ImmortalFight())
+        enemyBody = BossDrawnBody();  // effects aimed at the IMMORTAL go where it is drawn
 
     practice::InputResult r = m_session.Input(action);
     if (!r.accepted)  // Ready / Game Over: the gameplay keys do nothing
         return;
-    if (r.overlord)  // spec §28: the key went to the fight, which answers like a Boss Fights fight
+    if (r.immortal)  // spec §28: the key went to the fight, which answers like a Boss Fights fight
     {
         PresentInvokerResult(action, r.invoker, practice::CastOutcome::None, true, enemyBody);
         PresentBossInput(r.boss);
@@ -877,7 +887,7 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
     // no-op for Tornado / Ghost Walk (own effects); in a boss fight Sun Strike, Chaos Meteor and EMP are drawn when
     // they land (PresentBossUpdate), not when they are cast
     if (result.event == invoker::InvokerEvent::Cast
-        && !((m_bossActive || OverlordFight()) && practice::BossSpellDelay(result.skill) > 0.0f))
+        && !((m_bossActive || ImmortalFight()) && practice::BossSpellDelay(result.skill) > 0.0f))
         StartSkillVfx(result.skill, hadEnemy, enemyBody);
     if (cast != practice::CastOutcome::None)
         OnCastJudged(cast, enemyBody, label);
@@ -1083,7 +1093,7 @@ void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 al
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
     else if (e.kind == practice::EnemyKind::Elite)  // PLAY: elites and bosses are larger and tinted (P3-2)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 200, 130);
-    else if (e.kind == practice::EnemyKind::Boss)
+    else if (e.kind == practice::EnemyKind::Overlord)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 130, 130);
     if (e.scale > 1.0f)
         sprite.RenderFrameScaled(m_screen, static_cast<int>(e.x - def.bodyLeft * e.scale),
@@ -1137,7 +1147,7 @@ void GameManager::RenderTornadoes()
     for (int i = 0; i < m_session.ActiveTornadoCount(); ++i)
         draw(m_session.GetTornado(i));
     const practice::BossSession& boss = BossView();
-    bool fight = m_bossActive || OverlordFight();
+    bool fight = m_bossActive || ImmortalFight();
     for (int i = 0; fight && i < boss.ProjectileCount(); ++i)  // a Deafening Blast is drawn by SkillVfx
         if (boss.GetProjectile(i).skill == invoker::SkillId::Tornado)
             draw(boss.GetProjectile(i).motion);
@@ -1659,7 +1669,7 @@ void GameManager::RenderMenu()
         {
         case MENU_PLAY:        label = "PLAY";        key = "ENTER"; break;
         case MENU_SURVIVAL:    label = "SURVIVAL";    key = "S"; break;
-        case MENU_BOSS:        label = "BOSS FIGHTS"; key = "B"; break;
+        case MENU_BOSS:        label = "IMMORTALS"; key = "B"; break;
         case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
         case MENU_GUIDE:       label = "GUIDE";       key = ""; break;
@@ -1818,7 +1828,7 @@ void GameManager::RenderSettings()
         if (!m_showTouchControls)
             pixeltext::DrawShadowed(m_screen, keys[kind], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
     }
-    pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST A BOSS.", SCREEN_WIDTH,
+    pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST AN IMMORTAL.", SCREEN_WIDTH,
         SettingsRowRect(n - 1).y + 62, 1, grey);
     RenderButton(SettingsCloseRect(), "CLOSE", false);
 }
@@ -2527,6 +2537,11 @@ void GameManager::RenderSkillVfx()
             if (e.left > 0.0f)
                 RenderForgeSprite(FORGE_WALK_TIME + FORGE_ATTACK_TIME - e.left, e);
         }
+        else if (skill == invoker::SkillId::IceWall && m_iceWallSheet != NULL)
+        {
+            if (e.left > 0.0f)
+                RenderIceWallSprite(skillvfx::Duration(skill) - e.left, e.left);
+        }
         else
             skillvfx::Render(m_screen, skill, e);
     }
@@ -2559,6 +2574,52 @@ SDL_Texture* GameManager::LoadSheet(const char* path, int size)
         SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);  // drawn smaller than the 256 px frames: smoothed
     }
     return texture;
+}
+
+// A sheet of any size, kept at its own resolution: the Immortals' frames are drawn 1:1.
+SDL_Texture* GameManager::LoadTexture(const char* path)
+{
+    SDL_Surface* surface = IMG_Load(path);
+    if (surface == NULL)
+    {
+        printf("Failed to load %s: %s\n", path, IMG_GetError());
+        return NULL;
+    }
+    SDL_Texture* texture = NULL;
+    SDL_Surface* rgba = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);  // palette + transparency -> RGBA
+    if (rgba != NULL)
+    {
+        texture = SDL_CreateTextureFromSurface(m_screen, rgba);
+        SDL_FreeSurface(rgba);
+    }
+    SDL_FreeSurface(surface);
+    if (texture != NULL)
+    {
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+    }
+    return texture;
+}
+
+// Ice Wall: the pillar grows in front of the player (16 frames), stands, and fades out at the end.
+void GameManager::RenderIceWallSprite(float age, float left)
+{
+    if (age < 0.0f)
+        return;
+    int frame = static_cast<int>(age / ICE_WALL_GROW_TIME * ICE_WALL_FRAMES);
+    frame = frame > ICE_WALL_FRAMES - 1 ? ICE_WALL_FRAMES - 1 : frame;
+    const float fade = 0.4f;
+    SDL_SetTextureAlphaMod(m_iceWallSheet, static_cast<Uint8>(left < fade ? 255.0f * left / fade : 255.0f));
+    SDL_Rect src = { (frame % ICE_WALL_COLUMNS) * ICE_WALL_FRAME, (frame / ICE_WALL_COLUMNS) * ICE_WALL_FRAME, ICE_WALL_FRAME, ICE_WALL_FRAME };
+    // the frames touch each other in the sheet: leave out the top rows, where the frame above reaches in
+    const int cut = 6;
+    src.y += cut;
+    src.h -= cut;
+    int drawCut = cut * ICE_WALL_DRAW / ICE_WALL_FRAME;
+    SDL_Rect dst = { PLAYER_BODY_CENTER_X + ICE_WALL_AHEAD - ICE_WALL_DRAW / 2,
+        static_cast<int>(practice::GROUND_LINE_Y) + ICE_WALL_SINK - ICE_WALL_DRAW + drawCut, ICE_WALL_DRAW, ICE_WALL_DRAW - drawCut };
+    SDL_RenderCopy(m_screen, m_iceWallSheet, &src, &dst);
+    SDL_SetTextureAlphaMod(m_iceWallSheet, 255);
 }
 
 // Chaos Meteor: the burning rock comes down from the upper left onto (x, y), then the blast plays there.
@@ -2877,12 +2938,12 @@ void GameManager::RenderTargetHint()
     {
         const SDL_Color orange = { 255, 170, 70, 255 };
         const SDL_Color red = { 255, 90, 90, 255 };
-        const char* kind = e.kind == practice::EnemyKind::Boss ? "BOSS" : "ELITE";
+        const char* kind = e.kind == practice::EnemyKind::Overlord ? "OVERLORD" : "ELITE";
         const int size = 36, gap = 18;
         int x0 = SCREEN_WIDTH - 16 - (e.chainLength * size + (e.chainLength - 1) * gap);
         int y = tile.y + tile.h + 8;
         pixeltext::DrawShadowed(m_screen, kind, x0 - 12 - pixeltext::Width(kind, 2), y + 11, 2,
-            e.kind == practice::EnemyKind::Boss ? red : orange);
+            e.kind == practice::EnemyKind::Overlord ? red : orange);
         const SDL_Color grey = { 190, 190, 200, 255 };
         for (int i = 0; i < e.chainLength; ++i)
         {
@@ -2925,7 +2986,7 @@ static const char* PointsText(int points)
     case 6:  return "+6";
     case 10: return "+10";
     case 20: return "+20";
-    case 50: return "+50";    // an OVERLORD (§28 O-8)
+    case 50: return "+50";    // an IMMORTAL (§28 O-8)
     case 100: return "+100";
     default: return "+";
     }
@@ -2954,22 +3015,38 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         {
             if (m_floatTexts[i].left <= 0.0f)
             {
-                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, x, static_cast<int>(enemy.y) - (kill.overlord ? 118 : 44), m_goldText, gold };
+                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, x, static_cast<int>(enemy.y) - (kill.immortal ? 118 : 44), m_goldText, gold };
                 break;
             }
         }
     }
     float dropX = enemy.x + enemy.w * 0.5f, dropY = enemy.y + enemy.h * 0.5f;
     bool hasRune = kill.rune != practice::Rune::None;
-    if (kill.droppedMaterial)  // §28 O-10: kept for good, like the gold
+    for (int d = 0; d < kill.materialCount; ++d)  // §32 M-7: kept for good, like the gold
     {
-        int m = static_cast<int>(kill.material);
+        int m = static_cast<int>(kill.materials[d]);
         m_inventory.material[m] = m_session.Loadout().material[m];
         ++m_runMaterials[m];
         SaveInventory();
         char label[32];
-        snprintf(label, sizeof(label), "+1 %s", practice::MaterialName(kill.material));
-        AddDrop(m_materialIcons[m], label, dropX, dropY, hasRune ? -70 : 0);
+        snprintf(label, sizeof(label), "+1 %s", practice::MaterialName(kill.materials[d]));
+        AddDrop(m_materialIcons[m], label, dropX, dropY, d == 0 ? (hasRune || kill.materialCount > 1 ? -80 : 0) : (hasRune ? 0 : 80));
+    }
+    if (kill.immortalChance > 0)  // §32 M-3: the chance grew (and was rolled): the bar lights up
+    {
+        m_meterFlashLeft = IMMORTAL_METER_FLASH;
+        snprintf(m_meterText, sizeof(m_meterText), "+%d%%", kill.kind == practice::EnemyKind::Overlord
+            ? practice::PLAY_IMMORTAL_CHANCE_OVERLORD : practice::PLAY_IMMORTAL_CHANCE_ELITE);
+        const SDL_Color violet = { 200, 150, 255, 255 };
+        for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
+        {
+            if (m_floatTexts[i].left <= 0.0f)
+            {
+                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, SCREEN_WIDTH / 2 + 40, IMMORTAL_BAR_Y - 16, m_meterText, violet };
+                break;
+            }
+        }
+        printf("[play] immortal chance %d%%%s\n", kill.immortalChance, kill.immortalComing ? " - it is coming" : "");
     }
     if (hasRune || kill.runeChoice)
     {
@@ -2978,20 +3055,20 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
     }
     if (kill.gold > 0)
         QueueTip(TIP_GOLD);
-    if (kill.droppedMaterial)
+    if (kill.materialCount > 0)
     {
-        m_tipMaterial = kill.material;
+        m_tipMaterial = kill.materials[0];
         QueueTip(TIP_MATERIAL);
     }
     if (hasRune)  // the player sees what fell, not only its name (owner 2026-10-01)
-        AddDrop(m_runeIcons[static_cast<int>(kill.rune)], RuneName(kill.rune), dropX, dropY, kill.droppedMaterial ? 70 : 0);
-    if (kill.kind == practice::EnemyKind::Boss && m_session.Mode() == practice::SessionMode::Play)
+        AddDrop(m_runeIcons[static_cast<int>(kill.rune)], RuneName(kill.rune), dropX, dropY, kill.materialCount > 0 ? 80 : 0);
+    if (kill.kind == practice::EnemyKind::Overlord && m_session.Mode() == practice::SessionMode::Play)
     {
-        if (kill.overlord)
+        if (kill.immortal)
             snprintf(m_stageText, sizeof(m_stageText), "%s DEFEATED - STAGE %d",
-                practice::GetBossDefinition(m_session.OverlordBoss()).name, m_session.GetStats().bossesDefeated + 1);
+                practice::GetBossDefinition(m_session.ImmortalBoss()).name, m_session.GetStats().bossesDefeated + 1);
         else
-            snprintf(m_stageText, sizeof(m_stageText), "BOSS DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
+            snprintf(m_stageText, sizeof(m_stageText), "OVERLORD DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
         switch (kill.rune)
         {
         case practice::Rune::None:         m_announce = kill.runeChoice ? "CHOOSE YOUR RUNE" : NULL; break;
@@ -3002,13 +3079,19 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         case practice::Rune::Shield:       m_announce = "RUNE: SHIELD  NEXT HIT BLOCKED"; break;
         default:                           m_announce = NULL; break;
         }
-        if (kill.droppedMaterial)  // the drop and the rune share the second line
+        if (kill.materialCount == 1)  // the drop and the rune share the second line
         {
-            snprintf(m_announceText, sizeof(m_announceText), "+1 %s   %s", practice::MaterialName(kill.material),
+            snprintf(m_announceText, sizeof(m_announceText), "+1 %s   %s", practice::MaterialName(kill.materials[0]),
                 m_announce != NULL ? m_announce : "");
             m_announce = m_announceText;
         }
-        m_announceLeft = kill.overlord ? ANNOUNCE_TIME * 1.5f : ANNOUNCE_TIME;
+        else if (kill.materialCount > 1)  // two drops: their names are on the ground with the icons
+        {
+            snprintf(m_announceText, sizeof(m_announceText), "+%d MATERIALS   %s", kill.materialCount,
+                m_announce != NULL ? m_announce : "");
+            m_announce = m_announceText;
+        }
+        m_announceLeft = kill.immortal ? ANNOUNCE_TIME * 1.5f : ANNOUNCE_TIME;
         audio::Play(audio::Sfx::Start);
         printf("[play] boss defeated: stage %d, rune %d, gold bank %d\n", m_session.GetStats().bossesDefeated + 1,
             static_cast<int>(kill.rune), m_goldBank);
@@ -3134,7 +3217,7 @@ void GameManager::RenderPlayGameOver()
     bool anyMaterial = false;
     for (int m = 0; m < practice::MATERIAL_COUNT; ++m)
         anyMaterial = anyMaterial || m_runMaterials[m] > 0;
-    int defeatedBy = m_session.DefeatedBy();  // §28 O-9: the OVERLORD that ended the run
+    int defeatedBy = m_session.DefeatedBy();  // §28 O-9: the IMMORTAL that ended the run
     char subtitle[64] = "";
     if (defeatedBy >= 0)
         snprintf(subtitle, sizeof(subtitle), "DEFEATED BY %s", practice::GetBossDefinition(defeatedBy).name);
@@ -3179,7 +3262,7 @@ void GameManager::RenderPlayGameOver()
     snprintf(value, sizeof(value), "%d", m_playRuns[0].score);
     ResultRow("BEST SCORE", value, NULL, 2);
     if (defeatedBy >= 0)
-        pixeltext::DrawShadowed(m_screen, "TIP: PRACTISE THIS BOSS IN BOSS FIGHTS.", RESULT_PANEL_X + 24, m_resultY + 2, 1, grey);
+        pixeltext::DrawShadowed(m_screen, "TIP: PRACTISE ITS COMBO IN IMMORTALS (MENU).", RESULT_PANEL_X + 24, m_resultY + 2, 1, grey);
     ResultButtons("PLAY AGAIN", "MENU", true);
 }
 
@@ -3498,7 +3581,7 @@ void GameManager::RenderShop()
     pixeltext::DrawShadowed(m_screen, "ITEMS WORK IN PLAY", panel.x + 110, panel.y + 26, 1, grey);
     snprintf(buf, sizeof(buf), "GOLD %d", m_goldBank);
     pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 3) - 20, panel.y + 18, 3, gold);
-    // the materials owned (§28 O-11): OVERLORD drops, needed for Aghanim's Scepter and every upgrade
+    // the materials owned (§28 O-11): IMMORTAL drops, needed for Aghanim's Scepter and every upgrade
     const SDL_Color cyan = { 110, 210, 255, 255 };
     int mx = panel.x + 110;
     pixeltext::DrawShadowed(m_screen, "MATERIALS:", mx, panel.y + 40, 1, cyan);
@@ -3612,7 +3695,7 @@ void GameManager::RenderShop()
     if (missing != practice::MATERIAL_NONE && m_inventory.material[missing] <= 0)
     {
         const SDL_Color red = { 235, 110, 110, 255 };
-        snprintf(buf, sizeof(buf), "NEEDS %s (OVERLORD DROP)", practice::MaterialName(static_cast<practice::Material>(missing)));
+        snprintf(buf, sizeof(buf), "NEEDS %s (IMMORTAL DROP)", practice::MaterialName(static_cast<practice::Material>(missing)));
         pixeltext::DrawShadowed(m_screen, buf, d.x + 12, SHOP_BUY_RECT.y - 30, 1, red);
     }
 
@@ -3636,9 +3719,9 @@ void GameManager::RenderShop()
     const char* help2 = m_showTouchControls ? "TAP A SLOT TO TAKE ITS ITEM OFF." : "IN PLAY: U I O / J K L USE THE SLOTS";
     pixeltext::DrawShadowed(m_screen, help1, SHOP_LOADOUT_X + 190, SHOP_LOADOUT_Y + 10, 1, grey);
     pixeltext::DrawShadowed(m_screen, help2, SHOP_LOADOUT_X + 190, SHOP_LOADOUT_Y + 28, 1, grey);
-    pixeltext::DrawShadowed(m_screen, "NO REAL MONEY: GOLD COMES FROM ELITES AND BOSSES IN PLAY.", SHOP_LOADOUT_X + 190,
+    pixeltext::DrawShadowed(m_screen, "NO REAL MONEY: GOLD COMES FROM ELITES AND OVERLORDS IN PLAY.", SHOP_LOADOUT_X + 190,
         SHOP_LOADOUT_Y + 60, 1, grey);
-    pixeltext::DrawShadowed(m_screen, "MATERIALS DROP FROM OVERLORDS: THE 20TH, 30TH, 40TH... ENEMY OF A RUN.", SHOP_LOADOUT_X + 190,
+    pixeltext::DrawShadowed(m_screen, "MATERIALS DROP FROM IMMORTALS: BEAT ELITES AND OVERLORDS TO MEET ONE.", SHOP_LOADOUT_X + 190,
         SHOP_LOADOUT_Y + 76, 1, grey);
     RenderButton(SHOP_CLOSE_RECT, "CLOSE", false);
 }
@@ -3851,17 +3934,19 @@ void GameManager::RenderTip()
         lines[0] = "IT NEEDS 2 SPELLS, IN ORDER.";
         lines[1] = "IF IT REACHES YOU: -2 LIVES.";
         lines[2] = "BEAT IT FOR 3 POINTS AND 5 GOLD.";
+        lines[3] = "BEATING IT RAISES THE IMMORTAL %.";
         break;
-    case TIP_BOSS:
-        title = "BOSS";
+    case TIP_OVERLORD:
+        title = "OVERLORD";
         lines[0] = "IT NEEDS 3 SPELLS, IN ORDER.";
         lines[1] = "IF IT REACHES YOU: -3 LIVES.";
         lines[2] = "BEAT IT FOR A RUNE AND A NEW STAGE.";
+        lines[3] = "BEATING IT RAISES THE IMMORTAL %.";
         break;
     case TIP_RUNE:
         title = "RUNE";
         icon = m_runeIcons[static_cast<int>(m_tipRune)];
-        lines[0] = "EVERY BOSS LEAVES A RUNE:";
+        lines[0] = "EVERY OVERLORD LEAVES A RUNE:";
         lines[1] = "A SHORT BONUS FOR THIS RUN.";
         switch (m_tipRune)
         {
@@ -3875,7 +3960,7 @@ void GameManager::RenderTip()
         break;
     case TIP_GOLD:
         title = "GOLD";
-        lines[0] = "ELITES AND BOSSES GIVE GOLD.";
+        lines[0] = "ELITES AND OVERLORDS GIVE GOLD.";
         lines[1] = "IT IS KEPT AFTER THE RUN.";
         lines[2] = "SPEND IT IN THE SHOP (MENU).";
         break;
@@ -3888,19 +3973,19 @@ void GameManager::RenderTip()
         lines[1] = touch ? "TAP A SLOT TO USE ITS ITEM." : "KEYS U I O / J K L USE THEM.";
         lines[2] = "A NUMBER ON A SLOT: SECONDS TO WAIT.";
         break;
-    case TIP_OVERLORD:
-        title = "OVERLORD";
-        lines[0] = "A BOSS WITH A LIFE BAR. ONLY ITS";
-        lines[1] = "COMBO HURTS IT: CAST THE SPELLS AT";
-        lines[2] = "THE TOP RIGHT IN ORDER, WELL TIMED.";
-        lines[3] = "PRACTISE IN BOSS FIGHTS (MENU).";
+    case TIP_IMMORTAL:
+        title = "IMMORTAL";
+        lines[0] = "IT HAS A LIFE BAR. ONLY ITS COMBO";
+        lines[1] = "HURTS IT: CAST THE SPELLS AT THE";
+        lines[2] = "TOP RIGHT IN ORDER, WELL TIMED.";
+        lines[3] = "PRACTISE IN IMMORTALS (MENU).";
         break;
     case TIP_MATERIAL:
         title = "MATERIAL";
         icon = m_materialIcons[static_cast<int>(m_tipMaterial)];
         snprintf(runeLine, sizeof(runeLine), "YOU FOUND A %s.", practice::MaterialName(m_tipMaterial));
         lines[0] = runeLine;
-        lines[1] = "EVERY OVERLORD DROPS A MATERIAL.";
+        lines[1] = "ONLY IMMORTALS DROP MATERIALS.";
         lines[2] = "THE SHOP NEEDS ONE FOR AGHANIM'S";
         lines[3] = "SCEPTER AND FOR ITEM UPGRADES.";
         break;
@@ -3986,7 +4071,7 @@ void GameManager::RenderGuide()
     const SDL_Color red = { 255, 110, 110, 255 };
     char buf[128];
     pixeltext::DrawShadowed(m_screen, "GUIDE", panel.x + 24, panel.y + 14, 3, gold);
-    const char* tabs[GUIDE_TABS] = { "BASICS", "ENEMIES", "RUNES", "ITEMS", "BOSSES" };
+    const char* tabs[GUIDE_TABS] = { "BASICS", "ENEMIES", "RUNES", "ITEMS", "IMMORTALS" };
     for (int t = 0; t < GUIDE_TABS; ++t)
     {
         SDL_Rect r = GuideTabRect(t);
@@ -4029,11 +4114,11 @@ void GameManager::RenderGuide()
             { "NORMAL", white, "1", practice::PLAY_LEAK_NORMAL, practice::PLAY_POINTS_NORMAL, 0,
                 "MOST ENEMIES." },
             { "ELITE", orange, "2 IN ORDER", practice::PLAY_LEAK_ELITE, practice::PLAY_POINTS_ELITE, practice::PLAY_GOLD_ELITE,
-                "LARGER AND A LITTLE SLOWER. MORE OF THEM THE LONGER YOU LAST." },
-            { "BOSS", red, "3 IN ORDER", practice::PLAY_LEAK_BOSS, practice::PLAY_POINTS_BOSS, practice::PLAY_GOLD_BOSS,
-                "THE 10TH ENEMY. LEAVES A RUNE, THEN THE NEXT STAGE BEGINS." },
-            { "OVERLORD", gold, "ITS COMBO", 1, practice::PLAY_OVERLORD_POINTS, practice::PLAY_OVERLORD_GOLD,
-                "THE 20TH, 30TH, 40TH... ENEMY. A BOSS FIGHT: A LIFE BAR, A COMBO. LEAVES A RUNE AND A MATERIAL." },
+                "THE 15TH, 25TH, 35TH... ENEMY. LARGER AND A LITTLE SLOWER." },
+            { "OVERLORD", red, "3 IN ORDER", practice::PLAY_LEAK_OVERLORD, practice::PLAY_POINTS_OVERLORD, practice::PLAY_GOLD_OVERLORD,
+                "THE 20TH, 30TH, 40TH... ENEMY. LEAVES A RUNE, THEN THE NEXT STAGE BEGINS." },
+            { "IMMORTAL", gold, "ITS COMBO", 1, practice::PLAY_IMMORTAL_POINTS, practice::PLAY_IMMORTAL_GOLD,
+                "COMES BY CHANCE: +10 % PER ELITE BEATEN, +20 % PER OVERLORD. A LIFE BAR, A COMBO OF 4 TO 8. DROPS MATERIALS." },
         };
         for (int i = 0; i < 4; ++i)
         {
@@ -4053,7 +4138,7 @@ void GameManager::RenderGuide()
         }
         const char* notes[3] = {
             "A WRONG SPELL NEVER HURTS YOU: TRY AGAIN. A CHAIN KEEPS ITS PROGRESS.",
-            "GOLD COMES ONLY FROM ELITES, BOSSES, OVERLORDS AND THE BOUNTY RUNE.",
+            "GOLD: FROM ELITES, OVERLORDS, IMMORTALS AND THE BOUNTY RUNE.",
             "IN SURVIVAL EVERY ENEMY IS A NORMAL ONE AND COSTS 1 LIFE.",
         };
         for (int i = 0; i < 3; ++i)
@@ -4081,7 +4166,7 @@ void GameManager::RenderGuide()
             }
             pixeltext::DrawShadowed(m_screen, buf, left + 290, y + 15, 2, white);
         }
-        pixeltext::DrawShadowed(m_screen, "A BOSS OR AN OVERLORD LEAVES ONE AT RANDOM.", left, top + 296, 2, white);
+        pixeltext::DrawShadowed(m_screen, "AN OVERLORD OR AN IMMORTAL LEAVES ONE AT RANDOM.", left, top + 296, 2, white);
         pixeltext::DrawShadowed(m_screen, "WITH AGHANIM'S SCEPTER YOU CHOOSE 1 OF 2 (BLESSING: 1 OF 3).", left, top + 328, 2, white);
     }
     else if (m_guideTab == 3)
@@ -4107,7 +4192,7 @@ void GameManager::RenderGuide()
             }
         }
         pixeltext::DrawShadowed(m_screen, "ITEMS WORK IN PLAY. BUY THEM IN THE SHOP WITH GOLD. UPGRADES ALSO NEED A MATERIAL.", left, top + 352, 1, grey);
-        pixeltext::DrawShadowed(m_screen, "AGAINST AN OVERLORD, REFRESHER ORB DOUBLES THE DAMAGE OF YOUR NEXT COMBO INSTEAD.", left, top + 364, 1, grey);
+        pixeltext::DrawShadowed(m_screen, "AGAINST AN IMMORTAL, REFRESHER ORB DOUBLES THE DAMAGE OF YOUR NEXT COMBO INSTEAD.", left, top + 364, 1, grey);
     }
     else
     {
@@ -4116,14 +4201,14 @@ void GameManager::RenderGuide()
         snprintf(delays, sizeof(delays), "SUN STRIKE HITS %.1f S AFTER THE CAST, CHAOS METEOR %.1f S, EMP %.1f S.",
             practice::BOSS_SUN_STRIKE_DELAY, practice::BOSS_METEOR_DELAY, practice::BOSS_EMP_DELAY);
         const char* lines[] = {
-        "ONLY ITS COMBO HURTS A BOSS: THE SPELLS AT THE TOP RIGHT, IN ORDER.",
+        "AN IMMORTAL IS HURT ONLY BY ITS COMBO: THE SPELLS AT THE TOP RIGHT.",
         "",
         "",
         "GRADES: PERFECT 100 %, GREAT 60 %, GOOD 35 % OF ITS LIFE, AVERAGED.",
-        "OTHER SPELLS ARE QUICK STEPS: CAST EACH RIGHT AFTER THE LAST ONE.",
+        "EVERY OTHER STEP IS A QUICK ONE: CAST IT RIGHT AFTER THE LAST SPELL.",
         "COLD SNAP FREEZES IT, ICE WALL SLOWS IT, GHOST WALK MAKES IT LOSE YOU.",
         "WITH RECIPE HINT ON, A BAR UNDER EACH SPELL SHOWS WHEN TO CAST IT.",
-        "OVERLORDS IN PLAY ARE THESE BOSSES. PRACTISE THEM IN BOSS FIGHTS."
+        "FIVE IMMORTALS, COMBOS OF 4 TO 8 SPELLS. PRACTISE THEM IN THE MENU."
         };
         for (int i = 0; i < static_cast<int>(sizeof(lines) / sizeof(lines[0])); ++i)
         {
@@ -4184,7 +4269,7 @@ void GameManager::RenderPause()
     DimScreen(175);
     pixeltext::DrawCentered(m_screen, "PAUSED", SCREEN_WIDTH, 150, 6, gold);
     RenderButton(PAUSE_RESUME_RECT, touch ? "RESUME" : "ESC  RESUME", true);
-    RenderButton(PAUSE_QUIT_RECT, m_bossActive ? (touch ? "BOSS LIST" : "Q  BOSS LIST") : (touch ? "QUIT TO MENU" : "Q  QUIT TO MENU"), false);
+    RenderButton(PAUSE_QUIT_RECT, m_bossActive ? (touch ? "IMMORTALS" : "Q  IMMORTALS") : (touch ? "QUIT TO MENU" : "Q  QUIT TO MENU"), false);
     pixeltext::DrawCentered(m_screen, m_bossActive ? "THE FIGHT WAITS FOR YOU." : "THE RUN WAITS FOR YOU.", SCREEN_WIDTH, 352, 1, grey);
 }
 
@@ -4365,7 +4450,7 @@ void GameManager::PresentBossInput(const practice::BossInputResult& r)
         OnBossFail(r.fail);
 }
 
-void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r, bool overlord)
+void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r, bool immortal)
 {
     const SDL_Color gold = { 255, 215, 80, 255 };
     if (r.lifted)
@@ -4413,7 +4498,7 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r, bool ov
         m_shakeLeft = FEEDBACK_SHAKE_TIME;
         printf("[boss] combo: -%d%%, boss HP %d%%\n", r.damage, BossView().BossHp());
     }
-    if (overlord)  // the run handles the contact (lives, Shield), the reward and the Game Over itself
+    if (immortal)  // the run handles the contact (lives, Shield), the reward and the Game Over itself
         return;
     if (r.playerHit)
     {
@@ -4442,6 +4527,7 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r, bool ov
 
 void GameManager::OnBossGrade(practice::HitGrade grade)
 {
+    m_bossHitLeft = IMMORTAL_HIT_TIME;  // it flinches (the Immortals with a "got hit" sheet)
     const SDL_Color gold = { 255, 215, 80, 255 };
     const SDL_Color cyan = { 110, 210, 255, 255 };
     const SDL_Color white = { 235, 235, 240, 255 };
@@ -4490,21 +4576,22 @@ void GameManager::BossText(const char* text, SDL_Color color, int raise)
     }
 }
 
-// Best fight time per boss, saved like the records: bosses.txt (milliseconds, one per boss) next to the exe /
-// in the app folder, localStorage on the web. Missing or unreadable = not beaten yet.
+// Best fight time per Immortal, saved like the records: immortals.txt (milliseconds, one per Immortal) next to the
+// exe / in the app folder, localStorage on the web. Missing or unreadable = not beaten yet. (bosses.txt held the
+// times of the eight bosses of 1.2 - 1.8, which are gone: it is not read any more.)
 void GameManager::LoadBossTimes()
 {
     int raw[practice::BOSS_COUNT] = {};
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         try {
-            var values = String(localStorage.getItem('threeElements_bossTimes')).split(',').map(Number);
+            var values = String(localStorage.getItem('threeElements_immortalTimes')).split(',').map(Number);
             for (var i = 0; i < $1; ++i)
                 HEAP32[($0 >> 2) + i] = values[i] | 0;
         } catch (e) {}
     }, raw, practice::BOSS_COUNT);
 #else
-    FILE* f = fopen(SavePath("bosses.txt").c_str(), "r");
+    FILE* f = fopen(SavePath("immortals.txt").c_str(), "r");
     if (f != NULL)
     {
         for (int i = 0; i < practice::BOSS_COUNT; ++i)
@@ -4528,11 +4615,11 @@ void GameManager::SaveBossTimes()
             var values = [];
             for (var i = 0; i < $1; ++i)
                 values.push(HEAP32[($0 >> 2) + i]);
-            localStorage.setItem('threeElements_bossTimes', values.join(','));
+            localStorage.setItem('threeElements_immortalTimes', values.join(','));
         } catch (e) {}
     }, raw, practice::BOSS_COUNT);
 #else
-    FILE* f = fopen(SavePath("bosses.txt").c_str(), "w");
+    FILE* f = fopen(SavePath("immortals.txt").c_str(), "w");
     if (f != NULL)
     {
         for (int i = 0; i < practice::BOSS_COUNT; ++i)
@@ -4612,22 +4699,25 @@ void GameManager::RenderBoss()
         SDL_RenderCopy(m_screen, m_tornadoSheet, &src, &dst);
     }
 
-    if (sprite.p_object_ == NULL)
-        return;
-    int x = static_cast<int>(body.x - e.bodyLeft * def.scale);
-    int y = static_cast<int>(practice::GROUND_LINE_Y - e.feetRow * def.scale - lift);
     bool flash = m_enemyFlashLeft > 0.0f;
-    // B-17 holds: frozen = ice blue, slowed by the Ice Wall = pale blue, confused by Ghost Walk = a "?" above it
-    if (flash)
-        SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
-    else if (boss.FreezeLeft() > 0.0f)
-        SDL_SetTextureColorMod(sprite.p_object_, 120, 190, 255);
-    else if (boss.SlowLeft() > 0.0f)
-        SDL_SetTextureColorMod(sprite.p_object_, 190, 220, 255);
-    else
-        SDL_SetTextureColorMod(sprite.p_object_, def.tint[0], def.tint[1], def.tint[2]);
-    sprite.RenderFrameScaled(m_screen, x, y, def.scale);
-    SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+    if (!RenderImmortalArt(boss, cx, lift, flash))
+    {
+        if (sprite.p_object_ == NULL)
+            return;
+        int x = static_cast<int>(body.x - e.bodyLeft * def.scale);
+        int y = static_cast<int>(practice::GROUND_LINE_Y - e.feetRow * def.scale - lift);
+        // B-17 holds: frozen = ice blue, slowed by the Ice Wall = pale blue, confused by Ghost Walk = a "?" above it
+        if (flash)
+            SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
+        else if (boss.FreezeLeft() > 0.0f)
+            SDL_SetTextureColorMod(sprite.p_object_, 120, 190, 255);
+        else if (boss.SlowLeft() > 0.0f)
+            SDL_SetTextureColorMod(sprite.p_object_, 190, 220, 255);
+        else
+            SDL_SetTextureColorMod(sprite.p_object_, def.tint[0], def.tint[1], def.tint[2]);
+        sprite.RenderFrameScaled(m_screen, x, y, def.scale);
+        SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
+    }
     const char* hold = boss.FreezeLeft() > 0.0f ? "FROZEN" : boss.ConfuseLeft() > 0.0f ? "?" : boss.SlowLeft() > 0.0f ? "SLOWED" : NULL;
     if (hold != NULL && boss.State() == practice::BossState::Fighting)
     {
@@ -4638,10 +4728,52 @@ void GameManager::RenderBoss()
     }
 }
 
+// An Immortal with its own art (§32 M-6): it runs while it walks; it stands (the first frame of its "got hit"
+// sheet) while it is in the air, frozen, confused, pushed back or waiting for the fight; and it flinches (that
+// sheet, once) when a spell of the combo scores. The frames are drawn 1:1, centred on the body, feet on the ground.
+bool GameManager::RenderImmortalArt(const practice::BossSession& boss, int cx, float lift, bool flash)
+{
+    int art = boss.BossIndex();
+    if (art < 0 || art >= IMMORTAL_ART_COUNT || m_immortalRun[art] == NULL)
+        return false;
+    SDL_Texture* run = m_immortalRun[art];
+    SDL_Texture* hit = m_immortalHit[art];
+    bool fighting = boss.State() == practice::BossState::Fighting && (m_bossActive || m_session.ImmortalActive());
+    bool standing = !fighting || boss.Phase() != practice::BossPhase::Walking || boss.FreezeLeft() > 0.0f
+        || boss.ConfuseLeft() > 0.0f;
+    SDL_Texture* sheet = run;
+    int frame = static_cast<int>(m_bossAnimTime * IMMORTAL_RUN_FPS[art]) % IMMORTAL_FRAMES;
+    if (hit != NULL && m_bossHitLeft > 0.0f)
+    {
+        sheet = hit;
+        frame = static_cast<int>((1.0f - m_bossHitLeft / IMMORTAL_HIT_TIME) * IMMORTAL_FRAMES);
+        frame = frame < 0 ? 0 : (frame > IMMORTAL_FRAMES - 1 ? IMMORTAL_FRAMES - 1 : frame);
+    }
+    else if (hit != NULL && standing)
+    {
+        sheet = hit;
+        frame = 0;
+    }
+    int w = 0, h = 0;
+    SDL_QueryTexture(sheet, NULL, NULL, &w, &h);
+    int cellW = w / 4, cellH = h / 4;
+    SDL_Rect src = { (frame % 4) * cellW, (frame / 4) * cellH, cellW, cellH };
+    SDL_Rect dst = { cx - cellW / 2, static_cast<int>(practice::GROUND_LINE_Y - lift) - cellH + IMMORTAL_FEET[art], cellW, cellH };
+    if (flash)
+        SDL_SetTextureColorMod(sheet, 255, 90, 90);
+    else if (boss.FreezeLeft() > 0.0f)
+        SDL_SetTextureColorMod(sheet, 120, 190, 255);
+    else if (boss.SlowLeft() > 0.0f)
+        SDL_SetTextureColorMod(sheet, 190, 220, 255);
+    SDL_RenderCopy(m_screen, sheet, &src, &dst);
+    SDL_SetTextureColorMod(sheet, 255, 255, 255);
+    return true;
+}
+
 // Where each delayed spell will land: a faint circle of its reach and a ring closing in on the impact point.
 void GameManager::RenderBossImpacts()
 {
-    if (!(m_bossActive || OverlordFight()))
+    if (!(m_bossActive || ImmortalFight()))
         return;
     const practice::BossSession& boss = BossView();
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
@@ -4733,7 +4865,7 @@ void GameManager::RenderBossCombo()
     if (!BossShown() || BossView().State() != practice::BossState::Fighting)
         return;
     const practice::BossSession& boss = BossView();
-    bool warning = OverlordShown() && !m_session.OverlordActive();  // the banner has the middle of the screen
+    bool warning = ImmortalShown() && !m_session.ImmortalActive();  // the banner has the middle of the screen
     const practice::BossDefinition& def = boss.Def();
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color grey = { 190, 190, 200, 255 };
@@ -4742,8 +4874,21 @@ void GameManager::RenderBossCombo()
 
     const invoker::SkillId* combo = boss.Combo();  // the second phase's once the boss is at 50 % (B-19)
     int n = boss.ComboLength();
-    int width = n * BOSS_COMBO_TILE + (n - 1) * BOSS_COMBO_GAP;
+    // five spells fit with the large tiles; six to eight get smaller ones without the ">" (§32 M-6)
+    const bool small = n > 5;
+    const int TILE = small ? BOSS_COMBO_TILE_SMALL : BOSS_COMBO_TILE;
+    const int GAP = small ? BOSS_COMBO_GAP_SMALL : BOSS_COMBO_GAP;
+    int width = n * TILE + (n - 1) * GAP;
     int x0 = SCREEN_WIDTH - 16 - width;
+    // the lines in the middle of the screen stay clear of a long strip
+    auto drawMiddle = [this, x0](const char* text, int y, int scale, SDL_Color color)
+    {
+        int w = pixeltext::Width(text, scale);
+        int x = (SCREEN_WIDTH - w) / 2;
+        if (x + w > x0 - 14)
+            x = x0 - 14 - w;
+        pixeltext::DrawShadowed(m_screen, text, x < 8 ? 8 : x, y, scale, color);
+    };
     bool running = boss.AttemptRunning();
     int next = running ? boss.CastSteps() : 0;
     int nowStep = -1;  // hint: the follow-up whose timing bar says NOW
@@ -4756,14 +4901,14 @@ void GameManager::RenderBossCombo()
 
     for (int i = 0; i < n; ++i)
     {
-        SDL_Rect tile = { x0 + i * (BOSS_COMBO_TILE + BOSS_COMBO_GAP), BOSS_COMBO_Y, BOSS_COMBO_TILE, BOSS_COMBO_TILE };
+        SDL_Rect tile = { x0 + i * (TILE + GAP), BOSS_COMBO_Y, TILE, TILE };
         bool done = running && boss.StepDone(i);
         bool cast = running && i < next;
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
         SDL_RenderFillRect(m_screen, &tile);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-        m_skillIcons[static_cast<int>(combo[i])].RenderAt(m_screen, tile.x + 2, tile.y + 2, BOSS_COMBO_TILE - 4);
+        m_skillIcons[static_cast<int>(combo[i])].RenderAt(m_screen, tile.x + 2, tile.y + 2, TILE - 4);
         if (done)
             SDL_SetRenderDrawColor(m_screen, 90, 230, 110, 255);
         else if (cast)
@@ -4777,13 +4922,13 @@ void GameManager::RenderBossCombo()
         }
         if (i == next && !(running && next >= n))
             RenderHighlight(tile);
-        if (i + 1 < n)
-            pixeltext::DrawShadowed(m_screen, ">", tile.x + BOSS_COMBO_TILE + BOSS_COMBO_GAP / 2 - 5, tile.y + 13, 2, grey);
+        if (i + 1 < n && !small)
+            pixeltext::DrawShadowed(m_screen, ">", tile.x + TILE + GAP / 2 - 5, tile.y + 13, 2, grey);
         // B-15, hint only: the timing bar shrinks to empty at the ideal moment to cast this spell
         float until = 0.0f, span = 0.0f;
         if (m_recipeHint && boss.StepTiming(i, until, span))
         {
-            SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
+            SDL_Rect back = { tile.x, BOSS_COMBO_Y + TILE + 20, TILE, 4 };
             SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
             SDL_RenderFillRect(m_screen, &back);
             bool now = until <= BOSS_BAR_NOW_EARLY && until >= -BOSS_BAR_NOW_LATE;
@@ -4799,7 +4944,7 @@ void GameManager::RenderBossCombo()
             {
                 SDL_Rect bar = back;
                 float left = until / span;
-                bar.w = static_cast<int>(BOSS_COMBO_TILE * (left > 1.0f ? 1.0f : left));
+                bar.w = static_cast<int>(TILE * (left > 1.0f ? 1.0f : left));
                 SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 255);
                 SDL_RenderFillRect(m_screen, &bar);
             }
@@ -4813,12 +4958,12 @@ void GameManager::RenderBossCombo()
         float quickLeft = 0.0f, quickTotal = 0.0f;
         if (boss.QuickTiming(i, quickLeft, quickTotal))
         {
-            SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
+            SDL_Rect back = { tile.x, BOSS_COMBO_Y + TILE + 20, TILE, 4 };
             SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
             SDL_RenderFillRect(m_screen, &back);
             float f = quickLeft / quickTotal;
             SDL_Rect bar = back;
-            bar.w = static_cast<int>(BOSS_COMBO_TILE * (f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f)));
+            bar.w = static_cast<int>(TILE * (f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f)));
             bool perfect = quickTotal - quickLeft <= practice::BOSS_QUICK_PERFECT;
             bool great = quickTotal - quickLeft <= practice::BOSS_QUICK_GREAT;
             SDL_SetRenderDrawColor(m_screen, perfect ? 255 : (great ? 110 : 235), perfect ? 215 : (great ? 210 : 235), perfect ? 80 : (great ? 255 : 240), 255);
@@ -4828,17 +4973,18 @@ void GameManager::RenderBossCombo()
         {
             const invoker::Recipe& r = invoker::GetSkillDefinition(combo[i]).recipe;
             const int counts[3] = { r.quas, r.wex, r.exort };
-            int ox = tile.x + BOSS_COMBO_TILE / 2 - 15;  // three 14 px orbs, 15 px apart, centred under the tile
+            const int pitch = small ? 13 : 15;           // three orbs centred under the tile (smaller under a small one)
+            int ox = tile.x + TILE / 2 - pitch;
             for (int element = 0; element < 3; ++element)
             {
-                for (int c = 0; c < counts[element]; ++c, ox += 15)
+                for (int c = 0; c < counts[element]; ++c, ox += pitch)
                 {
-                    int oy = BOSS_COMBO_Y + BOSS_COMBO_TILE + 11;
+                    int oy = BOSS_COMBO_Y + TILE + 11;
                     SDL_Color col = kOrbColors[element];
                     SDL_SetRenderDrawColor(m_screen, 10, 12, 18, 255);
-                    draw::FillCircle(m_screen, ox, oy, 8);
+                    draw::FillCircle(m_screen, ox, oy, small ? 7 : 8);
                     SDL_SetRenderDrawColor(m_screen, col.r, col.g, col.b, 255);
-                    draw::FillCircle(m_screen, ox, oy, 7);
+                    draw::FillCircle(m_screen, ox, oy, small ? 6 : 7);
                     const char* letter = element == 0 ? "Q" : element == 1 ? "W" : "E";
                     const SDL_Color white = { 255, 255, 255, 255 };
                     pixeltext::Draw(m_screen, letter, ox - 2, oy - 3, 1, white);
@@ -4850,33 +4996,33 @@ void GameManager::RenderBossCombo()
     if (warning)
         return;
     if (def.guided)
-        pixeltext::DrawCentered(m_screen, "TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", SCREEN_WIDTH, 100, 1, grey);
+        drawMiddle("TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", 100, 1, grey);
     else if (n > 1 && boss.StepKind(1) == practice::BossStepKind::Quick)
-        pixeltext::DrawCentered(m_screen, "QUICK COMBO: CAST EACH SPELL RIGHT AFTER THE LAST ONE.", SCREEN_WIDTH, 100, 1, grey);
+        drawMiddle("QUICK COMBO: CAST EACH SPELL RIGHT AFTER THE LAST ONE.", 100, 1, grey);
     if (nowStep > 0)
     {
         float t = SDL_GetTicks() / 1000.0f;
         SDL_Color pulse = { 90, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 110, 255 };
         snprintf(buf, sizeof(buf), "CAST %s NOW!", invoker::GetSkillDefinition(combo[nowStep]).name);
-        int scale = pixeltext::Width(buf, 3) <= 400 ? 3 : 2;  // long names: keep clear of the combo strip
-        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 116, scale, pulse);
+        int scale = !small && pixeltext::Width(buf, 3) <= 400 ? 3 : 2;  // long names: keep clear of the combo strip
+        drawMiddle(buf, 116, scale, pulse);
     }
     else if (boss.CueNow())
     {
         float t = SDL_GetTicks() / 1000.0f;
         SDL_Color pulse = { 255, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 80, 255 };
-        pixeltext::DrawCentered(m_screen, "CAST NOW!", SCREEN_WIDTH, 116, 3, pulse);
+        drawMiddle("CAST NOW!", 116, 3, pulse);
     }
     else if (!running && boss.LastFail() != practice::ComboFail::None)
     {
         practice::ComboFail f = boss.LastFail();
         snprintf(buf, sizeof(buf), "LAST TRY: %s", f == practice::ComboFail::WrongSpell ? "WRONG SPELL"
             : f == practice::ComboFail::TooEarly ? "TOO EARLY" : f == practice::ComboFail::TooLate ? "TOO LATE" : "MISSED");
-        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 118, 2, red);
+        drawMiddle(buf, 118, 2, red);
     }
 }
 
-// The three bosses, each with its combo and best time; arrows + Enter, 1-3, or a tap.
+// The five Immortals, each with its combo and best time; arrows + Enter, 1-5, or a tap.
 void GameManager::RenderBossSelect()
 {
     DimScreen(190);
@@ -4891,8 +5037,8 @@ void GameManager::RenderBossSelect()
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color white = { 235, 235, 240, 255 };
     const SDL_Color grey = { 150, 155, 170, 255 };
-    pixeltext::DrawShadowed(m_screen, "BOSS FIGHTS", panel.x + 24, panel.y + 14, 3, gold);
-    pixeltext::DrawShadowed(m_screen, "ONLY ITS COMBO HURTS A BOSS", panel.x + 250, panel.y + 22, 1, grey);
+    pixeltext::DrawShadowed(m_screen, "IMMORTALS", panel.x + 24, panel.y + 14, 3, gold);
+    pixeltext::DrawShadowed(m_screen, "ONLY ITS COMBO HURTS AN IMMORTAL. THEY COME BY CHANCE IN PLAY.", panel.x + 210, panel.y + 22, 1, grey);
 
     // one compact row per boss (B-20): number and name, best time, and the combo as small icons (both phases)
     char buf[64], time[16];
@@ -4910,7 +5056,7 @@ void GameManager::RenderBossSelect()
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
         snprintf(buf, sizeof(buf), "%d %s", i + 1, def.name);
-        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 6, 2, selected ? gold : white);
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 12, 2, selected ? gold : white);
         if (m_bossBest[i] > 0.0f)
         {
             FormatTime(time, sizeof(time), m_bossBest[i]);
@@ -4918,11 +5064,11 @@ void GameManager::RenderBossSelect()
         }
         else
             snprintf(buf, sizeof(buf), "NOT BEATEN YET");
-        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 28, 1, m_bossBest[i] > 0.0f ? gold : grey);
+        pixeltext::DrawShadowed(m_screen, buf, r.x + 10, r.y + 36, 1, m_bossBest[i] > 0.0f ? gold : grey);
 
         int x = r.x + 232;
         for (int k = 0; k < def.comboLength; ++k, x += step)
-            m_skillIcons[static_cast<int>(def.combo[k])].RenderAt(m_screen, x, r.y + 8, icon);
+            m_skillIcons[static_cast<int>(def.combo[k])].RenderAt(m_screen, x, r.y + 16, icon);
         if (def.combo2Length > 0)
         {
             pixeltext::DrawShadowed(m_screen, "+", x + 2, r.y + 15, 2, grey);
@@ -4931,15 +5077,15 @@ void GameManager::RenderBossSelect()
                 m_skillIcons[static_cast<int>(def.combo2[k])].RenderAt(m_screen, x, r.y + 8, icon);
         }
     }
-    const char* help = m_showTouchControls ? "TAP A BOSS TO FIGHT   -   TAP OUTSIDE TO GO BACK" : "1-8 OR ARROWS + ENTER: FIGHT   -   ESC: BACK";
+    const char* help = m_showTouchControls ? "TAP ONE TO FIGHT IT   -   TAP OUTSIDE TO GO BACK" : "1-5 OR ARROWS + ENTER: FIGHT   -   ESC: BACK";
     pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, panel.y + panel.h - 20, 1, grey);
 }
 
-// spec §28 O-3: "OVERLORD INCOMING" and its name, pulsing, while the warning counts down (the boss stands at the
+// spec §28 O-3: "IMMORTAL INCOMING" and its name, pulsing, while the warning counts down (the boss stands at the
 // edge of the field and its combo strip is up already, so the player can prepare the first spells).
-void GameManager::RenderOverlordWarning()
+void GameManager::RenderImmortalWarning()
 {
-    if (!OverlordShown() || m_session.OverlordActive())
+    if (!ImmortalShown() || m_session.ImmortalActive())
         return;
     float t = SDL_GetTicks() / 1000.0f;
     float pulse = 0.5f + 0.5f * std::sin(t * 11.0f);
@@ -4953,24 +5099,69 @@ void GameManager::RenderOverlordWarning()
         SDL_RenderDrawRect(m_screen, &frame);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-    pixeltext::DrawCentered(m_screen, "OVERLORD INCOMING", SCREEN_WIDTH, 92, 3, red);
-    pixeltext::DrawCentered(m_screen, practice::GetBossDefinition(m_session.OverlordBoss()).name, SCREEN_WIDTH, 122, 2, gold);
+    // centred, but clear of the combo strip at the top right (eight tiles reach the middle of the screen)
+    const practice::BossDefinition& def = practice::GetBossDefinition(m_session.ImmortalBoss());
+    int n = def.comboLength;
+    int strip = n > 5 ? n * BOSS_COMBO_TILE_SMALL + (n - 1) * BOSS_COMBO_GAP_SMALL : n * BOSS_COMBO_TILE + (n - 1) * BOSS_COMBO_GAP;
+    int limit = SCREEN_WIDTH - 16 - strip - 14;
+    const char* title = "IMMORTAL INCOMING";
+    int w = pixeltext::Width(title, 3);
+    int x = (SCREEN_WIDTH - w) / 2;
+    if (x + w > limit)
+        x = limit - w;
+    pixeltext::DrawShadowed(m_screen, title, x, 92, 3, red);
+    pixeltext::DrawShadowed(m_screen, def.name, x + (w - pixeltext::Width(def.name, 2)) / 2, 122, 2, gold);
 }
 
-// The OVERLORD's name and HP bar (in %), bottom centre; the last combo's damage beside it, and "X2" while a
-// Refresher Orb is armed (O-6).
-void GameManager::RenderOverlordBar()
+// §32 M-3: the chance that the next thing after an elite or an overlord is an Immortal. Bottom centre, where the
+// Immortal's own bar is during its fight. It lights up when the chance grows.
+void GameManager::RenderImmortalMeter()
 {
-    if (!OverlordFight())
+    if (m_bossActive || m_tutorialActive || m_session.State() != practice::GameState::Playing
+        || m_session.Mode() != practice::SessionMode::Play || ImmortalShown())
         return;
-    const practice::BossSession& boss = m_session.Overlord();
+    const SDL_Color violet = { 200, 150, 255, 255 };
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    int chance = m_session.ImmortalChance();
+    bool coming = m_session.ImmortalDue();
+    bool lit = m_meterFlashLeft > 0.0f && static_cast<int>(m_meterFlashLeft * 12.0f) % 2 == 0;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d%%", chance);
+    const char* label = "IMMORTAL";
+    int labelW = pixeltext::Width(label, 2);
+    int x = (SCREEN_WIDTH - (labelW + 12 + IMMORTAL_METER_W + 10 + pixeltext::Width("100%", 2))) / 2;
+    int y = IMMORTAL_BAR_Y;
+    pixeltext::DrawShadowed(m_screen, label, x, y + 3, 2, coming || lit ? gold : violet);
+    int barX = x + labelW + 12;
+    SDL_Rect bar = { barX, y + 2, IMMORTAL_METER_W, 16 };
+    SDL_Rect fill = { barX + 1, y + 3, (IMMORTAL_METER_W - 2) * chance / 100, 14 };
+    SDL_SetRenderDrawColor(m_screen, 30, 20, 40, 255);
+    SDL_RenderFillRect(m_screen, &bar);
+    if (coming || lit)
+        SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 255);
+    else
+        SDL_SetRenderDrawColor(m_screen, 150, 90, 230, 255);
+    SDL_RenderFillRect(m_screen, &fill);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+    SDL_RenderDrawRect(m_screen, &bar);
+    pixeltext::DrawShadowed(m_screen, buf, barX + IMMORTAL_METER_W + 10, y + 3, 2, coming ? gold : white);
+}
+
+// The IMMORTAL's name and HP bar (in %), bottom centre; the last combo's damage beside it, and "X2" while a
+// Refresher Orb is armed (O-6).
+void GameManager::RenderImmortalBar()
+{
+    if (!ImmortalFight())
+        return;
+    const practice::BossSession& boss = m_session.Immortal();
     const SDL_Color white = { 255, 255, 255, 255 };
     const SDL_Color gold = { 255, 210, 90, 255 };
     char buf[32];
     const char* name = boss.Def().name;
     int nameW = pixeltext::Width(name, 2);
     int x = (SCREEN_WIDTH - (nameW + 16 + BOSS_HP_BAR_W + 10 + pixeltext::Width("100%", 2))) / 2;
-    int y = OVERLORD_BAR_Y;
+    int y = IMMORTAL_BAR_Y;
     pixeltext::DrawShadowed(m_screen, name, x, y + 3, 2, gold);
     int barX = x + nameW + 16;
     SDL_Rect bar = { barX, y, BOSS_HP_BAR_W, 20 };
@@ -5002,7 +5193,7 @@ void GameManager::RenderBossResult()
     bool won = m_boss.State() == practice::BossState::Won;
     int i = m_boss.BossIndex();
 
-    ResultBegin(won ? "BOSS DEFEATED!" : "DEFEATED", won ? gold : red, m_boss.Def().name, white, 2, 0, 0);
+    ResultBegin(won ? "IMMORTAL DEFEATED!" : "DEFEATED", won ? gold : red, m_boss.Def().name, white, 2, 0, 0);
     if (won)
     {
         FormatTime(value, sizeof(value), m_boss.Elapsed());
@@ -5011,7 +5202,7 @@ void GameManager::RenderBossResult()
     else
     {
         snprintf(value, sizeof(value), "%d%%", m_boss.BossHp());
-        ResultRow("BOSS HP LEFT", value);
+        ResultRow("ITS HP LEFT", value);
     }
     if (m_bossBest[i] > 0.0f)
     {
@@ -5020,7 +5211,7 @@ void GameManager::RenderBossResult()
     }
     else
         ResultRow("BEST TIME", "NOT BEATEN YET", NULL, 2);
-    ResultButtons("FIGHT AGAIN", "BOSS LIST", false);
+    ResultButtons("FIGHT AGAIN", "IMMORTALS", false);
 }
 
 bool GameManager::loadBackgroundLayers() {
@@ -5119,7 +5310,9 @@ void GameManager::Close()
             icon = NULL;
         }
     }
-    SDL_Texture** sheets[4] = { &m_playerRunSheet, &m_playerCastSheet, &m_meteorSheet, &m_forgeSheet };
+    SDL_Texture** sheets[5 + 2 * IMMORTAL_ART_COUNT] = { &m_playerRunSheet, &m_playerCastSheet, &m_meteorSheet, &m_forgeSheet,
+        &m_iceWallSheet, &m_immortalRun[0], &m_immortalRun[1], &m_immortalRun[2], &m_immortalHit[0], &m_immortalHit[1],
+        &m_immortalHit[2] };
     for (SDL_Texture** sheet : sheets)
     {
         if (*sheet != NULL)

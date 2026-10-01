@@ -57,8 +57,8 @@ namespace practice
 		                    // 1.6.1: a hinted run is ranked and sets records like any other
 		int gold;           // PLAY: gold earned in this run (elites, bosses, Bounty); Survival: always 0
 		int kills;          // enemies defeated
-		int bossesDefeated; // PLAY: stage = bossesDefeated + 1
-		int overlordsBeaten; // PLAY: overlords among them (spec §28)
+		int bossesDefeated; // PLAY: overlords and immortals beaten; stage = bossesDefeated + 1
+		int immortalsBeaten; // PLAY: immortals among them (spec §28, §32)
 
 		int TotalCasts() const { return correctCasts + incorrectCasts; }
 		double Accuracy() const  // 0.0 .. 1.0; 0.0 while no cast has been judged yet
@@ -102,24 +102,26 @@ namespace practice
 	// ---- PLAY mode (spec §26): the main game. Survival rules plus chains, elites, bosses, runes and gold. ----
 	// INITIAL TUNING VALUES, like the difficulty ones.
 	enum class SessionMode { Survival, Play };      // Survival = the former Practice, unchanged
-	enum class EnemyKind { Normal, Elite, Boss };
-	enum class Rune { None, Regeneration, Frost, DoubleDamage, Bounty, Shield };  // the reward for a boss
+	enum class EnemyKind { Normal, Elite, Overlord };
+	// The tiers since 1.9 (§32): Normal (1 skill), Elite (a chain of 2), Overlord (a chain of 3; "boss" before 1.9)
+	// and, above them, the Immortal: a §25 combo fight ("overlord" in 1.6 - 1.8).
+	enum class Rune { None, Regeneration, Frost, DoubleDamage, Bounty, Shield };  // the reward for an overlord
 	const int   PLAY_MAX_CHAIN = 3;
-	const int   PLAY_BOSS_EVERY = 10;              // every 10th enemy of a PLAY run is a boss
-	const float PLAY_ELITE_CHANCE_MAX = 0.3f;       // elites: 0 % at the start ...
-	const float PLAY_ELITE_RAMP_TIME = 180.0f;      // ... rising to 30 % after this many seconds
+	const int   PLAY_ELITE_FIRST = 15;              // the 15th, 25th, 35th ... enemy of a PLAY run is an elite,
+	const int   PLAY_OVERLORD_FIRST = 20;           // the 20th, 30th, 40th ... an overlord; the others are normal
+	const int   PLAY_OVERLORD_EVERY = 10;           // (the first 14 enemies are all normal)
 	const float PLAY_ELITE_SPEED = 0.8f;            // speed multipliers (longer chains need more keys)
-	const float PLAY_BOSS_SPEED = 0.6f;
+	const float PLAY_OVERLORD_SPEED = 0.6f;
 	const float PLAY_ELITE_SCALE = 1.4f;            // drawn (and hit) this much larger
-	const float PLAY_BOSS_SCALE = 2.0f;
+	const float PLAY_OVERLORD_SCALE = 2.0f;
 	const int   PLAY_LEAK_NORMAL = 1;               // lives lost when it reaches the player
 	const int   PLAY_LEAK_ELITE = 2;
-	const int   PLAY_LEAK_BOSS = 3;
+	const int   PLAY_LEAK_OVERLORD = 3;
 	const int   PLAY_POINTS_NORMAL = 1;             // score per kill
 	const int   PLAY_POINTS_ELITE = 3;
-	const int   PLAY_POINTS_BOSS = 10;
+	const int   PLAY_POINTS_OVERLORD = 10;
 	const int   PLAY_GOLD_ELITE = 5;                // gold only from elites, bosses and Bounty
-	const int   PLAY_GOLD_BOSS = 20;
+	const int   PLAY_GOLD_OVERLORD = 20;
 	const int   PLAY_BOUNTY_GOLD = 25;
 	const int   PLAY_MAX_HP = 5;                    // Regeneration never goes above this
 	const float PLAY_FROST_TIME = 15.0f;            // s of Frost: enemies at PLAY_FROST_SPEED
@@ -129,17 +131,21 @@ namespace practice
 	const float PLAY_SMOKE_SPEED = 0.5f;            // Smoke of Deceit: enemies at 50 % speed
 	const int   PLAY_MAX_RUNE_CHOICES = 3;          // Aghanim's Blessing
 
-	float EliteChance(float elapsedSeconds);        // 0 .. PLAY_ELITE_CHANCE_MAX
+	EnemyKind PlayEnemyKind(int enemyNumber);       // enemyNumber = 1 for the first enemy of the run
 
-	// ---- OVERLORD (spec §28, update 1.6): a Boss-Fights boss inside the run. INITIAL TUNING VALUES. ----
-	const int   PLAY_OVERLORD_FIRST = 20;           // the 20th enemy and every 10th after it (the 10th stays a chain boss)
-	const float PLAY_OVERLORD_WARNING = 2.5f;       // s of "OVERLORD INCOMING" before the fight
-	const int   PLAY_OVERLORD_POINTS = 50;
-	const int   PLAY_OVERLORD_GOLD = 100;
-	const float PLAY_OVERLORD_SPEED_STEP = 0.15f;   // from the 50th enemy on: +15 % walking speed per overlord ...
-	const float PLAY_OVERLORD_WINDOW_STEP = 0.10f;  // ... and -10 % landing window (never below BOSS_MIN_WINDOW)
-	bool IsOverlordEnemy(int enemyNumber);          // enemyNumber = 1 for the first enemy of the run
-	int OverlordTier(int enemyNumber);              // 1 at the 20th enemy, 2 at the 30th, 3 from the 40th on
+	// ---- IMMORTAL (spec §28 and §32): a §25 combo fight inside the run. INITIAL TUNING VALUES. ----
+	// It comes by chance (§32 M-3): every elite or overlord beaten raises the chance and rolls it at once; on a hit
+	// the Immortal is the next thing to appear (an extra: it takes no enemy number) and the chance is back at 0.
+	const int   PLAY_IMMORTAL_CHANCE_ELITE = 10;    // % added by an elite beaten
+	const int   PLAY_IMMORTAL_CHANCE_OVERLORD = 20; // % added by an overlord beaten
+	const float PLAY_IMMORTAL_WARNING = 4.0f;       // s of "IMMORTAL INCOMING" before the fight (time to read its combo)
+	const int   PLAY_IMMORTAL_POINTS = 50;
+	const int   PLAY_IMMORTAL_GOLD = 100;
+	const float PLAY_IMMORTAL_SPEED_STEP = 0.15f;   // from the sixth of a run on: +15 % walking speed per immortal ...
+	const float PLAY_IMMORTAL_WINDOW_STEP = 0.10f;  // ... and -10 % landing window (never below BOSS_MIN_WINDOW)
+	const int   PLAY_IMMORTAL_MAX_DROPS = 2;        // materials an Immortal drops at most (M-7)
+	int ImmortalTier(int boss);                     // 1 for a combo of 4, 2 for 5 or 6, 3 for 7 or 8 (the horn)
+	int ImmortalDropCount(int boss);                // 1 for the first three, 2 for the last two
 
 	// PLAY leaderboard (by score; ties: more bosses, then longer time). Same list rules as InsertTopRun.
 	struct PlayRun
@@ -173,9 +179,11 @@ namespace practice
 		int gold;
 		Rune rune;
 		bool runeChoice;   // a boss with Aghanim equipped: the game waits for ChooseRune() instead of a random rune
-		bool overlord;     // it was an OVERLORD (§28): kind is Boss, and a material dropped
-		bool droppedMaterial;
-		Material material;
+		bool immortal;     // it was an IMMORTAL (§28): kind is Overlord, and it dropped materials
+		int materialCount; // 0, or what an Immortal dropped (1 or 2, §32 M-7)
+		Material materials[PLAY_IMMORTAL_MAX_DROPS];
+		int immortalChance;   // PLAY, an elite or overlord beaten: the chance after it, in % (what was rolled) ...
+		bool immortalComing;  // ... and whether the roll hit: the Immortal is next
 	};
 
 	struct ItemUseResult
@@ -193,7 +201,7 @@ namespace practice
 		CastOutcome cast;               // Correct / Incorrect only for a filled slot cast against an active enemy
 		bool tornadoLaunched;           // a Tornado projectile was created (it is judged later, when it hits)
 		KillReport kill;                // a Correct cast that finished the enemy (a chain step is Correct, not a kill)
-		bool overlord;                  // the key went to the OVERLORD fight: `boss` says what it did there
+		bool immortal;                  // the key went to the IMMORTAL fight: `boss` says what it did there
 		BossInputResult boss;
 	};
 
@@ -206,11 +214,11 @@ namespace practice
 		KillReport kill;   // that hit finished the enemy
 		int leakDamage;    // lives lost by the leak (PLAY: 1 / 2 / 3)
 		bool shieldUsed;   // a Shield rune or a Black King Bar took the leak instead
-		bool overlordWarning;  // "OVERLORD INCOMING" started this update (overlordBoss, overlordTier)
-		int overlordBoss;
-		int overlordTier;
-		bool overlordFight;    // the warning ended: the fight starts
-		bool overlordUpdated;  // an OVERLORD fight ran this update: `boss` is its result (a contact also sets `leaked`)
+		bool immortalWarning;  // "IMMORTAL INCOMING" started this update (immortalBoss, immortalTier)
+		int immortalBoss;
+		int immortalTier;
+		bool immortalFight;    // the warning ended: the fight starts
+		bool immortalUpdated;  // an IMMORTAL fight ran this update: `boss` is its result (a contact also sets `leaked`)
 		BossUpdateResult boss;
 	};
 
@@ -237,8 +245,8 @@ namespace practice
 		GameState State() const { return m_state; }
 		const Stats& GetStats() const { return m_stats; }
 		const ActiveEnemy& Enemy() const { return m_enemy; }
-		// orbs and D / F slots (the OVERLORD fight works on its own copy, taken in and handed back, §28 O-4)
-		const invoker::InvokerState& Invoker() const { return m_overlordActive ? m_overlord.Invoker() : m_invoker; }
+		// orbs and D / F slots (the IMMORTAL fight works on its own copy, taken in and handed back, §28 O-4)
+		const invoker::InvokerState& Invoker() const { return m_immortalActive ? m_immortal.Invoker() : m_invoker; }
 		int SpawnCount() const { return m_spawnCount; }  // enemies spawned this session
 		// Seeds the best combo record from saved data (never lowers it). Used once at start-up.
 		void RestoreBestCombo(int record) { if (record > m_stats.bestCombo) m_stats.bestCombo = record; }
@@ -269,15 +277,17 @@ namespace practice
 		float DoubleLeft() const { return m_doubleLeft; }
 		bool HasShield() const { return m_shield; }
 
-		// OVERLORD (§28): first the warning, then the fight (Overlord() is a §25 boss fight driven by this run).
-		float OverlordWarningLeft() const { return m_overlordWarning; }   // > 0 during the warning
-		bool OverlordActive() const { return m_overlordActive; }          // the fight is on
-		int OverlordBoss() const { return m_overlordBoss; }               // boss index, valid during warning and fight
-		int OverlordTierNow() const { return m_overlordTier; }
+		// IMMORTAL (§28): first the warning, then the fight (Immortal() is a §25 boss fight driven by this run).
+		float ImmortalWarningLeft() const { return m_immortalWarning; }   // > 0 during the warning
+		bool ImmortalActive() const { return m_immortalActive; }          // the fight is on
+		int ImmortalBoss() const { return m_immortalBoss; }               // boss index, valid during warning and fight
+		int ImmortalTierNow() const { return m_immortalTier; }
 		// the boss; it stands at the edge of the field (not moving) during the warning already
-		const BossSession& Overlord() const { return m_overlord; }
+		const BossSession& Immortal() const { return m_immortal; }
 		bool RefresherArmed() const { return m_refresherArmed; }          // the next damaging combo deals x2 (O-6)
 		int DefeatedBy() const { return m_defeatedBy; }                   // boss index after losing to one, else -1 (O-9)
+		int ImmortalChance() const { return m_immortalChance; }           // %, 0..100 (§32 M-3)
+		bool ImmortalDue() const { return m_immortalDue; }                // the roll hit: it is the next to appear
 
 		// Launches a Tornado from the player along (dx, dy) at the current enemy. Input() calls it with the direction
 		// toward the enemy; it is public so a test can aim somewhere else. false = no enemy (or not Playing).
@@ -292,9 +302,9 @@ namespace practice
 		void ResetSession();              // fresh stats (best combo kept), no enemy, empty orbs and D/F
 		CastOutcome JudgeCast(invoker::SkillId spell);  // the one place that decides right / wrong and scores it
 		void UpdateTornadoes(float dt, UpdateResult& result);
-		void BeginOverlord(UpdateResult& result);       // the warning starts instead of a spawn
-		void StartOverlordSession();                    // the boss with this run's lives, slots and scaling
-		void UpdateOverlord(float dt, UpdateResult& result);
+		void BeginImmortal(UpdateResult& result);       // the warning starts instead of a spawn
+		void StartImmortalSession();                    // the boss with this run's lives, slots and scaling
+		void UpdateImmortal(float dt, UpdateResult& result);
 		void GiveBossRune();                            // a boss's rune (or Aghanim's choice), into m_kill
 
 		GameState m_state;
@@ -322,13 +332,15 @@ namespace practice
 		float m_smokeLeft = 0.0f;
 		Rune m_runeChoices[PLAY_MAX_RUNE_CHOICES] = {};
 		int m_runeChoiceCount = 0;
-		float m_difficultyTime = 0.0f;    // the difficulty clock: survival time minus the OVERLORD time (O-5)
-		BossSession m_overlord;
-		bool m_overlordActive = false;
-		float m_overlordWarning = 0.0f;
-		int m_overlordBoss = 0;
-		int m_overlordTier = 0;
-		int m_lastOverlord = -1;          // never the same one twice in a row once they are random
+		float m_difficultyTime = 0.0f;    // the difficulty clock: survival time minus the IMMORTAL time (O-5)
+		BossSession m_immortal;
+		bool m_immortalActive = false;
+		float m_immortalWarning = 0.0f;
+		int m_immortalBoss = 0;
+		int m_immortalTier = 0;
+		int m_lastImmortal = -1;          // never the same one twice in a row once they are random
+		int m_immortalChance = 0;         // %
+		bool m_immortalDue = false;
 		bool m_refresherArmed = false;
 		int m_defeatedBy = -1;
 	};

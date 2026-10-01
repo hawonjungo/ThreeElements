@@ -1872,19 +1872,86 @@ static bool NearPlayer(const BossSession& s, const BossTotals&) { return s.X() <
 static bool ComboOrEnd(const BossSession& s, const BossTotals& t) { return t.comboComplete || s.State() != BossState::Fighting; }
 static bool ReadyForTornado(const BossSession& s, const BossTotals&) { return s.Phase() == BossPhase::Walking && !s.AttemptRunning(); }
 
+// The eight bosses of updates 1.2 and 1.5. They left the game in 1.9 (the Immortals took their place), but they
+// exercise every part of the fight (the guided cue, quick steps, holds, two phases), so the tests keep them.
+static const BossDefinition kClassic[8] =
+{
+	{ "STONE KNIGHT", 9, 3.0f, { 190, 200, 215 }, { SkillId::Tornado, SkillId::SunStrike }, 2, 40.0f, 1.2f, true, {}, 0, 0.0f, 0.0f },
+	{ "DARK WIZARD", 3, 2.5f, { 200, 150, 255 },
+		{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 3, 45.0f, 1.0f, false, {}, 0, 0.0f, 0.0f },
+	{ "KITSUNE QUEEN", 8, 1.8f, { 255, 150, 120 },
+		{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 4, 50.0f, 1.0f, false, {}, 0, 0.0f, 0.0f },
+	{ "FROST TROLL", 0, 3.0f, { 150, 210, 255 }, { SkillId::ColdSnap, SkillId::SunStrike }, 2, 45.0f, 1.0f, false, {}, 0, 0.0f, 0.0f },
+	{ "GLACIER GOLEM", 1, 2.6f, { 190, 225, 255 },
+		{ SkillId::IceWall, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 3, 50.0f, 1.0f, false, {}, 0, 0.0f, 0.0f },
+	{ "FIRE IMP", 2, 2.0f, { 255, 170, 110 },
+		{ SkillId::ColdSnap, SkillId::Alacrity, SkillId::ForgeSpirit }, 3, 55.0f, 1.0f, false, {}, 0, 0.0f, 0.0f },
+	{ "SHADOW ASSASSIN", 6, 2.0f, { 170, 130, 220 },
+		{ SkillId::GhostWalk, SkillId::Tornado, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
+		50.0f, 1.2f, false, {}, 0, 0.0f, 0.0f },
+	{ "ARCHON", 4, 3.4f, { 255, 225, 120 },
+		{ SkillId::Tornado, SkillId::EMP, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
+		50.0f, 1.4f, false,
+		{ SkillId::IceWall, SkillId::ColdSnap, SkillId::ForgeSpirit, SkillId::Alacrity }, 4, 0.0f, 0.0f },
+};
+
+// Plays the combo of the fight once: every landing step at its ideal moment, every quick step at once.
+static void BossPlayCombo(BossSession& s, BossTotals& t)
+{
+	BossRunUntil(s, t, ReadyForTornado, 8.0f);
+	int length = s.ComboLength();
+	for (int step = 0; step < length && s.State() == BossState::Fighting; ++step)
+	{
+		std::string keys = invoker::RecipeLetters(s.Combo()[step]) + "R";
+		BossKeys(s, keys.c_str());
+		if (s.StepKind(step) == BossStepKind::Landing)
+			BossWaitIdeal(s, t, step);
+		BossKeys(s, "D", &t);
+	}
+	t.comboComplete = false;
+	BossRunUntil(s, t, ComboOrEnd, 8.0f);
+}
+
+// §32 M-6: the five Immortals, combos of 4 to 8 spells, each beaten by one perfect combo.
 static void TestBossDefinitions()
 {
+	CHECK(BOSS_COUNT == 5 && BOSS_MAX_COMBO == 8);
+	const char* names[BOSS_COUNT] = { "RIMEFANG", "CINDERMAW", "GRAVEHORN", "VOLTARA", "THE HOLLOW KING" };
 	for (int i = 0; i < BOSS_COUNT; ++i)
 	{
 		const BossDefinition& d = GetBossDefinition(i);
-		CHECK(d.comboLength >= 2 && d.comboLength <= BOSS_MAX_COMBO);
-		CHECK(i >= 3 || d.combo[0] == SkillId::Tornado);  // the first three bosses (1.2) open with Tornado
+		CHECK(std::strcmp(d.name, names[i]) == 0);
+		CHECK(d.comboLength == 4 + i && d.combo2Length == 0 && !d.guided);
+		CHECK(d.combo[d.comboLength - 1] == (i == 2 ? SkillId::ForgeSpirit : i == 3 ? SkillId::IceWall : SkillId::DeafeningBlast));
 		CHECK(d.speed > 0.0f && d.window > BOSS_GREAT_TIME);
 		CHECK(d.enemyDefinition >= 0 && d.enemyDefinition < ENEMY_TYPE_COUNT);
+		CHECK((d.bodyWidth > 0.0f) == (i < 3) && (d.bodyHeight > 0.0f) == (i < 3));  // the first three have their own art
+		BossSession s;
+		s.Start(i);
+		CHECK(s.BossIndex() == i && s.ComboLength() == 4 + i);
+		Bounds body = s.Body();
+		CHECK(body.w > 60.0f && body.h > 80.0f && NearF(body.y + body.h, GROUND_LINE_Y, 1.0f));
+		BossTotals t = {};
+		BossPlayCombo(s, t);
+		CHECK(t.fail == ComboFail::None && t.comboComplete && t.damage == 100 && t.won && s.State() == BossState::Won);
 	}
-	CHECK(GetBossDefinition(0).guided && !GetBossDefinition(1).guided && !GetBossDefinition(2).guided);
-	CHECK(GetBossDefinition(0).combo[1] == SkillId::SunStrike);
-	CHECK(GetBossDefinition(2).comboLength == 4 && GetBossDefinition(2).combo[1] == SkillId::EMP);
+	CHECK(GetBossDefinition(0).combo[0] == SkillId::Tornado && GetBossDefinition(0).combo[1] == SkillId::EMP);
+	CHECK(GetBossDefinition(4).combo[0] == SkillId::ForgeSpirit && GetBossDefinition(4).combo[4] == SkillId::Tornado);
+	// B-21: a spell catches the landing once; the repeated Chaos Meteor / Deafening Blast are quick steps
+	BossSession v;
+	v.Start(3);  // Tornado, EMP, Chaos Meteor, Deafening Blast, Chaos Meteor, Deafening Blast, Ice Wall
+	CHECK(v.StepKind(0) == BossStepKind::Opener && v.StepKind(1) == BossStepKind::Landing
+		&& v.StepKind(2) == BossStepKind::Landing && v.StepKind(3) == BossStepKind::Landing);
+	CHECK(v.StepKind(4) == BossStepKind::Quick && v.StepKind(5) == BossStepKind::Quick && v.StepKind(6) == BossStepKind::Quick);
+	v.Start(4);  // Forge Spirit, Alacrity, Ice Wall, Cold Snap, Tornado, Sun Strike, Chaos Meteor, Deafening Blast
+	CHECK(v.StepKind(1) == BossStepKind::Quick && v.StepKind(4) == BossStepKind::Quick);  // the Tornado itself is quick
+	CHECK(v.StepKind(5) == BossStepKind::Landing && v.StepKind(6) == BossStepKind::Landing && v.StepKind(7) == BossStepKind::Landing);
+	// a definition of the caller's own
+	v.Start(kClassic[0]);
+	CHECK(v.BossIndex() == -1 && v.Def().guided && v.ComboLength() == 2 && v.Speed() == kClassic[0].speed);
+	CHECK(kClassic[0].guided && !kClassic[1].guided && !kClassic[2].guided);
+	CHECK(kClassic[0].combo[1] == SkillId::SunStrike);
+	CHECK(kClassic[2].comboLength == 4 && kClassic[2].combo[1] == SkillId::EMP);
 	// B-5 timings
 	CHECK(NearF(BossSpellDelay(SkillId::SunStrike), 1.7f, 1e-6f));
 	CHECK(NearF(BossSpellDelay(SkillId::ChaosMeteor), 1.3f, 1e-6f));
@@ -1893,6 +1960,54 @@ static void TestBossDefinitions()
 	CHECK(BossSpellRadius(SkillId::DeafeningBlast) == 0.0f && BossSpellRadius(SkillId::EMP) > BossSpellRadius(SkillId::SunStrike));
 	CHECK(BossLiftHeight(0.0f) == 0.0f && BossLiftHeight(BOSS_LIFT_TIME) == 0.0f);
 	CHECK(BossLiftHeight(1.2f) > BOSS_LIFT_HEIGHT * 0.8f);
+}
+
+// B-21: Gravehorn (Tornado, Sun Strike, Chaos Meteor, Deafening Blast, Cold Snap, Forge Spirit). The landing steps
+// never cast are missed when the window closes, and the quick steps after them can still be cast.
+static void TestBossLongCombo()
+{
+	BossSession s;
+	s.Start(2);
+	BossTotals t = {};
+	BossKeys(s, "QWWR" "D");
+	CHECK(s.AttemptRunning() && s.CastSteps() == 1);
+	CHECK(BossRunUntil(s, t, Lifted, 3.0f));
+	CHECK(BossRunUntil(s, t, [](const BossSession& b, const BossTotals&) { return b.CastSteps() == 4; }, 6.0f));
+	CHECK(t.landed && t.fail == ComboFail::None && s.AttemptRunning());
+	CHECK(s.StepGrade(1) == HitGrade::Miss && s.StepGrade(2) == HitGrade::Miss && s.StepGrade(3) == HitGrade::Miss);
+	CHECK(s.StepGrade(4) == HitGrade::None);
+	float left = 0.0f, total = 0.0f;
+	CHECK(s.QuickTiming(4, left, total) && left > BOSS_QUICK_LIMIT - 0.05f);  // its time starts when they are passed
+	BossKeys(s, "QQQR");
+	CHECK(s.Input(InputAction::D).grade == HitGrade::Perfect && s.FreezeLeft() == BOSS_FREEZE_TIME);
+	BossKeys(s, "QEER");
+	CHECK(s.Input(InputAction::D).grade == HitGrade::Perfect);
+	CHECK(BossRunUntil(s, t, ComboResolved, 1.0f));
+	CHECK(t.comboComplete && t.damage == 40 && s.BossHp() == 60);  // (0 + 0 + 0 + 100 + 100) / 5
+
+	// Voltara: the second Chaos Meteor and Deafening Blast are graded when cast, also while the first ones still fly
+	BossSession v;
+	v.Start(3);
+	BossTotals tv = {};
+	BossKeys(v, "QWWR" "D");
+	BossKeys(v, "WWWR");
+	CHECK(BossWaitIdeal(v, tv, 1));
+	BossKeys(v, "D", &tv);
+	BossKeys(v, "WEER");
+	CHECK(BossWaitIdeal(v, tv, 2));
+	BossKeys(v, "D", &tv);
+	BossKeys(v, "QWER");
+	CHECK(BossWaitIdeal(v, tv, 3));
+	BossKeys(v, "D", &tv);
+	CHECK(v.CastSteps() == 4 && v.StepGrade(3) == HitGrade::None);
+	BossKeys(v, "WEER");
+	CHECK(v.Input(InputAction::D).grade == HitGrade::Perfect && v.CastSteps() == 5);
+	BossWait(v, tv, BOSS_QUICK_GREAT - 0.2f);
+	BossKeys(v, "QWER");
+	CHECK(v.Input(InputAction::D).grade == HitGrade::Great);
+	BossWait(v, tv, BOSS_QUICK_LIMIT + 0.1f);  // Ice Wall never comes: TOO LATE, and the combo is over
+	CHECK(tv.comboComplete && tv.fail == ComboFail::None);
+	CHECK(tv.damage == (100 + 100 + 100 + 100 + 60 + 0 + 3) / 6);
 }
 
 // B-14: the grade of a spell by how long after the landing it hit, and its score.
@@ -1927,7 +2042,7 @@ static void TestBossStart()
 	CHECK(NearF(s.X(), x - GetBossDefinition(1).speed * MAX_FRAME_TIME, 1e-3f));
 	s.MarkAssisted();
 	CHECK(s.Assisted());
-	s.Start(1);
+	s.Start(kClassic[1]);
 	CHECK(!s.Assisted());
 }
 
@@ -1935,7 +2050,7 @@ static void TestBossStart()
 static void TestBossPerfectCombo()
 {
 	BossSession s;
-	s.Start(0);
+	s.Start(kClassic[0]);
 	BossTotals t = {};
 	BossKeys(s, "QWWR" "EEER");  // D = Sun Strike, F = Tornado
 	CHECK(s.Invoker().GetSlot(Slot::D) == SkillId::SunStrike && s.Invoker().GetSlot(Slot::F) == SkillId::Tornado);
@@ -1971,7 +2086,7 @@ static void TestBossPartialGrades()
 {
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "F");
 		CHECK(BossRunUntil(s, t, Air11, 3.0f));   // lands 1.1 + 1.7 - 2.5 = 0.3 s after: GREAT
@@ -1987,7 +2102,7 @@ static void TestBossPartialGrades()
 	}
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "F");
 		CHECK(BossRunUntil(s, t, Air15, 3.0f));   // 0.7 s after the landing: GOOD
@@ -2002,7 +2117,7 @@ static void TestBossTiming()
 	// too early: Sun Strike right after the lift lands while the boss is in the air
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "F");
 		CHECK(BossRunUntil(s, t, Lifted, 3.0f));
@@ -2014,7 +2129,7 @@ static void TestBossTiming()
 	// too late: cast just before landing; 1.7 s later the 1.2 s window has closed
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "F");
 		CHECK(BossRunUntil(s, t, Air24, 5.0f));
@@ -2025,7 +2140,7 @@ static void TestBossTiming()
 	// nothing cast after the Tornado: the window closes, TOO LATE
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "F");
 		BossWait(s, t, 5.0f);
@@ -2034,7 +2149,7 @@ static void TestBossTiming()
 	// a spell that lands before the attempt's Tornado has even hit is too early as well
 	{
 		BossSession s;
-		s.Start(0);
+		s.Start(kClassic[0]);
 		BossTotals t = {};
 		BossKeys(s, "QWWR" "EEER" "FD");
 		BossWait(s, t, 5.0f);
@@ -2043,7 +2158,7 @@ static void TestBossTiming()
 	// the guided cue never shows on bosses 2 and 3
 	{
 		BossSession s;
-		s.Start(1);
+		s.Start(kClassic[1]);
 		BossTotals t = {};
 		BossKeys(s, "WEER" "QWWR" "D");  // D = Tornado
 		bool cue = false;
@@ -2055,7 +2170,7 @@ static void TestBossTiming()
 static void TestBossWrongSpell()
 {
 	BossSession s;
-	s.Start(0);
+	s.Start(kClassic[0]);
 	BossTotals t = {};
 	// before any attempt: other spells do nothing, and are not failures
 	BossKeys(s, "QQQR" "D", &t);  // Cold Snap
@@ -2081,7 +2196,7 @@ static void TestBossWrongSpell()
 static void TestBossFourSpellCombo()
 {
 	BossSession s;
-	s.Start(2);
+	s.Start(kClassic[2]);
 	BossTotals t = {};
 	BossKeys(s, "QWWR" "WWWR", &t);  // D = EMP, F = Tornado
 	s.Input(InputAction::F);
@@ -2100,7 +2215,7 @@ static void TestBossFourSpellCombo()
 
 	// one spell too early only loses its own share: EMP and Blast perfect, Meteor in the air -> (100+0+100)/3
 	BossSession p;
-	p.Start(2);
+	p.Start(kClassic[2]);
 	BossTotals tp = {};
 	BossKeys(p, "QWWR" "WWWR", &tp);
 	p.Input(InputAction::F);
@@ -2115,7 +2230,7 @@ static void TestBossFourSpellCombo()
 
 	// the same spells in the wrong order fail at once
 	BossSession w;
-	w.Start(2);
+	w.Start(kClassic[2]);
 	BossTotals tw = {};
 	BossKeys(w, "QWWR" "WEER" "F" "D", &tw);  // Tornado, then Meteor before EMP
 	CHECK(tw.fail == ComboFail::WrongSpell);
@@ -2125,7 +2240,7 @@ static void TestBossFourSpellCombo()
 static void TestBossWin()
 {
 	BossSession s;
-	s.Start(0);
+	s.Start(kClassic[0]);
 	BossTotals t = {};
 	BossKeys(s, "QWWR" "EEER");  // D = Sun Strike, F = Tornado for the whole fight
 	for (int combo = 0; combo < 3; ++combo)
@@ -2150,9 +2265,9 @@ static void TestBossWin()
 static void TestBossLose()
 {
 	BossSession s;
-	s.Start(0);
+	s.Start(kClassic[0]);
 	BossTotals t = {};
-	float speed = GetBossDefinition(0).speed;
+	float speed = kClassic[0].speed;
 	CHECK(BossRunUntil(s, t, PlayerWasHit, (BOSS_START_X - HIT_LINE_X) / speed + 1.0f));
 	CHECK(s.PlayerHp() == START_HP - 1 && s.Phase() == BossPhase::PushedBack);
 	BossWait(s, t, 1.5f);
@@ -2162,7 +2277,7 @@ static void TestBossLose()
 	CHECK(t.lost && s.PlayerHp() == 0 && s.BossHp() == BOSS_FULL_HP);
 	// a running attempt ends (no damage) when the boss reaches the player
 	BossSession a;
-	a.Start(0);
+	a.Start(kClassic[0]);
 	BossTotals ta = {};
 	BossKeys(a, "QWWR" "EEER");
 	CHECK(BossRunUntil(a, ta, NearPlayer, 30.0f));
@@ -2177,20 +2292,19 @@ static void TestBossLose()
 
 static void TestBossAllSkills()
 {
-	CHECK(BOSS_COUNT == 8);
 	bool used[invoker::SKILL_COUNT] = {};
-	for (int i = 0; i < BOSS_COUNT; ++i)
+	for (int i = 0; i < 8; ++i)
 	{
-		const BossDefinition& d = GetBossDefinition(i);
+		const BossDefinition& d = kClassic[i];
 		for (int k = 0; k < d.comboLength; ++k)
 			used[static_cast<int>(d.combo[k])] = true;
 		for (int k = 0; k < d.combo2Length; ++k)
 			used[static_cast<int>(d.combo2[k])] = true;
-		CHECK(d.combo2Length == 0 || i == BOSS_COUNT - 1);  // only the final boss has two phases
+		CHECK(d.combo2Length == 0 || i == 7);  // only the last one has two phases
 	}
 	for (int s = 0; s < invoker::SKILL_COUNT; ++s)
-		CHECK(used[s]);  // every one of the ten skills is needed by some boss
-	CHECK(GetBossDefinition(BOSS_COUNT - 1).combo2Length == 4);
+		CHECK(used[s]);  // every one of the ten skills is needed by one of them
+	CHECK(kClassic[7].combo2Length == 4);
 	// B-16: quick grades
 	CHECK(GradeQuick(0.0f) == HitGrade::Perfect && GradeQuick(BOSS_QUICK_PERFECT) == HitGrade::Perfect);
 	CHECK(GradeQuick(BOSS_QUICK_PERFECT + 0.01f) == HitGrade::Great && GradeQuick(BOSS_QUICK_GREAT) == HitGrade::Great);
@@ -2198,11 +2312,11 @@ static void TestBossAllSkills()
 	CHECK(GradeQuick(BOSS_QUICK_LIMIT + 0.01f) == HitGrade::Miss);
 	// step kinds: landing only after a Tornado
 	BossSession s;
-	s.Start(3);  // Cold Snap -> Sun Strike
+	s.Start(kClassic[3]);  // Cold Snap -> Sun Strike
 	CHECK(s.StepKind(0) == BossStepKind::Opener && s.StepKind(1) == BossStepKind::Quick);
-	s.Start(6);  // Ghost Walk -> Tornado -> Sun Strike -> Chaos Meteor -> Deafening Blast
+	s.Start(kClassic[6]);  // Ghost Walk -> Tornado -> Sun Strike -> Chaos Meteor -> Deafening Blast
 	CHECK(s.StepKind(1) == BossStepKind::Quick && s.StepKind(2) == BossStepKind::Landing && s.StepKind(4) == BossStepKind::Landing);
-	s.Start(0);
+	s.Start(kClassic[0]);
 	CHECK(s.StepKind(1) == BossStepKind::Landing);
 }
 
@@ -2210,7 +2324,7 @@ static void TestBossAllSkills()
 static void TestBossQuickCombo()
 {
 	BossSession s;
-	s.Start(3);
+	s.Start(kClassic[3]);
 	BossTotals t = {};
 	BossKeys(s, "QQQR" "EEER");  // D = Sun Strike, F = Cold Snap
 	BossWait(s, t, 1.0f);
@@ -2229,7 +2343,7 @@ static void TestBossQuickCombo()
 
 	// too slow: the quick step runs out (TOO LATE), nothing else to score -> the attempt fails
 	BossSession late;
-	late.Start(3);
+	late.Start(kClassic[3]);
 	BossTotals tl = {};
 	BossKeys(late, "QQQR" "EEER" "F");
 	BossWait(late, tl, BOSS_QUICK_LIMIT + 0.2f);
@@ -2237,7 +2351,7 @@ static void TestBossQuickCombo()
 
 	// outside a combo Cold Snap does nothing to the boss (Stone Knight needs Tornado)
 	BossSession other;
-	other.Start(0);
+	other.Start(kClassic[0]);
 	BossKeys(other, "QQQR" "D");
 	CHECK(other.FreezeLeft() == 0.0f && !other.AttemptRunning());
 }
@@ -2246,7 +2360,7 @@ static void TestBossQuickCombo()
 static void TestBossQuickGrades()
 {
 	BossSession s;
-	s.Start(5);
+	s.Start(kClassic[5]);
 	BossTotals t = {};
 	BossKeys(s, "WWER" "QQQR");  // D = Cold Snap, F = Alacrity
 	s.Input(InputAction::D);
@@ -2259,7 +2373,7 @@ static void TestBossQuickGrades()
 
 	// Glacier Golem: Ice Wall slows the boss; a missed quick step only loses its share
 	BossSession g;
-	g.Start(4);
+	g.Start(kClassic[4]);
 	BossTotals tg = {};
 	BossKeys(g, "WEER" "QQER");  // D = Ice Wall, F = Chaos Meteor
 	float x0 = g.X();
@@ -2282,7 +2396,7 @@ static void TestBossQuickGrades()
 static void TestBossFiveSpellCombo()
 {
 	BossSession s;
-	s.Start(6);
+	s.Start(kClassic[6]);
 	BossTotals t = {};
 	BossKeys(s, "QQWR" "QWWR");  // D = Tornado, F = Ghost Walk
 	BossWait(s, t, 0.5f);
@@ -2310,7 +2424,7 @@ static void TestBossFiveSpellCombo()
 static void TestBossPhases()
 {
 	BossSession s;
-	s.Start(7);
+	s.Start(kClassic[7]);
 	BossTotals t = {};
 	CHECK(s.ComboPhase() == 0 && s.ComboLength() == 5 && s.Combo()[0] == SkillId::Tornado);
 	// two attempts with only EMP landed: (100 + 0 + 0 + 0) / 4 = 25 % each
@@ -2363,10 +2477,20 @@ static CastOutcome PlayCast(PracticeSession& s, SkillId skill, KillReport* kill 
 	return CastOutcome::None;
 }
 
+static KillReport ImmortalWin(PracticeSession& s);
+
+// Waits for the next enemy. An Immortal that comes in between (§32 M-3: by chance) is beaten on the way.
 static void PlayWaitSpawn(PracticeSession& s)
 {
-	for (int i = 0; i < 100 && !s.Enemy().active && s.State() == GameState::Playing; ++i)
-		s.Update(0.05f);
+	for (int i = 0; i < 400 && !s.Enemy().active && s.State() == GameState::Playing; ++i)
+	{
+		if (s.ImmortalActive())
+			ImmortalWin(s);
+		else if (s.RuneChoiceCount() > 0)
+			s.ChooseRune(0);
+		else
+			s.Update(0.05f);
+	}
 }
 
 // Kills the active enemy by casting its whole chain; returns the report of the finishing cast.
@@ -2391,9 +2515,16 @@ static SkillId WrongSkillFor(SkillId target)
 
 static void TestPlayTables()
 {
-	CHECK(EliteChance(0.0f) == 0.0f);
-	CHECK(NearF(EliteChance(PLAY_ELITE_RAMP_TIME * 0.5f), PLAY_ELITE_CHANCE_MAX * 0.5f, 1e-6f));
-	CHECK(EliteChance(PLAY_ELITE_RAMP_TIME * 3.0f) == PLAY_ELITE_CHANCE_MAX);
+	// §32 M-2: the first 14 are normal; 15, 25, 35 ... elites; 20, 30, 40 ... overlords
+	for (int n = 1; n <= 14; ++n)
+		CHECK(PlayEnemyKind(n) == EnemyKind::Normal);
+	for (int n = 15; n <= 200; ++n)
+	{
+		EnemyKind expected = n % 10 == 0 ? EnemyKind::Overlord : n % 10 == 5 ? EnemyKind::Elite : EnemyKind::Normal;
+		CHECK(PlayEnemyKind(n) == expected);
+	}
+	CHECK(ImmortalTier(0) == 1 && ImmortalTier(1) == 2 && ImmortalTier(2) == 2 && ImmortalTier(3) == 3 && ImmortalTier(4) == 3);
+	CHECK(ImmortalDropCount(0) == 1 && ImmortalDropCount(2) == 1 && ImmortalDropCount(3) == 2 && ImmortalDropCount(4) == 2);
 	PlayRun list[TOP_RUNS] = {};
 	CHECK(InsertPlayRun(list, { 0, 30.0f, 1 }) == 0);          // no score: not listed
 	CHECK(InsertPlayRun(list, { 12, 60.0f, 2 }) == 1);
@@ -2412,7 +2543,8 @@ static void TestPlaySurvivalUnchanged()
 	CHECK(s.Mode() == SessionMode::Survival);
 	s.Start(7);
 	PlayWaitSpawn(s);
-	CHECK(s.Enemy().kind == EnemyKind::Normal && s.Enemy().chainLength == 1 && s.Enemy().scale == 1.0f);
+	CHECK(s.Enemy().kind == EnemyKind::Normal && s.Enemy().chainLength == 1
+		&& s.Enemy().scale == GetEnemyDefinition(s.Enemy().definition).size);
 	KillReport kill = PlayKill(s);
 	CHECK(kill.killed && kill.points == 1 && kill.gold == 0 && kill.rune == Rune::None);
 	CHECK(s.GetStats().score == 1 && s.GetStats().gold == 0 && s.GetStats().kills == 1);
@@ -2420,7 +2552,7 @@ static void TestPlaySurvivalUnchanged()
 	CHECK(s.Mode() == SessionMode::Survival);
 }
 
-// Every 10th enemy is a boss with a chain of 3 different skills, slower and larger.
+// §32 M-2: 14 normal enemies, the 15th an elite (chain of 2), the 20th an overlord (chain of 3), slower and larger.
 static void TestPlayBossCadence()
 {
 	PracticeSession s;
@@ -2428,39 +2560,43 @@ static void TestPlayBossCadence()
 	CHECK(s.Mode() == SessionMode::Play);
 	s.Start(11);
 	PlayWaitSpawn(s);
-	CHECK(s.Enemy().kind == EnemyKind::Normal);  // elites need time: 0 % at the start
-	int elites = 0;
-	for (int n = 1; n < PLAY_BOSS_EVERY; ++n)
+	for (int n = 1; n < PLAY_OVERLORD_FIRST; ++n)
 	{
-		CHECK(s.Enemy().kind != EnemyKind::Boss);
-		if (s.Enemy().kind == EnemyKind::Elite)
+		const ActiveEnemy& e = s.Enemy();
+		float size = GetEnemyDefinition(e.definition).size;
+		CHECK(s.SpawnCount() == n && e.kind == (n == PLAY_ELITE_FIRST ? EnemyKind::Elite : EnemyKind::Normal));
+		if (e.kind == EnemyKind::Elite)
 		{
-			++elites;
-			CHECK(s.Enemy().chainLength == 2 && s.Enemy().chain[0] != s.Enemy().chain[1]);
-			CHECK(s.Enemy().scale == PLAY_ELITE_SCALE);
+			CHECK(e.chainLength == 2 && e.chain[0] != e.chain[1]);
+			CHECK(e.scale == size * PLAY_ELITE_SCALE);
 		}
+		else
+			CHECK(e.chainLength == 1 && e.scale == size);
 		PlayKill(s);
 		PlayWaitSpawn(s);
 	}
 	const ActiveEnemy& boss = s.Enemy();
-	CHECK(s.SpawnCount() == PLAY_BOSS_EVERY && boss.kind == EnemyKind::Boss);
+	CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST && boss.kind == EnemyKind::Overlord);
 	CHECK(boss.chainLength == 3 && boss.chainStep == 0 && boss.target == boss.chain[0]);
 	CHECK(boss.chain[0] != boss.chain[1] && boss.chain[0] != boss.chain[2] && boss.chain[1] != boss.chain[2]);
-	CHECK(boss.scale == PLAY_BOSS_SCALE);
-	CHECK(boss.speed <= DifficultyAt(s.GetStats().survivalTime).enemySpeed * PLAY_BOSS_SPEED + 0.5f);
-	CHECK(elites <= PLAY_BOSS_EVERY - 1);
+	CHECK(boss.scale == GetEnemyDefinition(boss.definition).size * PLAY_OVERLORD_SCALE);
+	CHECK(boss.speed <= DifficultyAt(s.GetStats().survivalTime).enemySpeed * PLAY_OVERLORD_SPEED + 0.5f);
+	// the enemies are drawn in whole sizes (M-8), and none is tiny any more
+	for (int i = 0; i < ENEMY_TYPE_COUNT; ++i)
+	{
+		const EnemyDefinition& d = GetEnemyDefinition(i);
+		float height = static_cast<float>(d.bodyBottom - d.bodyTop + 1) * d.size;
+		CHECK(d.size == 1.0f || d.size == 2.0f || d.size == 3.0f);
+		CHECK(height >= 60.0f && height <= 110.0f);
+	}
 }
 
+// Seeds differ in whether an Immortal came before the first overlord (it leaves a rune and takes time); the tests
+// that need a plain run up to the overlord take the first seed from `seed` on without one.
+static void PlayToBossWith(PracticeSession& s, unsigned seed, const Inventory& inv);
 static void PlayToBoss(PracticeSession& s, unsigned seed)
 {
-	s.SetMode(SessionMode::Play);
-	s.Start(seed);
-	PlayWaitSpawn(s);
-	while (s.Enemy().kind != EnemyKind::Boss && s.State() == GameState::Playing)
-	{
-		PlayKill(s);
-		PlayWaitSpawn(s);
-	}
+	PlayToBossWith(s, seed, EmptyInventory());
 }
 
 // A chain: right casts break it one skill at a time, a wrong cast keeps the progress, the last one kills.
@@ -2468,7 +2604,7 @@ static void TestPlayChain()
 {
 	PracticeSession s;
 	PlayToBoss(s, 21);
-	CHECK(s.Enemy().kind == EnemyKind::Boss);
+	CHECK(s.Enemy().kind == EnemyKind::Overlord);
 	int scoreBefore = s.GetStats().score;
 	int correctBefore = s.GetStats().correctCasts;
 	SkillId first = s.Enemy().chain[0], second = s.Enemy().chain[1], third = s.Enemy().chain[2];
@@ -2483,11 +2619,14 @@ static void TestPlayChain()
 
 	CHECK(PlayCast(s, second) == CastOutcome::Correct && s.Enemy().chainStep == 2 && s.Enemy().target == third);
 	CHECK(PlayCast(s, third, &kill) == CastOutcome::Correct);
-	CHECK(kill.killed && kill.kind == EnemyKind::Boss && !s.Enemy().active);
-	CHECK(kill.points == PLAY_POINTS_BOSS || kill.points == 2 * PLAY_POINTS_BOSS);
-	CHECK(kill.rune != Rune::None && kill.gold >= PLAY_GOLD_BOSS);
-	CHECK(s.GetStats().bossesDefeated == 1 && s.GetStats().gold >= PLAY_GOLD_BOSS);
+	CHECK(kill.killed && kill.kind == EnemyKind::Overlord && !s.Enemy().active);
+	CHECK(kill.points == PLAY_POINTS_OVERLORD || kill.points == 2 * PLAY_POINTS_OVERLORD);
+	CHECK(kill.rune != Rune::None && kill.gold >= PLAY_GOLD_OVERLORD);
+	CHECK(s.GetStats().bossesDefeated == 1 && s.GetStats().gold >= PLAY_GOLD_OVERLORD);
 	CHECK(s.GetStats().score == scoreBefore + kill.points);
+	// §32 M-3: the elite before it added 10 %, the overlord adds 20 %, and the roll is reported
+	CHECK(kill.immortalChance == PLAY_IMMORTAL_CHANCE_ELITE + PLAY_IMMORTAL_CHANCE_OVERLORD);
+	CHECK(s.ImmortalChance() == kill.immortalChance && s.ImmortalDue() == kill.immortalComing);
 }
 
 // A boss that reaches the player costs 3 lives: from 3, Game Over.
@@ -2499,7 +2638,7 @@ static void TestPlayLeakDamage()
 	UpdateResult leak = {};
 	for (int i = 0; i < 3000 && !leak.leaked; ++i)
 		leak = s.Update(0.01f);
-	CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_BOSS && leak.gameOver);
+	CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_OVERLORD && leak.gameOver);
 	CHECK(s.GetStats().hp == 0 && s.State() == GameState::GameOver);
 
 	// a Shield takes the leak instead
@@ -2576,11 +2715,16 @@ static void PlayStartWith(PracticeSession& s, unsigned seed, const Inventory& in
 
 static void PlayToBossWith(PracticeSession& s, unsigned seed, const Inventory& inv)
 {
-	PlayStartWith(s, seed, inv);
-	while (s.Enemy().kind != EnemyKind::Boss && s.State() == GameState::Playing)
+	for (unsigned attempt = 0; attempt < 50; ++attempt)
 	{
-		PlayKill(s);
-		PlayWaitSpawn(s);
+		PlayStartWith(s, seed + attempt * 1000u, inv);
+		while (s.Enemy().kind != EnemyKind::Overlord && s.State() == GameState::Playing)
+		{
+			PlayKill(s);
+			PlayWaitSpawn(s);
+		}
+		if (s.GetStats().immortalsBeaten == 0 && s.Enemy().kind == EnemyKind::Overlord)
+			return;
 	}
 }
 
@@ -2695,10 +2839,10 @@ static void TestItemBossItems()
 	PlayStartWith(r, 21, LoadoutWith(ItemId::Refresher, 1));
 	CHECK(!r.UseItem(0).used);  // the first enemy needs one skill
 	PlayToBossWith(r, 21, LoadoutWith(ItemId::Refresher, 1));
-	CHECK(r.Enemy().kind == EnemyKind::Boss);
+	CHECK(r.Enemy().kind == EnemyKind::Overlord);
 	CHECK(r.UseItem(0).used && r.Enemy().chainStep == 2 && r.Enemy().target == r.Enemy().chain[2]);
 	KillReport kill = PlayKill(r);
-	CHECK(kill.killed && kill.kind == EnemyKind::Boss);
+	CHECK(kill.killed && kill.kind == EnemyKind::Overlord);
 
 	// Black King Bar: a boss reaching the player costs nothing while it lasts
 	PracticeSession b;
@@ -2742,10 +2886,10 @@ static void TestItemBossItems()
 }
 
 
-// ---------------------------------------------------------------- OVERLORD and materials (spec §28)
+// ---------------------------------------------------------------- IMMORTAL and materials (spec §28, §32)
 
-// Plays on (every enemy killed at once, the first rune taken) until the OVERLORD warning starts; returns that update.
-static UpdateResult PlayOnToOverlord(PracticeSession& s)
+// Plays on (every enemy killed at once, the first rune taken) until the IMMORTAL warning starts; returns that update.
+static UpdateResult PlayOnToImmortal(PracticeSession& s)
 {
 	for (int guard = 0; guard < 200000 && s.State() == GameState::Playing; ++guard)
 	{
@@ -2756,38 +2900,52 @@ static UpdateResult PlayOnToOverlord(PracticeSession& s)
 		else
 		{
 			UpdateResult u = s.Update(0.05f);
-			if (u.overlordWarning)
+			if (u.immortalWarning)
 				return u;
 		}
 	}
 	return {};
 }
 
-static UpdateResult PlayToOverlord(PracticeSession& s, unsigned seed, const Inventory& inv = EmptyInventory())
+static UpdateResult PlayToImmortal(PracticeSession& s, unsigned seed, const Inventory& inv = EmptyInventory())
 {
 	s.SetMode(SessionMode::Play);
 	s.SetLoadout(inv);
 	s.Start(seed);
-	return PlayOnToOverlord(s);
+	return PlayOnToImmortal(s);
 }
 
-static bool OverlordWaitFight(PracticeSession& s)  // the 2.5 s warning
+// The same, with the first seed from `seed` on that reaches the Immortal without a Shield or a Frost rune running
+// (the overlords on the way leave runes at random, and those two change what the fight tests measure).
+static UpdateResult PlayToImmortalClean(PracticeSession& s, unsigned seed, const Inventory& inv = EmptyInventory())
 {
-	for (int i = 0; i < 400 && !s.OverlordActive() && s.State() == GameState::Playing; ++i)
-		s.Update(0.01f);
-	return s.OverlordActive();
+	UpdateResult warn = {};
+	for (unsigned attempt = 0; attempt < 50; ++attempt)
+	{
+		warn = PlayToImmortal(s, seed + attempt * 1000u, inv);
+		if (warn.immortalWarning && !s.HasShield() && s.FrostLeft() == 0.0f)
+			break;
+	}
+	return warn;
 }
 
-// Plays the overlord's combo once, every landing step at its ideal moment and every quick step at once.
+static bool ImmortalWaitFight(PracticeSession& s)  // the warning
+{
+	for (int i = 0; i < 600 && !s.ImmortalActive() && s.State() == GameState::Playing; ++i)
+		s.Update(0.01f);
+	return s.ImmortalActive();
+}
+
+// Plays the immortal's combo once, every landing step at its ideal moment and every quick step at once.
 // Returns the update in which the combo resolved (or the fight ended).
-static UpdateResult OverlordCombo(PracticeSession& s)
+static UpdateResult ImmortalCombo(PracticeSession& s)
 {
 	UpdateResult u = {};
-	const BossSession& b = s.Overlord();
-	for (int i = 0; i < 1000 && s.OverlordActive() && (b.Phase() != BossPhase::Walking || b.AttemptRunning()); ++i)
+	const BossSession& b = s.Immortal();
+	for (int i = 0; i < 1000 && s.ImmortalActive() && (b.Phase() != BossPhase::Walking || b.AttemptRunning()); ++i)
 		u = s.Update(0.01f);
 	int length = b.ComboLength();
-	for (int step = 0; step < length && s.OverlordActive(); ++step)
+	for (int step = 0; step < length && s.ImmortalActive(); ++step)
 	{
 		InvokeSkill(s, b.Combo()[step]);  // into D
 		if (b.StepKind(step) == BossStepKind::Landing)
@@ -2802,7 +2960,7 @@ static UpdateResult OverlordCombo(PracticeSession& s)
 		}
 		s.Input(InputAction::D);
 	}
-	for (int i = 0; i < 800 && s.OverlordActive(); ++i)
+	for (int i = 0; i < 800 && s.ImmortalActive(); ++i)
 	{
 		u = s.Update(0.01f);
 		if (u.boss.comboComplete || u.boss.fail != ComboFail::None)
@@ -2811,44 +2969,40 @@ static UpdateResult OverlordCombo(PracticeSession& s)
 	return u;
 }
 
-static KillReport OverlordWin(PracticeSession& s)
+static KillReport ImmortalWin(PracticeSession& s)
 {
-	for (int combo = 0; combo < 6 && s.OverlordActive(); ++combo)
+	for (int combo = 0; combo < 6 && s.ImmortalActive(); ++combo)
 	{
-		UpdateResult u = OverlordCombo(s);
+		UpdateResult u = ImmortalCombo(s);
 		if (u.kill.killed)
 			return u.kill;
 	}
 	return {};
 }
 
-static void TestOverlordTables()
+static void TestImmortalTables()
 {
-	CHECK(!IsOverlordEnemy(1) && !IsOverlordEnemy(10) && !IsOverlordEnemy(19) && !IsOverlordEnemy(25));
-	CHECK(IsOverlordEnemy(20) && IsOverlordEnemy(30) && IsOverlordEnemy(40) && IsOverlordEnemy(50) && IsOverlordEnemy(120));
-	CHECK(OverlordTier(20) == 1 && OverlordTier(30) == 2 && OverlordTier(40) == 3 && OverlordTier(90) == 3);
-	// O-10: materials by boss
-	CHECK(MaterialOfBoss(0) == Material::PointBooster && MaterialOfBoss(1) == Material::PointBooster
-		&& MaterialOfBoss(2) == Material::PointBooster);
-	CHECK(MaterialOfBoss(3) == Material::MysticStaff && MaterialOfBoss(6) == Material::MysticStaff);
-	CHECK(MaterialOfBoss(7) == Material::SacredRelic);
+	// M-7: the first three drop their own material
+	CHECK(MaterialOfBoss(0) == Material::PointBooster && MaterialOfBoss(1) == Material::MysticStaff
+		&& MaterialOfBoss(2) == Material::SacredRelic);
 	CHECK(std::strcmp(MaterialName(Material::PointBooster), "POINT BOOSTER") == 0
 		&& std::strcmp(MaterialName(Material::MysticStaff), "MYSTIC STAFF") == 0
 		&& std::strcmp(MaterialName(Material::SacredRelic), "SACRED RELIC") == 0);
-	// a scaled overlord: faster, a shorter window that never drops below BOSS_MIN_WINDOW; lives and slots come in
+	CHECK(PLAY_IMMORTAL_CHANCE_ELITE == 10 && PLAY_IMMORTAL_CHANCE_OVERLORD == 20 && PLAY_IMMORTAL_WARNING == 4.0f);
+	// a scaled immortal: faster, a shorter window that never drops below BOSS_MIN_WINDOW; lives and slots come in
 	invoker::InvokerState inv;
 	inv.Apply(InputAction::E); inv.Apply(InputAction::E); inv.Apply(InputAction::E); inv.Apply(InputAction::R);
 	BossSession b;
-	b.StartOverlord(1, 5, inv, 1.3f, 0.9f);
+	b.StartImmortal(1, 5, inv, 1.3f, 0.9f);
 	CHECK(b.State() == BossState::Fighting && b.PlayerHp() == 5 && b.Invoker().GetSlot(Slot::D) == SkillId::SunStrike);
 	CHECK(NearF(b.Speed(), GetBossDefinition(1).speed * 1.3f, 1e-4f) && NearF(b.Window(), GetBossDefinition(1).window * 0.9f, 1e-5f));
-	b.StartOverlord(1, 3, inv, 2.0f, 0.1f);
+	b.StartImmortal(1, 3, inv, 2.0f, 0.1f);
 	CHECK(b.Window() == BOSS_MIN_WINDOW);
 	b.Start(1);
 	CHECK(b.Speed() == GetBossDefinition(1).speed && b.Window() == GetBossDefinition(1).window && b.PlayerHp() == START_HP);
-	// the damage multiplier: a GOOD combo on boss 1 takes 70 % instead of 35 %
+	// the damage multiplier: a GOOD combo (Tornado -> Sun Strike) takes 70 % instead of 35 %
 	BossSession d;
-	d.StartOverlord(0, 3, invoker::InvokerState(), 1.0f, 1.0f);
+	d.Start(kClassic[0]);
 	d.SetModifiers(1.0f, false, false, false, 2);
 	BossTotals t = {};
 	BossKeys(d, "QWWR" "EEER" "F");
@@ -2896,115 +3050,124 @@ static void TestMaterialShop()
 	CHECK(Buy(inv, ItemId::Refresher, gold) && Buy(inv, ItemId::Aghanim, gold) && inv.material[2] == MATERIAL_MAX - 2);
 }
 
-// O-1, O-3, O-4, O-5: the 20th enemy is the Dark Wizard, after a 2.5 s warning; lives and slots carry over.
-static void TestOverlordWarning()
+// M-3, M-4, O-3, O-4: the first Immortal of a run is Rimefang, after a 4 s warning; it takes no enemy number; lives
+// and slots carry over.
+static void TestImmortalWarning()
 {
 	PracticeSession s;
-	UpdateResult warn = PlayToOverlord(s, 61);
-	CHECK(warn.overlordWarning && warn.overlordBoss == 1 && warn.overlordTier == 1 && !warn.spawned);
-	CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST && s.GetStats().kills == PLAY_OVERLORD_FIRST - 1);
-	CHECK(s.GetStats().bossesDefeated == 1);  // the 10th enemy was still a chain boss
-	CHECK(s.OverlordWarningLeft() == PLAY_OVERLORD_WARNING && !s.OverlordActive() && !s.Enemy().active);
-	CHECK(s.OverlordBoss() == 1 && s.OverlordTierNow() == 1 && s.DefeatedBy() == -1);
+	UpdateResult warn = PlayToImmortalClean(s, 61);
+	CHECK(warn.immortalWarning && warn.immortalBoss == 0 && warn.immortalTier == 1 && !warn.spawned);
+	int count = s.SpawnCount();
+	CHECK(count >= PLAY_ELITE_FIRST && count <= 45 && count % 5 == 0);  // right after an elite or an overlord
+	CHECK(s.GetStats().kills == count);                                  // an extra: every enemy so far was a kill
+	CHECK(s.ImmortalChance() == 0 && !s.ImmortalDue());                  // it has come: the chance starts again
+	CHECK(s.ImmortalWarningLeft() == PLAY_IMMORTAL_WARNING && !s.ImmortalActive() && !s.Enemy().active);
+	CHECK(s.ImmortalBoss() == 0 && s.ImmortalTierNow() == 1 && s.DefeatedBy() == -1);
 	// the keys still work during the warning: invoke ahead, casts do nothing
 	InvokeSkill(s, SkillId::ChaosMeteor);
 	InvokeSkill(s, SkillId::Tornado);
 	InputResult r = s.Input(InputAction::D);
-	CHECK(r.accepted && !r.overlord && !r.tornadoLaunched && r.cast == CastOutcome::None);
+	CHECK(r.accepted && !r.immortal && !r.tornadoLaunched && r.cast == CastOutcome::None);
 	CHECK(!s.UseItem(0).used);
 	int hp = s.GetStats().hp;
 	float t0 = s.GetStats().survivalTime;
 	UpdateResult u = {};
 	bool spawned = false;
-	for (int i = 0; i < 400 && !u.overlordFight; ++i)
+	for (int i = 0; i < 600 && !u.immortalFight; ++i)
 	{
 		u = s.Update(0.01f);
 		spawned = spawned || u.spawned || s.Enemy().active;
 	}
-	CHECK(u.overlordFight && !spawned && s.OverlordActive() && s.OverlordWarningLeft() == 0.0f);
-	CHECK(NearF(s.GetStats().survivalTime - t0, PLAY_OVERLORD_WARNING, 0.011f));  // the run's clock keeps going
-	const BossSession& b = s.Overlord();
-	CHECK(b.State() == BossState::Fighting && b.BossIndex() == 1 && b.BossHp() == BOSS_FULL_HP && b.PlayerHp() == hp);
-	CHECK(b.Speed() == GetBossDefinition(1).speed && b.Window() == GetBossDefinition(1).window);  // not scaled yet
+	CHECK(u.immortalFight && !spawned && s.ImmortalActive() && s.ImmortalWarningLeft() == 0.0f);
+	CHECK(NearF(s.GetStats().survivalTime - t0, PLAY_IMMORTAL_WARNING, 0.011f));  // the run's clock keeps going
+	const BossSession& b = s.Immortal();
+	CHECK(b.State() == BossState::Fighting && b.BossIndex() == 0 && b.BossHp() == BOSS_FULL_HP && b.PlayerHp() == hp);
+	CHECK(b.Speed() == GetBossDefinition(0).speed && b.Window() == GetBossDefinition(0).window);  // not scaled yet
 	CHECK(s.Invoker().GetSlot(Slot::D) == SkillId::Tornado && s.Invoker().GetSlot(Slot::F) == SkillId::ChaosMeteor);
 	// the fight has the keys
 	r = s.Input(InputAction::D);
-	CHECK(r.accepted && r.overlord && r.boss.attemptStarted && b.AttemptRunning() && b.ProjectileCount() == 1);
-	CHECK(s.ActiveTornadoCount() == 0 && !s.Enemy().active);
+	CHECK(r.accepted && r.immortal && r.boss.attemptStarted && b.AttemptRunning() && b.ProjectileCount() == 1);
+	CHECK(s.ActiveTornadoCount() == 0 && !s.Enemy().active && s.SpawnCount() == count);
 
-	// Survival never has one
+	// Survival never has one, nor elites or overlords
 	PracticeSession v;
 	v.Start(61);
 	bool any = false;
-	for (int guard = 0; guard < 100000 && v.SpawnCount() < PLAY_OVERLORD_FIRST + 1 && v.State() == GameState::Playing; ++guard)
+	for (int guard = 0; guard < 100000 && v.SpawnCount() < 46 && v.State() == GameState::Playing; ++guard)
 	{
 		if (v.Enemy().active)
+		{
+			any = any || v.Enemy().kind != EnemyKind::Normal;
 			PlayKill(v);
+		}
 		else
-			any = any || v.Update(0.05f).overlordWarning;
+			any = any || v.Update(0.05f).immortalWarning;
 	}
-	CHECK(v.SpawnCount() == PLAY_OVERLORD_FIRST + 1 && !any && !v.OverlordActive());
+	CHECK(v.SpawnCount() == 46 && !any && !v.ImmortalActive() && v.ImmortalChance() == 0);
 }
 
-// O-8, O-10: the reward, the material, and PLAY goes on with the difficulty where it was (O-5).
-static void TestOverlordWin()
+// O-8, M-7: the reward, the material, and PLAY goes on with the difficulty where it was (O-5).
+static void TestImmortalWin()
 {
 	PracticeSession s;
-	PlayToOverlord(s, 62);
+	PlayToImmortalClean(s, 62);
+	int count = s.SpawnCount();
 	float clockBefore = s.GetStats().survivalTime;
-	CHECK(OverlordWaitFight(s));
+	CHECK(ImmortalWaitFight(s));
 	Stats before = s.GetStats();
-	UpdateResult u = OverlordCombo(s);
-	CHECK(u.overlordUpdated && u.boss.comboComplete && u.boss.damage == 100 && u.boss.won);
+	UpdateResult u = ImmortalCombo(s);
+	CHECK(u.immortalUpdated && u.boss.comboComplete && u.boss.damage == 100 && u.boss.won);
 	const KillReport& kill = u.kill;
-	CHECK(kill.killed && kill.overlord && kill.kind == EnemyKind::Boss);
-	CHECK(kill.points == PLAY_OVERLORD_POINTS || kill.points == 2 * PLAY_OVERLORD_POINTS);
-	CHECK(kill.gold >= PLAY_OVERLORD_GOLD && kill.rune != Rune::None && !kill.runeChoice);
-	CHECK(kill.droppedMaterial && kill.material == Material::PointBooster);
+	CHECK(kill.killed && kill.immortal && kill.kind == EnemyKind::Overlord);
+	CHECK(kill.points == PLAY_IMMORTAL_POINTS || kill.points == 2 * PLAY_IMMORTAL_POINTS);
+	CHECK(kill.gold >= PLAY_IMMORTAL_GOLD && kill.rune != Rune::None && !kill.runeChoice);
+	CHECK(kill.materialCount == 1 && kill.materials[0] == Material::PointBooster);
+	CHECK(kill.immortalChance == 0 && !kill.immortalComing);  // beating an Immortal adds nothing to the chance
 	const Stats& st = s.GetStats();
 	CHECK(st.score == before.score + kill.points && st.gold == before.gold + kill.gold);
-	CHECK(st.bossesDefeated == 2 && st.overlordsBeaten == 1 && st.kills == before.kills + 1);
+	CHECK(st.bossesDefeated == before.bossesDefeated + 1 && st.immortalsBeaten == 1 && st.kills == before.kills + 1);
 	CHECK(st.correctCasts == before.correctCasts + 1 && st.combo == before.combo + 1 && st.incorrectCasts == before.incorrectCasts);
 	CHECK(s.Loadout().material[0] == 1 && s.Loadout().material[1] == 0 && s.Loadout().material[2] == 0);
-	CHECK(!s.OverlordActive() && s.State() == GameState::Playing && s.DefeatedBy() == -1);
+	CHECK(!s.ImmortalActive() && s.State() == GameState::Playing && s.DefeatedBy() == -1 && s.ImmortalChance() == 0);
 	CHECK(s.Invoker().GetSlot(Slot::D) == SkillId::DeafeningBlast);  // the slots come back out of the fight
-	// the next enemy: a normal PLAY enemy, as fast as if the warning and the fight had taken no time
+	// the next enemy: the next number of the schedule, as fast as if the warning and the fight had taken no time
 	float clockAfter = st.survivalTime;
-	CHECK(clockAfter - clockBefore > PLAY_OVERLORD_WARNING + 2.0f);
-	PlayWaitSpawn(s);
-	CHECK(s.Enemy().active && s.SpawnCount() == PLAY_OVERLORD_FIRST + 1 && s.Enemy().kind != EnemyKind::Boss);
+	CHECK(clockAfter - clockBefore > PLAY_IMMORTAL_WARNING + 2.0f);
+	while (!s.Enemy().active && s.State() == GameState::Playing)
+		s.Update(0.05f);
+	CHECK(s.Enemy().active && s.SpawnCount() == count + 1 && s.Enemy().kind == PlayEnemyKind(count + 1));
 	float expected = DifficultyAt(clockBefore + (s.GetStats().survivalTime - clockAfter)).enemySpeed;
-	CHECK(NearF(s.Enemy().speed, expected, 1.0f) || NearF(s.Enemy().speed, expected * PLAY_ELITE_SPEED, 1.0f));
+	CHECK(NearF(s.Enemy().speed, expected, 1.0f));
 	KillReport next = PlayKill(s);
-	CHECK(next.killed && !next.overlord && !next.droppedMaterial);
+	CHECK(next.killed && !next.immortal && next.materialCount == 0);
 
 	// a broken combo is one wrong cast; a new run starts clean
 	PracticeSession w;
-	PlayToOverlord(w, 62);
-	CHECK(OverlordWaitFight(w));
+	PlayToImmortalClean(w, 62);
+	CHECK(ImmortalWaitFight(w));
 	int wrong = w.GetStats().incorrectCasts;
 	InvokeSkill(w, SkillId::ColdSnap);
 	InvokeSkill(w, SkillId::Tornado);
 	w.Input(InputAction::D);
 	InputResult r = w.Input(InputAction::F);  // Cold Snap out of order
-	CHECK(r.overlord && r.boss.fail == ComboFail::WrongSpell && w.GetStats().incorrectCasts == wrong + 1);
+	CHECK(r.immortal && r.boss.fail == ComboFail::WrongSpell && w.GetStats().incorrectCasts == wrong + 1);
 	w.Start(63);
-	CHECK(!w.OverlordActive() && w.OverlordWarningLeft() == 0.0f && w.Loadout().material[0] == 0);
+	CHECK(!w.ImmortalActive() && w.ImmortalWarningLeft() == 0.0f && w.Loadout().material[0] == 0 && w.ImmortalChance() == 0);
 }
 
 // O-4, O-9: contact costs 1 life and knocks it back; at 0 lives the run ends and names the boss.
-static void TestOverlordContact()
+static void TestImmortalContact()
 {
 	PracticeSession s;
-	PlayToOverlord(s, 63);
-	CHECK(OverlordWaitFight(s));
+	PlayToImmortalClean(s, 63);
+	CHECK(ImmortalWaitFight(s));
 	int hp = s.GetStats().hp;
 	UpdateResult u = {};
 	for (int i = 0; i < 4000 && !u.leaked; ++i)
 		u = s.Update(0.01f);
 	CHECK(u.leaked && u.leakDamage == 1 && !u.shieldUsed && u.boss.playerHit && !u.gameOver);
-	CHECK(s.GetStats().hp == hp - 1 && s.GetStats().combo == 0 && s.OverlordActive());
-	CHECK(s.Overlord().Phase() == BossPhase::PushedBack);
+	CHECK(s.GetStats().hp == hp - 1 && s.GetStats().combo == 0 && s.ImmortalActive());
+	CHECK(s.Immortal().Phase() == BossPhase::PushedBack);
 	// a Shield takes the next contact and is used up
 	s.ApplyRune(Rune::Shield);
 	u = {};
@@ -3012,58 +3175,58 @@ static void TestOverlordContact()
 		u = s.Update(0.01f);
 	CHECK(u.leaked && u.shieldUsed && u.leakDamage == 0 && u.boss.contactBlocked && s.GetStats().hp == hp - 1 && !s.HasShield());
 	// then it keeps coming until the lives are gone
-	for (int i = 0; i < 20000 && s.State() == GameState::Playing; ++i)
+	for (int i = 0; i < 40000 && s.State() == GameState::Playing; ++i)
 		u = s.Update(0.01f);
 	CHECK(u.gameOver && s.State() == GameState::GameOver && s.GetStats().hp == 0);
-	CHECK(s.DefeatedBy() == 1 && !s.OverlordActive() && s.GetStats().overlordsBeaten == 0);
+	CHECK(s.DefeatedBy() == 0 && !s.ImmortalActive() && s.GetStats().immortalsBeaten == 0);
 	CHECK(s.Loadout().material[0] == 0);
 	s.Start(64);
 	CHECK(s.DefeatedBy() == -1);
 }
 
-// O-6: the items against an overlord.
-static void TestOverlordItems()
+// O-6: the items against an immortal.
+static void TestImmortalItems()
 {
 	// Blink: it walks back; Frost slows it
 	PracticeSession s;
-	PlayToOverlord(s, 64, LoadoutWith(ItemId::Blink, 1));
-	CHECK(OverlordWaitFight(s));
+	PlayToImmortalClean(s, 64, LoadoutWith(ItemId::Blink, 1));
+	CHECK(ImmortalWaitFight(s));
 	for (int i = 0; i < 100; ++i)
 		s.Update(0.01f);
-	float x0 = s.Overlord().X();
+	float x0 = s.Immortal().X();
 	s.Update(0.1f);
-	float normal = x0 - s.Overlord().X();
-	CHECK(NearF(normal, GetBossDefinition(1).speed * 0.1f, 1e-3f));
+	float normal = x0 - s.Immortal().X();
+	CHECK(NearF(normal, GetBossDefinition(0).speed * 0.1f, 1e-3f));
 	s.ApplyRune(Rune::Frost);
-	x0 = s.Overlord().X();
+	x0 = s.Immortal().X();
 	s.Update(0.1f);
-	CHECK(NearF(x0 - s.Overlord().X(), normal * PLAY_FROST_SPEED, 1e-3f));
-	x0 = s.Overlord().X();
+	CHECK(NearF(x0 - s.Immortal().X(), normal * PLAY_FROST_SPEED, 1e-3f));
+	x0 = s.Immortal().X();
 	CHECK(s.UseItem(0).used && s.ItemCooldown(ItemId::Blink) == 40.0f);
 	s.Update(0.1f);
-	CHECK(s.Overlord().X() > x0 && s.Overlord().X() <= BOSS_START_X);
+	CHECK(s.Immortal().X() > x0 && s.Immortal().X() <= BOSS_START_X);
 
 	// Wind Waker: still, and pushed back at once
 	PracticeSession w;
-	PlayToOverlord(w, 64, LoadoutWith(ItemId::Euls, 2));
-	CHECK(OverlordWaitFight(w));
+	PlayToImmortalClean(w, 64, LoadoutWith(ItemId::Euls, 2));
+	CHECK(ImmortalWaitFight(w));
 	for (int i = 0; i < 80; ++i)
 		w.Update(0.1f);
-	x0 = w.Overlord().X();
+	x0 = w.Immortal().X();
 	CHECK(x0 < BOSS_START_X - PLAY_EULS_PUSHBACK);
-	CHECK(w.UseItem(0).used && NearF(w.Overlord().X(), x0 + PLAY_EULS_PUSHBACK, 1e-3f));
-	x0 = w.Overlord().X();
+	CHECK(w.UseItem(0).used && NearF(w.Immortal().X(), x0 + PLAY_EULS_PUSHBACK, 1e-3f));
+	x0 = w.Immortal().X();
 	w.Update(0.1f); w.Update(0.1f);
-	CHECK(w.Overlord().X() == x0);
+	CHECK(w.Immortal().X() == x0);
 
 	// Black King Bar: the contact costs nothing, and a Shield is not used up while it runs
 	PracticeSession b;
-	PlayToOverlord(b, 64, LoadoutWith(ItemId::Bkb, 1));
-	CHECK(OverlordWaitFight(b));
+	PlayToImmortalClean(b, 64, LoadoutWith(ItemId::Bkb, 1));
+	CHECK(ImmortalWaitFight(b));
 	b.ApplyRune(Rune::Shield);
 	int hp = b.GetStats().hp;
 	UpdateResult u = {};
-	for (int i = 0; i < 4000 && (b.Overlord().X() - HIT_LINE_X) / b.Overlord().Speed() > 2.0f; ++i)
+	for (int i = 0; i < 4000 && (b.Immortal().X() - HIT_LINE_X) / b.Immortal().Speed() > 2.0f; ++i)
 		u = b.Update(0.01f);
 	CHECK(b.UseItem(0).used);
 	for (int i = 0; i < 500 && !u.leaked; ++i)
@@ -3072,78 +3235,159 @@ static void TestOverlordItems()
 
 	// Healing Salve heals inside the fight too
 	PracticeSession h;
-	PlayToOverlord(h, 64, LoadoutWith(ItemId::Salve, 1, ItemId::Salve, 1));
-	CHECK(OverlordWaitFight(h));
+	PlayToImmortalClean(h, 64, LoadoutWith(ItemId::Salve, 1, ItemId::Salve, 1));
+	CHECK(ImmortalWaitFight(h));
 	hp = h.GetStats().hp;
 	if (hp < PLAY_MAX_HP)
 	{
 		CHECK(h.UseItem(0).used && h.GetStats().hp == hp + 1);
 		h.Update(0.01f);
-		CHECK(h.Overlord().PlayerHp() == hp + 1);
+		CHECK(h.Immortal().PlayerHp() == hp + 1);
 	}
 
 	// Refresher Orb: armed until the next combo that deals damage, which deals x2
 	PracticeSession r;
-	PlayToOverlord(r, 64, LoadoutWith(ItemId::Refresher, 1));
+	PlayToImmortalClean(r, 64, LoadoutWith(ItemId::Refresher, 1));
 	CHECK(!r.UseItem(0).used && !r.RefresherArmed());  // nothing to use it on during the warning
-	CHECK(OverlordWaitFight(r));
+	CHECK(ImmortalWaitFight(r));
 	CHECK(r.UseItem(0).used && r.RefresherArmed() && r.ItemCooldown(ItemId::Refresher) == 90.0f);
 	CHECK(!r.UseItem(0).used);
 	for (int i = 0; i < 100; ++i)
 		r.Update(0.01f);
 	CHECK(r.RefresherArmed());
-	UpdateResult c = OverlordCombo(r);
+	UpdateResult c = ImmortalCombo(r);
 	CHECK(c.boss.comboComplete && c.boss.damage == 200 && c.kill.killed && !r.RefresherArmed());
 
-	// Aghanim's Scepter: the rune of an overlord is a choice too; Midas adds to its gold
+	// Aghanim's Scepter: the rune of an immortal is a choice too; Midas adds to its gold
 	Inventory inv = LoadoutWith(ItemId::Aghanim, 1);
 	int gold = 100000;
 	Buy(inv, ItemId::Midas, gold);
 	PracticeSession a;
-	PlayToOverlord(a, 64, inv);
-	CHECK(OverlordWaitFight(a));
-	KillReport kill = OverlordWin(a);
+	PlayToImmortalClean(a, 64, inv);
+	CHECK(ImmortalWaitFight(a));
+	KillReport kill = ImmortalWin(a);
 	CHECK(kill.killed && kill.runeChoice && kill.rune == Rune::None && a.RuneChoiceCount() == 2);
-	CHECK(kill.gold == PLAY_OVERLORD_GOLD + PLAY_OVERLORD_GOLD / 2);
+	CHECK(kill.gold == PLAY_IMMORTAL_GOLD + PLAY_IMMORTAL_GOLD / 2);
 	CHECK(a.ChooseRune(0) != Rune::None && a.RuneChoiceCount() == 0);
 }
 
-// O-1, O-2: 20 / 30 / 40 are fixed, one material each; from the 50th on a random one, faster with a shorter window.
-static void TestOverlordMilestones()
+// §32 M-3: the chance. Nothing for 14 enemies; an elite beaten adds 10 %, an overlord 20 %; one that reaches the
+// player adds nothing; the roll is made at once; by the 45th enemy the Immortal has always come.
+static void TestImmortalChance()
 {
 	PracticeSession s;
-	UpdateResult warn = PlayToOverlord(s, 65);
-	const int bosses[3] = { 1, 6, 7 };
-	for (int i = 0; i < 3; ++i)
+	s.SetMode(SessionMode::Play);
+	s.Start(71);
+	PlayWaitSpawn(s);
+	for (int n = 1; n < PLAY_ELITE_FIRST; ++n)
 	{
-		CHECK(warn.overlordWarning && warn.overlordBoss == bosses[i] && warn.overlordTier == i + 1);
-		CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST + i * PLAY_BOSS_EVERY);
-		CHECK(OverlordWaitFight(s));
-		CHECK(s.Overlord().Speed() == GetBossDefinition(bosses[i]).speed);
-		KillReport kill = OverlordWin(s);
-		CHECK(kill.killed && kill.overlord && kill.material == MaterialOfBoss(bosses[i]));
-		warn = PlayOnToOverlord(s);
+		CHECK(s.ImmortalChance() == 0 && !s.ImmortalDue());
+		KillReport kill = PlayKill(s);
+		CHECK(kill.killed && kill.immortalChance == 0 && !kill.immortalComing);
+		PlayWaitSpawn(s);
 	}
-	CHECK(s.Loadout().material[0] == 1 && s.Loadout().material[1] == 1 && s.Loadout().material[2] == 1);
-	CHECK(s.GetStats().overlordsBeaten == 3 && s.GetStats().bossesDefeated == 4);
-	// the 50th and 60th enemy
-	int last = 7;
+	CHECK(s.SpawnCount() == PLAY_ELITE_FIRST && s.Enemy().kind == EnemyKind::Elite);
+	UpdateResult leak = RunUntilLeak(s);  // the elite reaches the player: 2 lives, and no chance gained
+	CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_ELITE && s.ImmortalChance() == 0 && !s.ImmortalDue());
+	PlayWaitSpawn(s);
+	while (s.Enemy().kind == EnemyKind::Normal && s.State() == GameState::Playing)
+	{
+		PlayKill(s);
+		PlayWaitSpawn(s);
+	}
+	CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST && s.Enemy().kind == EnemyKind::Overlord && s.ImmortalChance() == 0);
+	KillReport kill = PlayKill(s);
+	CHECK(kill.killed && kill.immortalChance == PLAY_IMMORTAL_CHANCE_OVERLORD);
+	CHECK(s.ImmortalChance() == PLAY_IMMORTAL_CHANCE_OVERLORD && s.ImmortalDue() == kill.immortalComing);
+
+	// the first roll (10 % after the 15th enemy) hits about one run in ten
+	int hits = 0;
+	const int runs = 400;
+	for (int seed = 1; seed <= runs; ++seed)
+	{
+		PracticeSession r;
+		r.SetMode(SessionMode::Play);
+		r.Start(static_cast<unsigned>(seed) * 7919u);
+		PlayWaitSpawn(r);
+		while (r.Enemy().kind == EnemyKind::Normal)
+		{
+			PlayKill(r);
+			PlayWaitSpawn(r);
+		}
+		KillReport k = PlayKill(r);
+		CHECK(k.killed && k.kind == EnemyKind::Elite && k.immortalChance == PLAY_IMMORTAL_CHANCE_ELITE);
+		CHECK(r.ImmortalDue() == k.immortalComing);
+		if (k.immortalComing)
+		{
+			++hits;
+			UpdateResult u = {};
+			for (int i = 0; i < 200 && !u.immortalWarning; ++i)
+				u = r.Update(0.05f);
+			CHECK(u.immortalWarning && u.immortalBoss == 0 && r.SpawnCount() == PLAY_ELITE_FIRST && !r.Enemy().active);
+		}
+	}
+	CHECK(hits >= runs / 20 && hits <= runs / 5);
+
+	// with every elite and overlord beaten the chance reaches 100 % at the 45th enemy at the latest; then it builds
+	// again from 0 and the second Immortal is the next of the list
+	int latest = 0;
+	for (unsigned seed = 1; seed <= 40; ++seed)
+	{
+		PracticeSession r;
+		UpdateResult warn = PlayToImmortal(r, seed * 104729u);
+		CHECK(warn.immortalWarning && warn.immortalBoss == 0 && r.SpawnCount() <= 45);
+		if (r.SpawnCount() > latest)
+			latest = r.SpawnCount();
+		if (seed > 5)
+			continue;
+		int first = r.SpawnCount();
+		CHECK(ImmortalWaitFight(r));
+		CHECK(ImmortalWin(r).killed && r.ImmortalChance() == 0);
+		warn = PlayOnToImmortal(r);
+		CHECK(warn.immortalWarning && warn.immortalBoss == 1 && warn.immortalTier == 2);
+		CHECK(r.SpawnCount() >= first + 5 && r.SpawnCount() <= first + 35);
+	}
+	CHECK(latest >= 25);  // and it is not always early
+}
+
+// §32 M-4, M-7: the first five of a run come in order (combos of 4 to 8) with their drops; from the sixth on a random
+// one, faster and with a shorter window.
+static void TestImmortalMilestones()
+{
+	PracticeSession s;
+	UpdateResult warn = PlayToImmortal(s, 65);
+	int materials = 0;
+	for (int i = 0; i < BOSS_COUNT; ++i)
+	{
+		CHECK(warn.immortalWarning && warn.immortalBoss == i && warn.immortalTier == ImmortalTier(i));
+		CHECK(ImmortalWaitFight(s));
+		CHECK(s.Immortal().Speed() == GetBossDefinition(i).speed && s.Immortal().ComboLength() == 4 + i);
+		KillReport kill = ImmortalWin(s);
+		CHECK(kill.killed && kill.immortal && kill.materialCount == ImmortalDropCount(i));
+		CHECK(i > 2 || kill.materials[0] == MaterialOfBoss(i));
+		materials += kill.materialCount;
+		warn = PlayOnToImmortal(s);
+	}
+	CHECK(materials == 7 && s.Loadout().material[0] + s.Loadout().material[1] + s.Loadout().material[2] == 7);
+	CHECK(s.Loadout().material[0] >= 1 && s.Loadout().material[1] >= 1 && s.Loadout().material[2] >= 1);
+	CHECK(s.GetStats().immortalsBeaten == BOSS_COUNT);
+	// the sixth and the seventh
+	int last = BOSS_COUNT - 1;
 	for (int n = 1; n <= 2; ++n)
 	{
-		CHECK(warn.overlordWarning && warn.overlordTier == 3 && warn.overlordBoss != last);
-		CHECK(warn.overlordBoss >= 0 && warn.overlordBoss < BOSS_COUNT);
-		CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST + (2 + n) * PLAY_BOSS_EVERY);
-		last = warn.overlordBoss;
-		CHECK(OverlordWaitFight(s));
+		CHECK(warn.immortalWarning && warn.immortalBoss != last);
+		CHECK(warn.immortalBoss >= 0 && warn.immortalBoss < BOSS_COUNT && warn.immortalTier == ImmortalTier(warn.immortalBoss));
+		last = warn.immortalBoss;
+		CHECK(ImmortalWaitFight(s));
 		const BossDefinition& def = GetBossDefinition(last);
-		float window = def.window * (1.0f - PLAY_OVERLORD_WINDOW_STEP * n);
-		CHECK(NearF(s.Overlord().Speed(), def.speed * (1.0f + PLAY_OVERLORD_SPEED_STEP * n), 1e-3f));
-		CHECK(NearF(s.Overlord().Window(), window > BOSS_MIN_WINDOW ? window : BOSS_MIN_WINDOW, 1e-4f));
-		KillReport kill = OverlordWin(s);
-		CHECK(kill.killed && kill.material == MaterialOfBoss(last));
-		warn = PlayOnToOverlord(s);
+		float window = def.window * (1.0f - PLAY_IMMORTAL_WINDOW_STEP * n);
+		CHECK(NearF(s.Immortal().Speed(), def.speed * (1.0f + PLAY_IMMORTAL_SPEED_STEP * n), 1e-3f));
+		CHECK(NearF(s.Immortal().Window(), window > BOSS_MIN_WINDOW ? window : BOSS_MIN_WINDOW, 1e-4f));
+		KillReport kill = ImmortalWin(s);
+		CHECK(kill.killed && kill.materialCount == ImmortalDropCount(last));
+		warn = PlayOnToImmortal(s);
 	}
-	CHECK(s.GetStats().overlordsBeaten == 5 && s.State() == GameState::Playing);
+	CHECK(s.GetStats().immortalsBeaten == BOSS_COUNT + 2 && s.State() == GameState::Playing);
 }
 
 
@@ -3266,6 +3510,7 @@ int main()
 	RunTest("tutorial: run", TestTutorialRun);
 	RunTest("tutorial: run leaks", TestTutorialRunLeaks);
 	RunTest("boss: definitions and timings", TestBossDefinitions);
+	RunTest("boss: long combos (1.9)", TestBossLongCombo);
 	RunTest("boss: timing grades", TestBossGrades);
 	RunTest("boss: start", TestBossStart);
 	RunTest("boss: perfect combo (boss 1)", TestBossPerfectCombo);
@@ -3282,20 +3527,21 @@ int main()
 	RunTest("boss 1.5: two phases (Archon)", TestBossPhases);
 	RunTest("play: tables", TestPlayTables);
 	RunTest("play: survival unchanged", TestPlaySurvivalUnchanged);
-	RunTest("play: boss every 10, elites", TestPlayBossCadence);
+	RunTest("play: elite 15, overlord 20, sizes", TestPlayBossCadence);
 	RunTest("play: chains", TestPlayChain);
 	RunTest("play: leak damage, shield", TestPlayLeakDamage);
 	RunTest("play: runes", TestPlayRunes);
 	RunTest("items: shop, upgrades, slots", TestItemShop);
 	RunTest("items: use and cooldowns", TestItemUse);
 	RunTest("items: refresher, bkb, midas, aghanim", TestItemBossItems);
-	RunTest("overlord: tables, scaling, x2", TestOverlordTables);
-	RunTest("overlord: materials in the shop", TestMaterialShop);
-	RunTest("overlord: warning and hand-off", TestOverlordWarning);
-	RunTest("overlord: win, reward, clock", TestOverlordWin);
-	RunTest("overlord: contact, game over", TestOverlordContact);
-	RunTest("overlord: items", TestOverlordItems);
-	RunTest("overlord: 20/30/40, then harder", TestOverlordMilestones);
+	RunTest("immortal: tables, scaling, x2", TestImmortalTables);
+	RunTest("immortal: materials in the shop", TestMaterialShop);
+	RunTest("immortal: warning and hand-off", TestImmortalWarning);
+	RunTest("immortal: win, reward, clock", TestImmortalWin);
+	RunTest("immortal: contact, game over", TestImmortalContact);
+	RunTest("immortal: items", TestImmortalItems);
+	RunTest("immortal: the chance", TestImmortalChance);
+	RunTest("immortal: 4 to 8, then harder", TestImmortalMilestones);
 	RunTest("touch layout: blocks, split, sizes", TestTouchLayout);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);

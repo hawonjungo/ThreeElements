@@ -114,6 +114,16 @@ const float METEOR_FALL_TIME = 0.35f;   // s from the sky to the impact
 const float METEOR_BLAST_TIME = 0.6f;
 const int METEOR_FROM_X = -300;         // where the fall starts, relative to the impact (the tail points up-left)
 const int METEOR_FROM_Y = -330;
+// Ice Wall (owner 2026-10-01): one pillar of ice grows in front of the player, the ice spreads on the ground, it
+// stands, then fades. 4 x 4 frames of 256 px (art/make_vfx.py shrinks the 2560 px original).
+const char* const ICE_WALL_SHEET_PATH = "assets/Skills/IceWall-spritesheet.png";
+const int ICE_WALL_COLUMNS = 4;
+const int ICE_WALL_FRAME = 256;
+const int ICE_WALL_FRAMES = 16;
+const int ICE_WALL_DRAW = 190;          // px on screen
+const int ICE_WALL_AHEAD = 150;         // px in front of the player's centre
+const int ICE_WALL_SINK = 14;           // px of the frame below the ground line (the ice on the ground)
+const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames; the last one stays until the effect fades
 // Forge Spirit: 4 x 4 frames of 256 px, 0..7 standing / walking, 8..15 the lunge and its fiery blast; the spirit's
 // feet are at row 243 of a frame. It walks from the player to the enemy, then attacks.
 const char* const FORGE_SHEET_PATH = "assets/Skills/Forge Sprit-spritesheet.png";
@@ -230,7 +240,7 @@ const SDL_Rect GUIDE_PANEL_RECT = { 24, 16, 880, 512 };
 const SDL_Rect GUIDE_CLOSE_RECT = { 748, 482, 136, 34 };
 const int GUIDE_TABS = 5;                // BASICS, ENEMIES, RUNES, ITEMS, BOSSES
 // First-time tips (spec §31): one small card the first time something new shows up in a run; the run waits.
-enum TipId { TIP_ELITE, TIP_BOSS, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_OVERLORD, TIP_MATERIAL, TIP_HINT, TIP_COUNT };
+enum TipId { TIP_ELITE, TIP_OVERLORD, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_IMMORTAL, TIP_MATERIAL, TIP_HINT, TIP_COUNT };
 const SDL_Rect TIP_PANEL_RECT = { 204, 148, 520, 236 };
 const SDL_Rect TIP_BUTTON_RECT = { 364, 336, 200, 36 };
 const int TIP_MISS_STREAK = 3;           // wrong casts in a row before the recipe hint is suggested
@@ -262,18 +272,34 @@ const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  PAUS
 
 // Boss mode (spec §25): the boss list (menu line BOSS FIGHTS / key B), the fight's HUD, the result screen.
 const SDL_Rect BOSS_SELECT_PANEL = { 150, 30, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 60 };
-const int BOSS_SELECT_ROW_Y = 78;       // the first boss's row (eight compact rows since update 1.5)
-const int BOSS_SELECT_ROW_H = 44;
-const int BOSS_SELECT_ROW_STEP = 50;
+const int BOSS_SELECT_ROW_Y = 90;       // the first row (five Immortals since update 1.9)
+const int BOSS_SELECT_ROW_H = 60;
+const int BOSS_SELECT_ROW_STEP = 72;
 const int BOSS_COMBO_TILE = 40;         // the combo strip at the top right: one icon tile per spell
 const int BOSS_COMBO_GAP = 22;          // room for the ">" between two tiles
+const int BOSS_COMBO_TILE_SMALL = 32;   // combos of six to eight spells (1.9): smaller tiles, no ">"
+const int BOSS_COMBO_GAP_SMALL = 12;
+// The Immortals with their own art (spec §32 M-6): two sheets each, a 4 x 4 grid of frames already at the size they
+// are drawn (art/make_bosses.py), facing left. The others are an enemy sprite drawn larger and tinted.
+const int IMMORTAL_ART_COUNT = 3;
+const char* const IMMORTAL_RUN_SHEETS[IMMORTAL_ART_COUNT] = { "assets/enemies/immortals/rimefang_run.png",
+	"assets/enemies/immortals/cindermaw_run.png", "assets/enemies/immortals/gravehorn_run.png" };
+const char* const IMMORTAL_HIT_SHEETS[IMMORTAL_ART_COUNT] = { "assets/enemies/immortals/rimefang_hit.png",
+	"assets/enemies/immortals/cindermaw_hit.png", "assets/enemies/immortals/gravehorn_hit.png" };
+const float IMMORTAL_RUN_FPS[IMMORTAL_ART_COUNT] = { 14.0f, 11.0f, 8.0f };
+const int IMMORTAL_FEET[IMMORTAL_ART_COUNT] = { 3, 3, 1 };  // px of the cell under the feet line
+const int IMMORTAL_FRAMES = 16;
+const float IMMORTAL_HIT_TIME = 0.55f;  // s the "got hit" animation plays after a spell of the combo scored
+// The chance of an Immortal (§32 M-3), bottom centre while no Immortal is there: label, bar, percent.
+const int IMMORTAL_METER_W = 150;
+const float IMMORTAL_METER_FLASH = 0.9f;
 const int BOSS_COMBO_Y = 84;            // under "NEXT: ..." (y 64), clear of the orb row (y 150) even with the hint orbs
 const int BOSS_HP_BAR_W = 220;
 const float BOSS_DAMAGE_SHOW = 1.5f;    // s the damage of a combo stays next to the HP bar
 const float BOSS_BAR_NOW_EARLY = 0.05f; // timing bars (hint): "NOW" from this long before the ideal moment ...
 const float BOSS_BAR_NOW_LATE = 0.25f;  // ... until this long after it (casting then still scores GREAT)
-// OVERLORD in PLAY (spec §28): its name and HP bar at the bottom centre (the top rows belong to the run's numbers).
-const int OVERLORD_BAR_Y = 514;
+// IMMORTAL in PLAY (spec §28): its name and HP bar at the bottom centre (the top rows belong to the run's numbers).
+const int IMMORTAL_BAR_Y = 514;
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
 const float FEEDBACK_TEXT_TIME = 0.7f;    // "+1" / "MISS" rise and vanish
@@ -315,6 +341,13 @@ protected:
 	SDL_Texture* m_playerCastSheet = NULL;                   // the Injoker casting (NULL: it keeps running)
 	float m_castAnim = -1.0f;                                // s since the last cast started; < 0 = not casting
 	SDL_Texture* m_meteorSheet = NULL;                       // Chaos Meteor sprite (NULL: drawn in code)
+	SDL_Texture* m_iceWallSheet = NULL;                      // Ice Wall sprite (NULL: drawn in code)
+	SDL_Texture* m_immortalRun[IMMORTAL_ART_COUNT] = {};     // the Immortals' own art (NULL: the tinted enemy sprite)
+	SDL_Texture* m_immortalHit[IMMORTAL_ART_COUNT] = {};
+	float m_bossAnimTime = 0.0f;                             // s, drives their run animation
+	float m_bossHitLeft = 0.0f;                              // s left of the "got hit" animation
+	float m_meterFlashLeft = 0.0f;                           // the chance bar lights up when it grows
+	char m_meterText[16] = "";                               // "+20%" rising from it (FloatText keeps a pointer)
 	SDL_Texture* m_forgeSheet = NULL;                        // Forge Spirit sprite (NULL: drawn in code)
 	float m_ghostWalkLeft = 0.0f;                            // seconds of aura left; 0 = no aura
 
@@ -325,9 +358,9 @@ protected:
 	practice::PlayRun m_playRuns[practice::TOP_RUNS] = {}; // this device's best PLAY runs by score (spec §26)
 	int m_goldBank = 0;                  // PLAY gold banked across runs (the future shop's currency), saved
 	char m_goldText[24] = "";            // "+20 GOLD" rising from a defeated elite / boss (FloatText keeps a pointer)
-	char m_stageText[48] = "";           // "BOSS DEFEATED - STAGE 2"
+	char m_stageText[48] = "";           // "OVERLORD DEFEATED - STAGE 2"
 	const char* m_announce = NULL;       // the rune just received
-	char m_announceText[96] = "";        // an OVERLORD's drop and rune in one line (m_announce points here then)
+	char m_announceText[96] = "";        // an IMMORTAL's drop and rune in one line (m_announce points here then)
 	int m_runMaterials[practice::MATERIAL_COUNT] = {};  // materials dropped in this run, for the Game Over screen
 	float m_announceLeft = 0.0f;
 	int m_lastRank = 0;                  // where the run that just ended landed in m_topRuns (0 = not listed)
@@ -446,6 +479,8 @@ private:
 	bool LoadGhostWalkSheet();
 	SDL_Texture* LoadSheet(const char* path, int size);  // a square RGBA sprite sheet, smoothed; NULL if missing
 	void RenderMeteorSprite(float age, int x, int y);    // age from the start of the fall; (x, y) = impact point
+	void RenderIceWallSprite(float age, float left);     // age since the cast, seconds left of the effect
+	SDL_Texture* LoadTexture(const char* path);          // any size, palette or RGBA, drawn 1:1 (nearest)
 	void RenderForgeSprite(float age, const skillvfx::Effect& e);
 	void StartSkillVfx(invoker::SkillId skill, bool hadEnemy, const practice::Bounds& enemyBody);
 	void ResetVisualEffects();
@@ -575,8 +610,8 @@ private:
 	void HandleBossKey(SDL_Keycode sym, const SDL_Event& e);
 	bool HandleBossPointer(int x, int y);
 	void ProcessBossAction(invoker::InputAction action);
-	// overlord = the fight is a PLAY run's OVERLORD: contact, win and loss are the run's business then
-	void PresentBossUpdate(const practice::BossUpdateResult& result, bool overlord = false);
+	// immortal = the fight is a PLAY run's IMMORTAL: contact, win and loss are the run's business then
+	void PresentBossUpdate(const practice::BossUpdateResult& result, bool immortal = false);
 	void PresentBossInput(const practice::BossInputResult& result);  // the grade of a quick step, a broken combo
 	void OnBossFail(practice::ComboFail reason);
 	void OnBossGrade(practice::HitGrade grade);  // PERFECT! / GREAT / GOOD above the boss, with the gold ring
@@ -591,20 +626,22 @@ private:
 	void RenderBossCombo();
 	void RenderBossSelect();
 	void RenderBossResult();
-	// OVERLORD in PLAY (spec §28): the same boss drawing and combo strip, fed by the run's own BossSession
-	bool OverlordFight() const
+	// IMMORTAL in PLAY (spec §28): the same boss drawing and combo strip, fed by the run's own BossSession
+	bool ImmortalFight() const
 	{
-		return !m_bossActive && !m_tutorialActive && m_session.State() == practice::GameState::Playing && m_session.OverlordActive();
+		return !m_bossActive && !m_tutorialActive && m_session.State() == practice::GameState::Playing && m_session.ImmortalActive();
 	}
-	bool OverlordShown() const  // the warning included: the boss already stands at the edge of the field
+	bool ImmortalShown() const  // the warning included: the boss already stands at the edge of the field
 	{
 		return !m_bossActive && !m_tutorialActive && m_session.State() == practice::GameState::Playing
-			&& (m_session.OverlordActive() || m_session.OverlordWarningLeft() > 0.0f);
+			&& (m_session.ImmortalActive() || m_session.ImmortalWarningLeft() > 0.0f);
 	}
-	bool BossShown() const { return m_bossActive || OverlordShown(); }
-	const practice::BossSession& BossView() const { return m_bossActive ? m_boss : m_session.Overlord(); }
-	void RenderOverlordWarning();
-	void RenderOverlordBar();
+	bool BossShown() const { return m_bossActive || ImmortalShown(); }
+	const practice::BossSession& BossView() const { return m_bossActive ? m_boss : m_session.Immortal(); }
+	void RenderImmortalWarning();
+	void RenderImmortalBar();
+	void RenderImmortalMeter();                 // the chance of the next Immortal (§32 M-3)
+	bool RenderImmortalArt(const practice::BossSession& boss, int cx, float lift, bool flash);  // false: no own art
 	// pause
 	bool CanPause() const
 	{

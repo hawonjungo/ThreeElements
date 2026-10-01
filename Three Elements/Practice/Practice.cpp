@@ -13,17 +13,19 @@ namespace practice
 		// skill each enemy requires is plain data: change `targetSkill` here to remap, nothing else depends on it.
 		const EnemyDefinition kEnemies[ENEMY_TYPE_COUNT] =
 		{
-			// id  name        sprite                            frames left feet  w  top bottom  target                    speed
-			{ 0, "goblin",   "assets/enemies/goblin_run.png",    8,  56, 100, 38, 63, 100, SkillId::Alacrity,       1.0f },
-			{ 1, "skeleton", "assets/enemies/skeleton.png",      4,  45, 100, 45, 50, 100, SkillId::ColdSnap,       1.0f },
-			{ 2, "fire wiz", "assets/enemies/fire_wiz.png",      8,  52, 100, 52, 33, 100, SkillId::SunStrike,      1.0f },
-			{ 3, "dark wiz", "assets/enemies/dark_wiz.png",      8,  54, 100, 43, 59,  99, SkillId::ChaosMeteor,    1.0f },
-			{ 4, "eyes",     "assets/enemies/eyes_fly.png",      8,  52, 100, 42, 60,  92, SkillId::GhostWalk,      1.0f },
-			{ 5, "mushroom", "assets/enemies/mushroom_run.png",  8,  62, 100, 26, 62, 100, SkillId::ForgeSpirit,    1.0f },
-			{ 6, "necro",    "assets/enemies/nec_walk.png",     10,  45, 100, 51, 19,  99, SkillId::DeafeningBlast, 1.0f },
-			{ 7, "worm",     "assets/enemies/worm_run.png",      9,  35, 100, 88, 24,  96, SkillId::Tornado,        1.0f },
-			{ 8, "kitsune",  "assets/enemies/kitsune_run.png",   8,  54, 127, 57, 44, 127, SkillId::EMP,            1.0f },
-			{ 9, "knight",   "assets/enemies/knight_run.png",    8,  24,  43, 31, 14,  43, SkillId::IceWall,        1.0f }
+			// The last column (1.9): the sheets come from different packs, some bodies are only 30 - 40 px tall next
+			// to a player of about 106 px; those are drawn 2x or 3x, which brings every enemy to 66 - 102 px.
+			// id  name        sprite                            frames left feet  w  top bottom  target                    speed size
+			{ 0, "goblin",   "assets/enemies/goblin_run.png",    8,  56, 100, 38, 63, 100, SkillId::Alacrity,       1.0f, 2.0f },
+			{ 1, "skeleton", "assets/enemies/skeleton.png",      4,  45, 100, 45, 50, 100, SkillId::ColdSnap,       1.0f, 2.0f },
+			{ 2, "fire wiz", "assets/enemies/fire_wiz.png",      8,  52, 100, 52, 33, 100, SkillId::SunStrike,      1.0f, 1.0f },
+			{ 3, "dark wiz", "assets/enemies/dark_wiz.png",      8,  54, 100, 43, 59,  99, SkillId::ChaosMeteor,    1.0f, 2.0f },
+			{ 4, "eyes",     "assets/enemies/eyes_fly.png",      8,  52, 100, 42, 60,  92, SkillId::GhostWalk,      1.0f, 2.0f },
+			{ 5, "mushroom", "assets/enemies/mushroom_run.png",  8,  62, 100, 26, 62, 100, SkillId::ForgeSpirit,    1.0f, 2.0f },
+			{ 6, "necro",    "assets/enemies/nec_walk.png",     10,  45, 100, 51, 19,  99, SkillId::DeafeningBlast, 1.0f, 1.0f },
+			{ 7, "worm",     "assets/enemies/worm_run.png",      9,  35, 100, 88, 24,  96, SkillId::Tornado,        1.0f, 1.0f },
+			{ 8, "kitsune",  "assets/enemies/kitsune_run.png",   8,  54, 127, 57, 44, 127, SkillId::EMP,            1.0f, 1.0f },
+			{ 9, "knight",   "assets/enemies/knight_run.png",    8,  24,  43, 31, 14,  43, SkillId::IceWall,        1.0f, 3.0f }
 		};
 	}
 
@@ -124,23 +126,25 @@ namespace practice
 		return p;
 	}
 
-	float EliteChance(float elapsedSeconds)
+	// §32 M-2: a fixed schedule. 15, 25, 35 ... are elites; 20, 30, 40 ... overlords; everything else is normal.
+	EnemyKind PlayEnemyKind(int enemyNumber)
 	{
-		if (elapsedSeconds <= 0.0f)
-			return 0.0f;
-		float c = PLAY_ELITE_CHANCE_MAX * elapsedSeconds / PLAY_ELITE_RAMP_TIME;
-		return c > PLAY_ELITE_CHANCE_MAX ? PLAY_ELITE_CHANCE_MAX : c;
+		if (enemyNumber >= PLAY_OVERLORD_FIRST && (enemyNumber - PLAY_OVERLORD_FIRST) % PLAY_OVERLORD_EVERY == 0)
+			return EnemyKind::Overlord;
+		if (enemyNumber >= PLAY_ELITE_FIRST && (enemyNumber - PLAY_ELITE_FIRST) % PLAY_OVERLORD_EVERY == 0)
+			return EnemyKind::Elite;
+		return EnemyKind::Normal;
 	}
 
-	bool IsOverlordEnemy(int enemyNumber)
+	int ImmortalTier(int boss)
 	{
-		return enemyNumber >= PLAY_OVERLORD_FIRST && enemyNumber % PLAY_BOSS_EVERY == 0;
+		int length = GetBossDefinition(boss).comboLength;
+		return length <= 4 ? 1 : length <= 6 ? 2 : 3;
 	}
 
-	int OverlordTier(int enemyNumber)
+	int ImmortalDropCount(int boss)
 	{
-		int tier = enemyNumber / PLAY_BOSS_EVERY - 1;  // 20 -> 1, 30 -> 2, 40 -> 3
-		return tier < 1 ? 1 : tier > 3 ? 3 : tier;
+		return boss <= 2 ? 1 : PLAY_IMMORTAL_MAX_DROPS;
 	}
 
 	// ------------------------------------------------------------------ records
@@ -219,10 +223,12 @@ namespace practice
 		m_backLeft = m_stillLeft = m_bkbLeft = m_smokeLeft = 0.0f;
 		m_runeChoiceCount = 0;
 		m_difficultyTime = 0.0f;
-		m_overlordActive = false;                // an OVERLORD fight ends with the session too
-		m_overlordWarning = 0.0f;
-		m_overlordBoss = m_overlordTier = 0;
-		m_lastOverlord = -1;
+		m_immortalActive = false;                // an IMMORTAL fight ends with the session too
+		m_immortalWarning = 0.0f;
+		m_immortalBoss = m_immortalTier = 0;
+		m_lastImmortal = -1;
+		m_immortalChance = 0;
+		m_immortalDue = false;
 		m_refresherArmed = false;
 		m_defeatedBy = -1;
 		m_tornadoes.clear();                     // projectiles in flight disappear with the session
@@ -270,17 +276,17 @@ namespace practice
 		result.cast = CastOutcome::None;
 		result.tornadoLaunched = false;
 		result.kill = {};
-		result.overlord = false;
+		result.immortal = false;
 		result.boss = {};
 
 		if (m_state != GameState::Playing || m_runeChoiceCount > 0)  // the rune choice pauses the run
 			return result;
 
 		result.accepted = true;
-		if (m_overlordActive)  // §28: the fight has the keys (its own lift, delays and grades)
+		if (m_immortalActive)  // §28: the fight has the keys (its own lift, delays and grades)
 		{
-			result.overlord = true;
-			result.boss = m_overlord.Input(action);
+			result.immortal = true;
+			result.boss = m_immortal.Input(action);
 			result.invoker = result.boss.invoker;
 			if (result.boss.fail != ComboFail::None)
 				++m_stats.incorrectCasts;        // a broken combo counts as one wrong cast
@@ -336,16 +342,26 @@ namespace practice
 			m_kill = { true, m_enemy.kind, 1, 0, Rune::None };
 			if (m_mode == SessionMode::Play)
 			{
-				m_kill.points = m_enemy.kind == EnemyKind::Boss ? PLAY_POINTS_BOSS
+				m_kill.points = m_enemy.kind == EnemyKind::Overlord ? PLAY_POINTS_OVERLORD
 					: m_enemy.kind == EnemyKind::Elite ? PLAY_POINTS_ELITE : PLAY_POINTS_NORMAL;
 				if (m_doubleLeft > 0.0f)
 					m_kill.points *= 2;
-				m_kill.gold = AddGold(m_enemy.kind == EnemyKind::Boss ? PLAY_GOLD_BOSS
+				m_kill.gold = AddGold(m_enemy.kind == EnemyKind::Overlord ? PLAY_GOLD_OVERLORD
 					: m_enemy.kind == EnemyKind::Elite ? PLAY_GOLD_ELITE : 0);
-				if (m_enemy.kind == EnemyKind::Boss)
+				if (m_enemy.kind == EnemyKind::Overlord)
 				{
 					++m_stats.bossesDefeated;
 					GiveBossRune();
+				}
+				if (m_enemy.kind != EnemyKind::Normal && !m_immortalDue)  // §32 M-3: the chance grows and is rolled
+				{
+					m_immortalChance += m_enemy.kind == EnemyKind::Overlord ? PLAY_IMMORTAL_CHANCE_OVERLORD
+						: PLAY_IMMORTAL_CHANCE_ELITE;
+					if (m_immortalChance > 100)
+						m_immortalChance = 100;
+					m_immortalDue = static_cast<int>(NextRandom() % 100u) < m_immortalChance;
+					m_kill.immortalChance = m_immortalChance;
+					m_kill.immortalComing = m_immortalDue;
 				}
 			}
 			m_stats.score += m_kill.points;          // Survival: +1 per enemy, as always
@@ -452,7 +468,7 @@ namespace practice
 			return result;
 		const ItemLevel& lv = def.level[level - 1];
 		int left = m_enemy.chainLength - m_enemy.chainStep;  // skills of the chain still to break
-		bool anyEnemy = m_enemy.active || m_overlordActive;  // §28 O-6: the items work on an OVERLORD too
+		bool anyEnemy = m_enemy.active || m_immortalActive;  // §28 O-6: the items work on an IMMORTAL too
 		switch (item)
 		{
 		case ItemId::Blink:
@@ -466,14 +482,14 @@ namespace practice
 				return result;
 			m_stillLeft = lv.value;
 			m_backLeft = 0.0f;
-			if (level >= 2 && m_overlordActive)  // Wind Waker
-				m_overlord.PushBack(PLAY_EULS_PUSHBACK);
+			if (level >= 2 && m_immortalActive)  // Wind Waker
+				m_immortal.PushBack(PLAY_EULS_PUSHBACK);
 			else if (level >= 2)
 				m_enemy.x = m_enemy.x + PLAY_EULS_PUSHBACK < SPAWN_X ? m_enemy.x + PLAY_EULS_PUSHBACK : SPAWN_X;
 			break;
 		case ItemId::Refresher:
 		{
-			if (m_overlordActive)  // O-6: against an OVERLORD it arms x2 damage for the next combo that hurts it
+			if (m_immortalActive)  // O-6: against an IMMORTAL it arms x2 damage for the next combo that hurts it
 			{
 				if (m_refresherArmed)
 					return result;
@@ -579,9 +595,9 @@ namespace practice
 			return result;
 
 		m_stats.survivalTime += dt;
-		bool overlord = m_overlordActive || m_overlordWarning > 0.0f;
-		if (!overlord)
-			m_difficultyTime += dt;              // O-5: the difficulty clock stops for an OVERLORD
+		bool immortal = m_immortalActive || m_immortalWarning > 0.0f;
+		if (!immortal)
+			m_difficultyTime += dt;              // O-5: the difficulty clock stops for an IMMORTAL
 		m_frostLeft = m_frostLeft > dt ? m_frostLeft - dt : 0.0f;
 		m_doubleLeft = m_doubleLeft > dt ? m_doubleLeft - dt : 0.0f;
 		m_backLeft = m_backLeft > dt ? m_backLeft - dt : 0.0f;
@@ -591,9 +607,9 @@ namespace practice
 		for (int i = 0; i < ITEM_COUNT; ++i)
 			m_itemCooldown[i] = m_itemCooldown[i] > dt ? m_itemCooldown[i] - dt : 0.0f;
 
-		if (overlord)
+		if (immortal)
 		{
-			UpdateOverlord(dt, result);
+			UpdateImmortal(dt, result);
 			return result;
 		}
 
@@ -602,8 +618,8 @@ namespace practice
 			m_spawnTimer -= dt;
 			if (m_spawnTimer <= 0.0f)
 			{
-				if (m_mode == SessionMode::Play && IsOverlordEnemy(m_spawnCount + 1))
-					BeginOverlord(result);           // §28 O-1: the 20th, 30th, ... enemy is an OVERLORD
+				if (m_mode == SessionMode::Play && m_immortalDue)
+					BeginImmortal(result);           // §32 M-3: the roll hit, the Immortal comes before the next enemy
 				else
 				{
 					SpawnEnemy();
@@ -630,7 +646,7 @@ namespace practice
 		if (m_enemy.active && m_enemy.x <= HIT_LINE_X)  // "<=": a large dt may jump past the exact line
 		{
 			m_enemy.active = false;              // the enemy disappears
-			int damage = m_mode != SessionMode::Play ? 1 : m_enemy.kind == EnemyKind::Boss ? PLAY_LEAK_BOSS
+			int damage = m_mode != SessionMode::Play ? 1 : m_enemy.kind == EnemyKind::Overlord ? PLAY_LEAK_OVERLORD
 				: m_enemy.kind == EnemyKind::Elite ? PLAY_LEAK_ELITE : PLAY_LEAK_NORMAL;
 			if (m_bkbLeft > 0.0f)                // Black King Bar running: this leak costs nothing (§27 I-5)
 			{
@@ -662,65 +678,61 @@ namespace practice
 		return result;
 	}
 
-	// O-1 / O-2 / O-3: which boss comes, and the warning before it. It takes the place of that enemy of the run.
-	void PracticeSession::BeginOverlord(UpdateResult& result)
+	// §32 M-4 / O-3: which Immortal comes, and the warning before it. It is an extra: it takes no enemy number, so
+	// the schedule of elites and overlords does not move.
+	void PracticeSession::BeginImmortal(UpdateResult& result)
 	{
-		++m_spawnCount;
-		int boss;
-		if (m_spawnCount == PLAY_OVERLORD_FIRST)
-			boss = 1;                            // Dark Wizard
-		else if (m_spawnCount == PLAY_OVERLORD_FIRST + PLAY_BOSS_EVERY)
-			boss = 6;                            // Shadow Assassin
-		else if (m_spawnCount == PLAY_OVERLORD_FIRST + 2 * PLAY_BOSS_EVERY)
-			boss = 7;                            // Archon
-		else
+		int boss = m_stats.immortalsBeaten;      // the first five of a run: combos of 4, 5, 6, 7, 8 in that order
+		if (boss >= BOSS_COUNT)
 		{
 			boss = static_cast<int>(NextRandom() % static_cast<unsigned>(BOSS_COUNT - 1));
-			if (m_lastOverlord >= 0 && boss >= m_lastOverlord)
-				++boss;                          // any of the eight but the last one
+			if (m_lastImmortal >= 0 && boss >= m_lastImmortal)
+				++boss;                          // then any of the five but the last one
 		}
-		m_overlordBoss = m_lastOverlord = boss;
-		m_overlordTier = OverlordTier(m_spawnCount);
-		m_overlordWarning = PLAY_OVERLORD_WARNING;
+		m_immortalChance = 0;                    // M-3: it has come, the chance starts again
+		m_immortalDue = false;
+		m_immortalBoss = m_lastImmortal = boss;
+		m_immortalTier = ImmortalTier(boss);
+		m_immortalWarning = PLAY_IMMORTAL_WARNING;
 		m_backLeft = m_stillLeft = 0.0f;         // what was left of Blink / Eul's on the last enemy does not carry over
 		m_tornadoes.clear();
-		StartOverlordSession();                  // shown during the warning; started again when the fight begins
-		result.overlordWarning = true;
-		result.overlordBoss = boss;
-		result.overlordTier = m_overlordTier;
+		StartImmortalSession();                  // shown during the warning; started again when the fight begins
+		result.immortalWarning = true;
+		result.immortalBoss = boss;
+		result.immortalTier = m_immortalTier;
 	}
 
-	void PracticeSession::StartOverlordSession()
+	void PracticeSession::StartImmortalSession()
 	{
-		int harder = m_stats.overlordsBeaten - 2;  // O-2: the 50th enemy is the first harder one
+		int harder = m_stats.immortalsBeaten - (BOSS_COUNT - 1);  // M-4: the sixth of a run is the first harder one
 		if (harder < 0)
 			harder = 0;
-		float windowScale = 1.0f - PLAY_OVERLORD_WINDOW_STEP * static_cast<float>(harder);
-		m_overlord.StartOverlord(m_overlordBoss, m_stats.hp, m_invoker,
-			1.0f + PLAY_OVERLORD_SPEED_STEP * static_cast<float>(harder), windowScale > 0.0f ? windowScale : 0.0f);
+		float windowScale = 1.0f - PLAY_IMMORTAL_WINDOW_STEP * static_cast<float>(harder);
+		m_immortal.StartImmortal(m_immortalBoss, m_stats.hp, m_invoker,
+			1.0f + PLAY_IMMORTAL_SPEED_STEP * static_cast<float>(harder), windowScale > 0.0f ? windowScale : 0.0f);
 	}
 
 	// The warning counts down, then the §25 fight runs with the run's lives, orbs and item effects (O-4, O-6).
-	void PracticeSession::UpdateOverlord(float dt, UpdateResult& result)
+	void PracticeSession::UpdateImmortal(float dt, UpdateResult& result)
 	{
-		if (!m_overlordActive)
+		if (!m_immortalActive)
 		{
-			m_overlordWarning -= dt;
-			if (m_overlordWarning > 0.0f)
+			m_immortalWarning -= dt;
+			if (m_immortalWarning > 0.0f)
 				return;
-			m_overlordWarning = 0.0f;
-			StartOverlordSession();              // with the orbs and slots prepared during the warning
-			m_overlordActive = true;
-			result.overlordFight = true;
+			m_immortalWarning = 0.0f;
+			StartImmortalSession();              // with the orbs and slots prepared during the warning
+			m_immortalActive = true;
+			result.immortalFight = true;
 			return;
 		}
 
 		bool bkb = m_bkbLeft > 0.0f;
 		float speedFactor = (m_frostLeft > 0.0f ? PLAY_FROST_SPEED : 1.0f) * (m_smokeLeft > 0.0f ? PLAY_SMOKE_SPEED : 1.0f);
-		m_overlord.SetPlayerHp(m_stats.hp);      // a Salve or Cheese used since the last update
-		m_overlord.SetModifiers(speedFactor, m_stillLeft > 0.0f, m_backLeft > 0.0f, bkb || m_shield, m_refresherArmed ? 2 : 1);
-		BossUpdateResult r = m_overlord.Update(dt);
-		result.overlordUpdated = true;
+		m_immortal.SetPlayerHp(m_stats.hp);      // a Salve or Cheese used since the last update
+		m_immortal.SetModifiers(speedFactor, m_stillLeft > 0.0f, m_backLeft > 0.0f, bkb || m_shield, m_refresherArmed ? 2 : 1);
+		BossUpdateResult r = m_immortal.Update(dt);
+		result.immortalUpdated = true;
 		result.boss = r;
 
 		if (r.comboComplete)                     // a combo that hurt it: one correct cast for the run's numbers
@@ -746,16 +758,16 @@ namespace practice
 			}
 			else
 			{
-				m_stats.hp = m_overlord.PlayerHp();
+				m_stats.hp = m_immortal.PlayerHp();
 				result.leakDamage = 1;
 			}
 		}
 		if (r.lost)
 		{
 			m_stats.hp = 0;
-			m_invoker = m_overlord.Invoker();
-			m_overlordActive = false;
-			m_defeatedBy = m_overlordBoss;       // O-9
+			m_invoker = m_immortal.Invoker();
+			m_immortalActive = false;
+			m_defeatedBy = m_immortalBoss;       // O-9
 			m_state = GameState::GameOver;
 			result.gameOver = true;
 			return;
@@ -766,20 +778,24 @@ namespace practice
 		// O-8: points, gold, a rune, a material, the next stage; then PLAY goes on
 		m_kill = {};
 		m_kill.killed = true;
-		m_kill.kind = EnemyKind::Boss;
-		m_kill.overlord = true;
-		m_kill.points = PLAY_OVERLORD_POINTS * (m_doubleLeft > 0.0f ? 2 : 1);
-		m_kill.gold = AddGold(PLAY_OVERLORD_GOLD);
+		m_kill.kind = EnemyKind::Overlord;
+		m_kill.immortal = true;
+		m_kill.points = PLAY_IMMORTAL_POINTS * (m_doubleLeft > 0.0f ? 2 : 1);
+		m_kill.gold = AddGold(PLAY_IMMORTAL_GOLD);
 		++m_stats.bossesDefeated;
-		++m_stats.overlordsBeaten;
+		++m_stats.immortalsBeaten;
 		++m_stats.kills;
 		GiveBossRune();
-		m_kill.material = MaterialOfBoss(m_overlordBoss);  // O-10: always exactly one
-		m_kill.droppedMaterial = true;
-		AddMaterial(m_inv, m_kill.material);
+		m_kill.materialCount = ImmortalDropCount(m_immortalBoss);  // M-7: its own material, or two random ones
+		for (int i = 0; i < m_kill.materialCount; ++i)
+		{
+			m_kill.materials[i] = m_kill.materialCount == 1 ? MaterialOfBoss(m_immortalBoss)
+				: static_cast<Material>(NextRandom() % static_cast<unsigned>(MATERIAL_COUNT));
+			AddMaterial(m_inv, m_kill.materials[i]);
+		}
 		m_stats.score += m_kill.points;
-		m_invoker = m_overlord.Invoker();        // orbs and slots come back out
-		m_overlordActive = false;
+		m_invoker = m_immortal.Invoker();        // orbs and slots come back out
+		m_immortalActive = false;
 		m_backLeft = m_stillLeft = 0.0f;
 		StartWaiting();
 		result.kill = m_kill;
@@ -812,23 +828,20 @@ namespace practice
 		m_enemy.chain[0] = def.targetSkill;
 		m_enemy.chainLength = 1;
 		m_enemy.chainStep = 0;
-		m_enemy.scale = 1.0f;
+		m_enemy.scale = def.size;
 		m_lastTarget = def.targetSkill;
 		++m_spawnCount;
 
 		if (m_mode != SessionMode::Play)
 			return;
-		// PLAY (P3-2): every 10th enemy is a boss (chain of 3), others may be elites (chain of 2)
-		if (m_spawnCount % PLAY_BOSS_EVERY == 0)
-			m_enemy.kind = EnemyKind::Boss;
-		else if (static_cast<float>(NextRandom() % 1000u) / 1000.0f < EliteChance(m_difficultyTime))
-			m_enemy.kind = EnemyKind::Elite;
+		// PLAY (§32 M-2): the 15th, 25th ... enemy is an elite (chain of 2), the 20th, 30th ... an overlord (chain of 3)
+		m_enemy.kind = PlayEnemyKind(m_spawnCount);
 		if (m_enemy.kind == EnemyKind::Normal)
 			return;
-		bool boss = m_enemy.kind == EnemyKind::Boss;
+		bool boss = m_enemy.kind == EnemyKind::Overlord;
 		m_enemy.chainLength = boss ? 3 : 2;
-		m_enemy.speed *= boss ? PLAY_BOSS_SPEED : PLAY_ELITE_SPEED;
-		m_enemy.scale = boss ? PLAY_BOSS_SCALE : PLAY_ELITE_SCALE;
+		m_enemy.speed *= boss ? PLAY_OVERLORD_SPEED : PLAY_ELITE_SPEED;
+		m_enemy.scale = def.size * (boss ? PLAY_OVERLORD_SCALE : PLAY_ELITE_SCALE);
 		for (int k = 1; k < m_enemy.chainLength; ++k)  // the rest of the chain: random skills not used yet
 		{
 			SkillId options[invoker::SKILL_COUNT];

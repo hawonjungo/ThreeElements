@@ -41,7 +41,7 @@ An elemental-combining keyboarding game that blends fast typing with quick tacti
 | **Esc** | Back / Quit |
 | **M** | Toggle sound |
 | **G** | View recipe hints |
-| **S / B / P** | Survival Mode / Boss Fights / Shop |
+| **S / B / P** | Survival Mode / Immortals / Shop |
 | **U I O / J K L** | Use items |
 
 ---

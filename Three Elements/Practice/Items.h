@@ -20,13 +20,15 @@ namespace practice
 
 	enum class ItemKind { Active, Passive, Consumable };
 
-	// Materials (spec §28 O-10): one drops from every OVERLORD beaten in PLAY; the shop asks for them (O-11).
+	// Materials (spec §28 O-10): one drops from every IMMORTAL beaten in PLAY; the shop asks for them (O-11).
 	enum class Material { PointBooster, MysticStaff, SacredRelic };
 	const int MATERIAL_COUNT = 3;
 	const int MATERIAL_MAX = 99;
 	const int MATERIAL_NONE = -1;
 	const char* MaterialName(Material material);   // English capitals, e.g. "POINT BOOSTER"
-	Material MaterialOfBoss(int boss);              // bosses 1-3 -> Point Booster, 4-7 -> Mystic Staff, 8 -> Sacred Relic
+	// §32 M-7: the first three Immortals drop their own material (Point Booster, Mystic Staff, Sacred Relic); the
+	// last two drop two random ones (PracticeSession picks them).
+	Material MaterialOfBoss(int boss);
 
 	struct ItemLevel
 	{

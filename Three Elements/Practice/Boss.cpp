@@ -8,36 +8,31 @@ namespace practice
 {
 	namespace
 	{
-		// B-9. The enemy indices are those of kEnemies in Practice.cpp (9 knight, 3 dark wiz, 8 kitsune).
-		const SkillId NONE = SkillId::None;
+		// §32 M-6: the five Immortals, by the length of their combo (4, 5, 6, 7, 8), the combos Invoker players use
+		// most. The first three have their own art (assets/enemies/<name>/, the body is given here in field pixels);
+		// the last two are still an enemy of kEnemies drawn larger and tinted (3 dark wiz, 6 necromancer) until the
+		// owner's art is there. The eight bosses of 1.2 / 1.5 are gone from the game; the tests keep them as
+		// definitions of their own, to exercise the guided cue, the holds and the two phases.
 		const BossDefinition kBosses[BOSS_COUNT] =
 		{
-			{ "STONE KNIGHT", 9, 3.0f, { 190, 200, 215 },
-				{ SkillId::Tornado, SkillId::SunStrike, NONE, NONE, NONE }, 2, 40.0f, 1.2f, true,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "DARK WIZARD", 3, 2.5f, { 200, 150, 255 },
-				{ SkillId::Tornado, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE, NONE }, 3, 45.0f, 1.0f, false,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "KITSUNE QUEEN", 8, 1.8f, { 255, 150, 120 },
-				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE }, 4, 50.0f, 1.0f, false,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			// update 1.5 (B-18): the other five skills. Enemy indices: 0 goblin, 1 skeleton, 2 fire wiz, 6 necro, 4 eyes.
-			{ "FROST TROLL", 0, 3.0f, { 150, 210, 255 },
-				{ SkillId::ColdSnap, SkillId::SunStrike, NONE, NONE, NONE }, 2, 45.0f, 1.0f, false,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "GLACIER GOLEM", 1, 2.6f, { 190, 225, 255 },
-				{ SkillId::IceWall, SkillId::ChaosMeteor, SkillId::DeafeningBlast, NONE, NONE }, 3, 50.0f, 1.0f, false,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "FIRE IMP", 2, 2.0f, { 255, 170, 110 },
-				{ SkillId::ColdSnap, SkillId::Alacrity, SkillId::ForgeSpirit, NONE, NONE }, 3, 55.0f, 1.0f, false,
-				{ NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "SHADOW ASSASSIN", 6, 2.0f, { 170, 130, 220 },
-				{ SkillId::GhostWalk, SkillId::Tornado, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
-				50.0f, 1.2f, false, { NONE, NONE, NONE, NONE, NONE }, 0 },
-			{ "ARCHON", 4, 3.4f, { 255, 225, 120 },
+			{ "RIMEFANG", 0, 1.0f, { 255, 255, 255 },
+				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 4,
+				50.0f, 1.0f, false, {}, 0, 230.0f, 140.0f },
+			{ "CINDERMAW", 0, 1.0f, { 255, 255, 255 },
 				{ SkillId::Tornado, SkillId::EMP, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 5,
-				50.0f, 1.4f, false,
-				{ SkillId::IceWall, SkillId::ColdSnap, SkillId::ForgeSpirit, SkillId::Alacrity, NONE }, 4 },
+				50.0f, 1.4f, false, {}, 0, 160.0f, 180.0f },
+			{ "GRAVEHORN", 0, 1.0f, { 255, 255, 255 },
+				{ SkillId::Tornado, SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::ColdSnap,
+				  SkillId::ForgeSpirit }, 6,
+				45.0f, 1.2f, false, {}, 0, 130.0f, 205.0f },
+			{ "VOLTARA", 3, 3.2f, { 190, 215, 255 },
+				{ SkillId::Tornado, SkillId::EMP, SkillId::ChaosMeteor, SkillId::DeafeningBlast, SkillId::ChaosMeteor,
+				  SkillId::DeafeningBlast, SkillId::IceWall }, 7,
+				45.0f, 1.2f, false, {}, 0, 0.0f, 0.0f },
+			{ "THE HOLLOW KING", 6, 2.4f, { 255, 235, 200 },
+				{ SkillId::ForgeSpirit, SkillId::Alacrity, SkillId::IceWall, SkillId::ColdSnap, SkillId::Tornado,
+				  SkillId::SunStrike, SkillId::ChaosMeteor, SkillId::DeafeningBlast }, 8,
+				40.0f, 1.2f, false, {}, 0, 0.0f, 0.0f },
 		};
 
 		const float PROJECTILE_STEP_TIME = TORNADO_MAX_STEP / TORNADO_SPEED;  // hit test at least every 10 px
@@ -127,7 +122,15 @@ namespace practice
 
 	void BossSession::Start(int boss)
 	{
-		m_boss = boss >= 0 && boss < BOSS_COUNT ? boss : 0;
+		int index = boss >= 0 && boss < BOSS_COUNT ? boss : 0;
+		Start(kBosses[index]);
+		m_boss = index;
+	}
+
+	void BossSession::Start(const BossDefinition& def)
+	{
+		m_boss = -1;
+		m_def = def;
 		m_state = BossState::Fighting;
 		m_bossHp = BOSS_FULL_HP;
 		m_playerHp = START_HP;
@@ -170,7 +173,7 @@ namespace practice
 		m_pendingCount = 0;
 	}
 
-	void BossSession::StartOverlord(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale)
+	void BossSession::StartImmortal(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale)
 	{
 		Start(boss);
 		m_playerHp = playerHp;
@@ -203,6 +206,13 @@ namespace practice
 		const EnemyDefinition& e = GetEnemyDefinition(def.enemyDefinition);
 		Bounds b;
 		b.x = m_x;
+		if (def.bodyWidth > 0.0f)  // its own art: the body is given
+		{
+			b.y = GROUND_LINE_Y - def.bodyHeight;
+			b.w = def.bodyWidth;
+			b.h = def.bodyHeight;
+			return b;
+		}
 		b.y = GROUND_LINE_Y - static_cast<float>(e.feetRow - e.bodyTop) * def.scale;
 		b.w = static_cast<float>(e.bodyWidth) * def.scale;
 		b.h = static_cast<float>(e.bodyBottom - e.bodyTop + 1) * def.scale;
@@ -230,18 +240,27 @@ namespace practice
 	}
 
 	// B-16: a landing step is Sun Strike / Chaos Meteor / EMP / Deafening Blast after a Tornado in the same combo;
-	// every other follow-up is a quick step.
+	// every other follow-up is a quick step. B-21 (1.9, combos of up to eight): a spell catches the landing once, so
+	// the second Chaos Meteor or Deafening Blast after the same Tornado (the "Refresher" part of a long combo) is a
+	// quick step.
 	BossStepKind BossSession::StepKind(int step) const
 	{
 		if (step <= 0)
 			return BossStepKind::Opener;
 		const SkillId* combo = Combo();
 		SkillId s = combo[step];
-		bool landingSpell = BossSpellDelay(s) > 0.0f || s == SkillId::DeafeningBlast;
-		bool tornadoBefore = false;
+		if (BossSpellDelay(s) <= 0.0f && s != SkillId::DeafeningBlast)
+			return BossStepKind::Quick;
+		int tornado = -1;
 		for (int i = 0; i < step; ++i)
-			tornadoBefore = tornadoBefore || combo[i] == SkillId::Tornado;
-		return landingSpell && tornadoBefore ? BossStepKind::Landing : BossStepKind::Quick;
+			if (combo[i] == SkillId::Tornado)
+				tornado = i;
+		if (tornado < 0)
+			return BossStepKind::Quick;
+		for (int i = tornado + 1; i < step; ++i)
+			if (combo[i] == s)
+				return BossStepKind::Quick;
+		return BossStepKind::Landing;
 	}
 
 	bool BossSession::QuickTiming(int step, float& left, float& total) const
@@ -545,9 +564,9 @@ namespace practice
 				m_phase = BossPhase::Walking;
 			}
 		}
-		else if (m_freezeLeft <= 0.0f && m_confuseLeft <= 0.0f && !m_still)  // B-17 (and Eul's on an OVERLORD): no move
+		else if (m_freezeLeft <= 0.0f && m_confuseLeft <= 0.0f && !m_still)  // B-17 (and Eul's on an IMMORTAL): no move
 		{
-			if (m_walkBack)  // Blink Dagger on an OVERLORD: it walks back, never past where it started
+			if (m_walkBack)  // Blink Dagger on an IMMORTAL: it walks back, never past where it started
 				m_x = m_x + m_speed * dt < BOSS_START_X ? m_x + m_speed * dt : BOSS_START_X;
 			else
 				m_x -= m_speed * m_speedFactor * (m_slowLeft > 0.0f ? BOSS_ICE_WALL_SPEED : 1.0f) * dt;
@@ -628,21 +647,27 @@ namespace practice
 		}
 		if (m_running)
 		{
-			bool allGraded = true;
-			for (int i = 1; i < ComboLength(); ++i)
-				allGraded = allGraded && m_grades[i] != HitGrade::None;
-			if (!allGraded && m_landed && m_elapsed > m_landTime + m_window)
+			// the window after the landing has closed: the landing steps still open are missed (TOO LATE). The ones
+			// never cast are passed over, so that the quick steps after them can still be cast (B-21).
+			if (m_landed && m_elapsed > m_landTime + m_window)
 			{
 				for (int i = 1; i < ComboLength(); ++i)
 				{
-					if (m_grades[i] == HitGrade::None)
+					if (m_grades[i] == HitGrade::None && StepKind(i) == BossStepKind::Landing)
 					{
 						m_grades[i] = HitGrade::Miss;
 						m_missReasons[i] = ComboFail::TooLate;
 					}
 				}
-				allGraded = true;
+				while (m_castIndex < ComboLength() && StepKind(m_castIndex) == BossStepKind::Landing)
+				{
+					m_castTime[m_castIndex] = m_elapsed;  // the next quick step's time starts now
+					++m_castIndex;
+				}
 			}
+			bool allGraded = true;
+			for (int i = 1; i < ComboLength(); ++i)
+				allGraded = allGraded && m_grades[i] != HitGrade::None;
 			if (allGraded)
 			{
 				Resolve(result);
@@ -657,7 +682,7 @@ namespace practice
 			result.playerHit = true;
 			m_running = false;
 			if (m_contactBlocked)
-				result.contactBlocked = true;  // a Shield or a Black King Bar took it (OVERLORD only)
+				result.contactBlocked = true;  // a Shield or a Black King Bar took it (IMMORTAL only)
 			else
 				--m_playerHp;
 			if (m_playerHp <= 0)

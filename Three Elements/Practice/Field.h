@@ -3,7 +3,7 @@
 #define FIELD_H_
 
 // What the Practice-layer sessions share (split out of Practice.h for update 1.6, so that PracticeSession can own a
-// BossSession for the OVERLORD fights of spec §28 without a circular include): the play field, the enemy table, a
+// BossSession for the IMMORTAL fights of spec §28 without a circular include): the play field, the enemy table, a
 // box type and the Tornado projectile. No SDL, no clock, no globals, like the rest of the layer.
 
 #include "../Core/Invoker.h"
@@ -46,6 +46,8 @@ namespace practice
 		int bodyBottom;                  //   the hit box that spells collide with
 		invoker::SkillId targetSkill;    // the skill this enemy requires; data, not derived from the sprite
 		float speedMultiplier;           // applied on top of the difficulty speed
+		float size;                      // drawn size and hit box, a whole number so the pixels stay square (§32 M-8):
+		                                 // the sheets come from different packs and the small ones are drawn 2x or 3x
 	};
 
 	const EnemyDefinition& GetEnemyDefinition(int index);  // 0 <= index < ENEMY_TYPE_COUNT
