@@ -26,6 +26,7 @@ final class OnlineBoards {
     private static final int REQUEST_BOARDS = 9004;   // any number: the result is not used
 
     private static volatile boolean signedIn = false;
+    private static boolean signInAsked = false;       // show() started Google's sign-in and it has not answered yet
     // the best result of this session that could not be sent yet (not signed in): sent as soon as the player signs in
     private static final long[] waiting = new long[BOARDS];
 
@@ -74,10 +75,21 @@ final class OnlineBoards {
             open(activity);
             return;
         }
+        if (signInAsked) {
+            // The player left Google's sign-in unfinished (Home, then back to the game). The game is a singleInstance
+            // activity (SDL's template), so that sign-in is still open in a task of its own, and Play Games ignores a
+            // new request while it waits: bring that task back, where the player can finish it or go Back out of it.
+            Intent back = new Intent(activity, TaskResumeActivity.class);
+            back.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(back);
+            return;
+        }
+        signInAsked = true;
         PlayGames.getGamesSignInClient(activity).signIn()
             .addOnCompleteListener(new OnCompleteListener<AuthenticationResult>() {
                 @Override
                 public void onComplete(Task<AuthenticationResult> task) {
+                    signInAsked = false;
                     signedIn = task.isSuccessful() && task.getResult().isAuthenticated();
                     if (signedIn) {
                         sendWaiting(activity);

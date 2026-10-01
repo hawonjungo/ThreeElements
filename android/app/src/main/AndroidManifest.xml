@@ -39,5 +39,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Brings an unfinished Google sign-in back to the front (see TaskResumeActivity); never shown. -->
+        <activity
+            android:name=".TaskResumeActivity"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:exported="false" />
     </application>
 </manifest>
