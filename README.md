@@ -1,54 +1,53 @@
-# ThreeElements 🧙‍♂️🎮
+# INJOKER 🧙‍♂️🎮
 
-Một tựa game luyện ngón tay (Keyboarding Game) kết hợp tư duy nhanh, lấy cảm hứng từ cơ chế phối hợp nguyên tố để niệm kỹ năng. 
+An elemental-combining keyboarding game that blends fast typing with quick tactical thinking, inspired by element-invoking skill mechanics.
 
-> **Trạng thái dự án:** Đã hoàn thành khoảng **70%** phần logic game (core gameplay). Hiện tại bạn có thể trải nghiệm bản **Prototype** trực tiếp trên web.
+> **Project Status:** Approximately **70%** of core gameplay logic is completed. You can try out the live web **Prototype** directly in your browser.
 
-👉 **Chơi thử bản Prototype:** [Injoker Web App](https://injoker.relifes.net/)
-
----
-
-## 📸 Hình ảnh trò chơi
-
-<img width="935" height="546" alt="image" src="https://github.com/user-attachments/assets/b21b1062-8ae3-437e-ad72-9be950e5d3df" />
-
+👉 **Play the Web Prototype:** [Injoker Web App](https://injoker.relifes.net/)
 
 ---
 
-## 💡 Giới thiệu & Cơ chế chơi (Gameplay)
+## 📸 Preview
 
-* **Tối ưu tốc độ gõ & phản xạ:** Người chơi kết hợp các phím bấm khác nhau để tạo ra các bộ kỹ năng (skills) độc đáo.
-* **Khắc chế quái vật:** Mỗi loại kỹ năng chỉ có thể tiêu diệt một loại quái vật tương ứng. Bạn cần phản xạ nhanh để chọn đúng combo kỹ năng nhằm hạ gục quái vật trước khi bị áp đảo.
-* **Mục tiêu dự án:** Dự án bắt đầu từ năm 2 đại học nhằm thực hành sâu về **Lập trình hướng đối tượng (OOP)** và quản lý State trong game.
+![Game Screenshot](https://github-production-user-asset-6210df.s3.amazonaws.com/27058497/413826596-e19d2eab-d79f-4b94-a7ef-5ac2e9e33ee5.mp4)
 
 ---
 
-## 🛠 Công nghệ sử dụng (Tech Stack)
+## 💡 Overview & Gameplay
 
-* **Ngôn ngữ:** `C++` (100%)
-* **Kiến trúc:** Lập trình hướng đối tượng (Object-Oriented Programming - OOP)
+* **Speed & Reflex Training:** Combine different keystrokes to generate unique skill combinations.
+* **Monster Countering:** Each skill type counters and defeats a specific type of monster. You need quick reflexes to invoke the correct spell before being overwhelmed.
+* **Project Goal:** Started during the 2nd year of university to gain hands-on practice with **Object-Oriented Programming (OOP)** and game state management.
 
 ---
 
-## 🎮 Hướng dẫn điều khiển (Controls)
+## 🛠 Tech Stack
 
-| Phím bấm | Thao tác |
+* **Language:** `C++` (100%)
+* **Architecture:** Object-Oriented Programming (OOP)
+
+---
+
+## 🎮 Controls
+
+| Key | Action |
 | :--- | :--- |
-| **Q / W / E** | Gọi các quả cầu nguyên tố (Orbs) |
-| **R** | Niệm kỹ năng (Invoke) |
-| **D / F** | Thi triển kỹ năng đã tạo (Cast) |
-| **Enter** | Bắt đầu trò chơi (Start) |
-| **Esc** | Quay lại / Thoát (Back/Quit) |
-| **M** | Bật / Tắt âm thanh (Sound) |
-| **G** | Xem công thức phối chiêu (Recipe Hint) |
-| **S / B / P** | Chế độ Sinh tồn (Survival) / Đấu Boss (Boss) / Cửa hàng (Shop) |
-| **U I O / J K L** | Sử dụng trang bị (Items) |
+| **Q / W / E** | Call elemental orbs |
+| **R** | Invoke skill |
+| **D / F** | Cast prepared skill |
+| **Enter** | Start game |
+| **Esc** | Back / Quit |
+| **M** | Toggle sound |
+| **G** | View recipe hints |
+| **S / B / P** | Survival Mode / Boss Fights / Shop |
+| **U I O / J K L** | Use items |
 
 ---
 
-## 📌 Kế hoạch phát triển (Roadmap)
+## 📌 Roadmap
 
-- [x] Triển khai 70% cơ chế và logic game chính.
-- [x] Ra mắt bản Web & Android để thử nghiệm trực tiếp.
-- [ ] Hoàn thiện các tính năng UI/UX và đồ họa còn thiếu.
-- [ ] Cân bằng lại hệ thống kỹ năng và độ khó của quái vật.
+- [x] Implement core gameplay and mechanics (~70% completed).
+- [x] Launch Web & Android prototypes for testing.
+- [ ] Complete remaining UI/UX assets and visual polish.
+- [ ] Balance skill damage and monster difficulty progression.
