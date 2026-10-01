@@ -10,7 +10,7 @@
 // globals. Orbs, invoke and the D/F slots come from the Core InvokerState. Practice itself is untouched: its
 // spells stay instant; the delays below exist only here.
 
-#include "Practice.h"
+#include "Field.h"
 
 namespace practice
 {
@@ -51,6 +51,7 @@ namespace practice
 	const float BOSS_CONFUSE_TIME = 3.2f;       // Ghost Walk: the boss lost the player and stands still
 	const int   BOSS_PHASE2_HP = 50;            // % at or below which a two-phase boss changes its combo
 	const int   BOSS_MAX_PENDING = 16;          // delayed spells waiting to land (more are dropped, never judged)
+	const float BOSS_MIN_WINDOW = 0.6f;         // a scaled OVERLORD's landing window never gets shorter than this
 
 	// Delay from cast to impact of a delayed ground spell (Sun Strike, Chaos Meteor, EMP); 0 for any other spell.
 	float BossSpellDelay(invoker::SkillId skill);
@@ -129,7 +130,8 @@ namespace practice
 		ComboFail fail;       // an attempt ended without damage (or broke) during this update
 		bool quickMissed;     // a quick step ran out of time (TOO LATE); the combo goes on
 		bool phaseChanged;    // the boss switched to its second combo (B-19)
-		bool playerHit;       // the boss reached the player: HP -1
+		bool playerHit;       // the boss reached the player: HP -1 (unless contactBlocked)
+		bool contactBlocked;  // OVERLORD only: a Shield or a Black King Bar took that contact
 		bool won;
 		bool lost;
 	};
@@ -140,6 +142,15 @@ namespace practice
 		BossSession();
 
 		void Start(int boss);                 // new fight against GetBossDefinition(boss)
+		// ---- as an OVERLORD inside a PLAY run (spec §28): the run's lives and invoker come in, the boss may be
+		// faster and its window shorter (never below BOSS_MIN_WINDOW), and the run sets its effects every frame.
+		void StartOverlord(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale);
+		void SetPlayerHp(int hp) { m_playerHp = hp; }
+		// speedFactor: Frost / Smoke; still: Eul's; walkBack: Blink; contactBlocked: Shield / BKB; damageMultiplier: Refresher
+		void SetModifiers(float speedFactor, bool still, bool walkBack, bool contactBlocked, int damageMultiplier);
+		void PushBack(float px);              // Wind Waker: back by px at once (not past BOSS_START_X)
+		float Speed() const { return m_speed; }
+		float Window() const { return m_window; }
 		BossInputResult Input(invoker::InputAction action);
 		BossUpdateResult Update(float dt);
 		void MarkAssisted() { if (m_state == BossState::Fighting) m_assisted = true; }  // recipe hint (B-12)
@@ -231,6 +242,13 @@ namespace practice
 		float m_freezeLeft;
 		float m_slowLeft;
 		float m_confuseLeft;
+		float m_speed;              // px/s and window of this fight (the definition's, scaled for a later OVERLORD)
+		float m_window;
+		float m_speedFactor;        // OVERLORD modifiers, set by the run every frame (neutral in Boss Fights)
+		bool m_still;
+		bool m_walkBack;
+		bool m_contactBlocked;
+		int m_damageMultiplier;
 
 		std::vector<BossProjectile> m_projectiles;
 		PendingSpell m_pending[BOSS_MAX_PENDING];

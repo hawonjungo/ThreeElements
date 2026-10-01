@@ -19,6 +19,9 @@ namespace audio
 		Leak,         // an enemy reached the player
 		GameOver,
 		Start,        // a new session
+		Overlord1,    // "OVERLORD INCOMING": one, two or three horn calls by tier (spec §28 O-3)
+		Overlord2,
+		Overlord3,
 		Count
 	};
 

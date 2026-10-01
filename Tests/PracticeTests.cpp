@@ -2557,6 +2557,8 @@ static Inventory LoadoutWith(ItemId a, int levelA, ItemId b = ItemId::Salve, int
 {
 	Inventory inv = EmptyInventory();
 	int gold = 1000000;
+	for (int m = 0; m < MATERIAL_COUNT; ++m)  // the upgrades need materials since 1.6 (§28 O-11)
+		inv.material[m] = 9;
 	for (int i = 0; i < levelA; ++i)
 		Buy(inv, a, gold);
 	for (int i = 0; i < countB; ++i)
@@ -2601,6 +2603,7 @@ static void TestItemShop()
 	CHECK(SlotOf(inv, ItemId::Blink) == 0);  // a new item goes into the first free slot
 	CHECK(NextPrice(inv, ItemId::Blink) == 4000);
 	gold = 4000;
+	AddMaterial(inv, Material::PointBooster);  // the upgrade needs one (tested in TestMaterialShop)
 	CHECK(Buy(inv, ItemId::Blink, gold) && gold == 0 && CurrentLevel(inv, ItemId::Blink) == 2);
 	gold = 100000;
 	CHECK(NextPrice(inv, ItemId::Blink) == 0 && !Buy(inv, ItemId::Blink, gold) && gold == 100000);  // maxed
@@ -2611,6 +2614,7 @@ static void TestItemShop()
 	CHECK(SlotOf(inv, ItemId::Salve) == 1);
 	// six slots at most; unequip frees one; passives only count while equipped
 	Buy(inv, ItemId::Euls, gold); Buy(inv, ItemId::Bkb, gold); Buy(inv, ItemId::Midas, gold); Buy(inv, ItemId::Octarine, gold);
+	AddMaterial(inv, Material::PointBooster);
 	CHECK(Buy(inv, ItemId::Aghanim, gold) && !IsEquipped(inv, ItemId::Aghanim) && EquippedLevel(inv, ItemId::Aghanim) == 0);
 	Unequip(inv, ItemId::Salve);
 	CHECK(SlotOf(inv, ItemId::Salve) == ITEM_NONE && Equip(inv, ItemId::Aghanim) && SlotOf(inv, ItemId::Aghanim) == 1);
@@ -2738,6 +2742,411 @@ static void TestItemBossItems()
 }
 
 
+// ---------------------------------------------------------------- OVERLORD and materials (spec §28)
+
+// Plays on (every enemy killed at once, the first rune taken) until the OVERLORD warning starts; returns that update.
+static UpdateResult PlayOnToOverlord(PracticeSession& s)
+{
+	for (int guard = 0; guard < 200000 && s.State() == GameState::Playing; ++guard)
+	{
+		if (s.RuneChoiceCount() > 0)
+			s.ChooseRune(0);
+		else if (s.Enemy().active)
+			PlayKill(s);
+		else
+		{
+			UpdateResult u = s.Update(0.05f);
+			if (u.overlordWarning)
+				return u;
+		}
+	}
+	return {};
+}
+
+static UpdateResult PlayToOverlord(PracticeSession& s, unsigned seed, const Inventory& inv = EmptyInventory())
+{
+	s.SetMode(SessionMode::Play);
+	s.SetLoadout(inv);
+	s.Start(seed);
+	return PlayOnToOverlord(s);
+}
+
+static bool OverlordWaitFight(PracticeSession& s)  // the 2.5 s warning
+{
+	for (int i = 0; i < 400 && !s.OverlordActive() && s.State() == GameState::Playing; ++i)
+		s.Update(0.01f);
+	return s.OverlordActive();
+}
+
+// Plays the overlord's combo once, every landing step at its ideal moment and every quick step at once.
+// Returns the update in which the combo resolved (or the fight ended).
+static UpdateResult OverlordCombo(PracticeSession& s)
+{
+	UpdateResult u = {};
+	const BossSession& b = s.Overlord();
+	for (int i = 0; i < 1000 && s.OverlordActive() && (b.Phase() != BossPhase::Walking || b.AttemptRunning()); ++i)
+		u = s.Update(0.01f);
+	int length = b.ComboLength();
+	for (int step = 0; step < length && s.OverlordActive(); ++step)
+	{
+		InvokeSkill(s, b.Combo()[step]);  // into D
+		if (b.StepKind(step) == BossStepKind::Landing)
+		{
+			for (int i = 0; i < 800; ++i)
+			{
+				float until = 0.0f, span = 0.0f;
+				if (b.StepTiming(step, until, span) && until <= 0.005f)
+					break;
+				s.Update(0.01f);
+			}
+		}
+		s.Input(InputAction::D);
+	}
+	for (int i = 0; i < 800 && s.OverlordActive(); ++i)
+	{
+		u = s.Update(0.01f);
+		if (u.boss.comboComplete || u.boss.fail != ComboFail::None)
+			break;
+	}
+	return u;
+}
+
+static KillReport OverlordWin(PracticeSession& s)
+{
+	for (int combo = 0; combo < 6 && s.OverlordActive(); ++combo)
+	{
+		UpdateResult u = OverlordCombo(s);
+		if (u.kill.killed)
+			return u.kill;
+	}
+	return {};
+}
+
+static void TestOverlordTables()
+{
+	CHECK(!IsOverlordEnemy(1) && !IsOverlordEnemy(10) && !IsOverlordEnemy(19) && !IsOverlordEnemy(25));
+	CHECK(IsOverlordEnemy(20) && IsOverlordEnemy(30) && IsOverlordEnemy(40) && IsOverlordEnemy(50) && IsOverlordEnemy(120));
+	CHECK(OverlordTier(20) == 1 && OverlordTier(30) == 2 && OverlordTier(40) == 3 && OverlordTier(90) == 3);
+	// O-10: materials by boss
+	CHECK(MaterialOfBoss(0) == Material::PointBooster && MaterialOfBoss(1) == Material::PointBooster
+		&& MaterialOfBoss(2) == Material::PointBooster);
+	CHECK(MaterialOfBoss(3) == Material::MysticStaff && MaterialOfBoss(6) == Material::MysticStaff);
+	CHECK(MaterialOfBoss(7) == Material::SacredRelic);
+	CHECK(std::strcmp(MaterialName(Material::PointBooster), "POINT BOOSTER") == 0
+		&& std::strcmp(MaterialName(Material::MysticStaff), "MYSTIC STAFF") == 0
+		&& std::strcmp(MaterialName(Material::SacredRelic), "SACRED RELIC") == 0);
+	// a scaled overlord: faster, a shorter window that never drops below BOSS_MIN_WINDOW; lives and slots come in
+	invoker::InvokerState inv;
+	inv.Apply(InputAction::E); inv.Apply(InputAction::E); inv.Apply(InputAction::E); inv.Apply(InputAction::R);
+	BossSession b;
+	b.StartOverlord(1, 5, inv, 1.3f, 0.9f);
+	CHECK(b.State() == BossState::Fighting && b.PlayerHp() == 5 && b.Invoker().GetSlot(Slot::D) == SkillId::SunStrike);
+	CHECK(NearF(b.Speed(), GetBossDefinition(1).speed * 1.3f, 1e-4f) && NearF(b.Window(), GetBossDefinition(1).window * 0.9f, 1e-5f));
+	b.StartOverlord(1, 3, inv, 2.0f, 0.1f);
+	CHECK(b.Window() == BOSS_MIN_WINDOW);
+	b.Start(1);
+	CHECK(b.Speed() == GetBossDefinition(1).speed && b.Window() == GetBossDefinition(1).window && b.PlayerHp() == START_HP);
+	// the damage multiplier: a GOOD combo on boss 1 takes 70 % instead of 35 %
+	BossSession d;
+	d.StartOverlord(0, 3, invoker::InvokerState(), 1.0f, 1.0f);
+	d.SetModifiers(1.0f, false, false, false, 2);
+	BossTotals t = {};
+	BossKeys(d, "QWWR" "EEER" "F");
+	CHECK(BossRunUntil(d, t, Air15, 3.0f));
+	d.Input(InputAction::D);
+	CHECK(BossRunUntil(d, t, ComboResolved, 4.0f));
+	CHECK(t.good == 1 && t.damage == 70 && d.BossHp() == 30);
+}
+
+// O-11: Aghanim's Scepter and every level-2 upgrade need a material, which the purchase uses up.
+static void TestMaterialShop()
+{
+	Inventory inv = EmptyInventory();
+	int gold = 1000000;
+	CHECK(inv.material[0] == 0 && inv.material[1] == 0 && inv.material[2] == 0);
+	const ItemId gold1[] = { ItemId::Blink, ItemId::Refresher, ItemId::Euls, ItemId::Bkb, ItemId::Midas, ItemId::Octarine,
+		ItemId::Salve, ItemId::Cheese, ItemId::Smoke, ItemId::GreaterSmoke };
+	for (ItemId id : gold1)  // level 1 (and consumables): gold only
+		CHECK(RequiredMaterial(inv, id) == MATERIAL_NONE && CanBuy(inv, id, gold));
+	CHECK(RequiredMaterial(inv, ItemId::Aghanim) == static_cast<int>(Material::PointBooster));
+	CHECK(!CanBuy(inv, ItemId::Aghanim, gold) && !Buy(inv, ItemId::Aghanim, gold) && gold == 1000000);
+	AddMaterial(inv, Material::PointBooster);
+	CHECK(Buy(inv, ItemId::Aghanim, gold) && inv.material[0] == 0 && gold == 1000000 - 4000);
+	CHECK(RequiredMaterial(inv, ItemId::Aghanim) == static_cast<int>(Material::SacredRelic));
+
+	for (ItemId id : { ItemId::Blink, ItemId::Refresher, ItemId::Euls, ItemId::Bkb, ItemId::Midas, ItemId::Octarine })
+		Buy(inv, id, gold);
+	CHECK(RequiredMaterial(inv, ItemId::Blink) == static_cast<int>(Material::PointBooster)
+		&& RequiredMaterial(inv, ItemId::Euls) == static_cast<int>(Material::PointBooster));
+	CHECK(RequiredMaterial(inv, ItemId::Bkb) == static_cast<int>(Material::MysticStaff)
+		&& RequiredMaterial(inv, ItemId::Midas) == static_cast<int>(Material::MysticStaff)
+		&& RequiredMaterial(inv, ItemId::Octarine) == static_cast<int>(Material::MysticStaff));
+	CHECK(RequiredMaterial(inv, ItemId::Refresher) == static_cast<int>(Material::SacredRelic));
+	int before = gold;
+	CHECK(!Buy(inv, ItemId::Bkb, gold) && gold == before && CurrentLevel(inv, ItemId::Bkb) == 1);  // gold is not enough
+	AddMaterial(inv, Material::PointBooster);  // the wrong material for BKB II
+	CHECK(!Buy(inv, ItemId::Bkb, gold) && inv.material[0] == 1);
+	AddMaterial(inv, Material::MysticStaff);
+	CHECK(Buy(inv, ItemId::Bkb, gold) && CurrentLevel(inv, ItemId::Bkb) == 2 && inv.material[1] == 0 && inv.material[0] == 1);
+	CHECK(RequiredMaterial(inv, ItemId::Bkb) == MATERIAL_NONE && !CanBuy(inv, ItemId::Bkb, gold));  // nothing left to buy
+	CHECK(Buy(inv, ItemId::Blink, gold) && inv.material[0] == 0 && !Buy(inv, ItemId::Euls, gold));
+	for (int i = 0; i < MATERIAL_MAX + 5; ++i)
+		AddMaterial(inv, Material::SacredRelic);
+	CHECK(inv.material[2] == MATERIAL_MAX);
+	CHECK(Buy(inv, ItemId::Refresher, gold) && Buy(inv, ItemId::Aghanim, gold) && inv.material[2] == MATERIAL_MAX - 2);
+}
+
+// O-1, O-3, O-4, O-5: the 20th enemy is the Dark Wizard, after a 2.5 s warning; lives and slots carry over.
+static void TestOverlordWarning()
+{
+	PracticeSession s;
+	UpdateResult warn = PlayToOverlord(s, 61);
+	CHECK(warn.overlordWarning && warn.overlordBoss == 1 && warn.overlordTier == 1 && !warn.spawned);
+	CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST && s.GetStats().kills == PLAY_OVERLORD_FIRST - 1);
+	CHECK(s.GetStats().bossesDefeated == 1);  // the 10th enemy was still a chain boss
+	CHECK(s.OverlordWarningLeft() == PLAY_OVERLORD_WARNING && !s.OverlordActive() && !s.Enemy().active);
+	CHECK(s.OverlordBoss() == 1 && s.OverlordTierNow() == 1 && s.DefeatedBy() == -1);
+	// the keys still work during the warning: invoke ahead, casts do nothing
+	InvokeSkill(s, SkillId::ChaosMeteor);
+	InvokeSkill(s, SkillId::Tornado);
+	InputResult r = s.Input(InputAction::D);
+	CHECK(r.accepted && !r.overlord && !r.tornadoLaunched && r.cast == CastOutcome::None);
+	CHECK(!s.UseItem(0).used);
+	int hp = s.GetStats().hp;
+	float t0 = s.GetStats().survivalTime;
+	UpdateResult u = {};
+	bool spawned = false;
+	for (int i = 0; i < 400 && !u.overlordFight; ++i)
+	{
+		u = s.Update(0.01f);
+		spawned = spawned || u.spawned || s.Enemy().active;
+	}
+	CHECK(u.overlordFight && !spawned && s.OverlordActive() && s.OverlordWarningLeft() == 0.0f);
+	CHECK(NearF(s.GetStats().survivalTime - t0, PLAY_OVERLORD_WARNING, 0.011f));  // the run's clock keeps going
+	const BossSession& b = s.Overlord();
+	CHECK(b.State() == BossState::Fighting && b.BossIndex() == 1 && b.BossHp() == BOSS_FULL_HP && b.PlayerHp() == hp);
+	CHECK(b.Speed() == GetBossDefinition(1).speed && b.Window() == GetBossDefinition(1).window);  // not scaled yet
+	CHECK(s.Invoker().GetSlot(Slot::D) == SkillId::Tornado && s.Invoker().GetSlot(Slot::F) == SkillId::ChaosMeteor);
+	// the fight has the keys
+	r = s.Input(InputAction::D);
+	CHECK(r.accepted && r.overlord && r.boss.attemptStarted && b.AttemptRunning() && b.ProjectileCount() == 1);
+	CHECK(s.ActiveTornadoCount() == 0 && !s.Enemy().active);
+
+	// Survival never has one
+	PracticeSession v;
+	v.Start(61);
+	bool any = false;
+	for (int guard = 0; guard < 100000 && v.SpawnCount() < PLAY_OVERLORD_FIRST + 1 && v.State() == GameState::Playing; ++guard)
+	{
+		if (v.Enemy().active)
+			PlayKill(v);
+		else
+			any = any || v.Update(0.05f).overlordWarning;
+	}
+	CHECK(v.SpawnCount() == PLAY_OVERLORD_FIRST + 1 && !any && !v.OverlordActive());
+}
+
+// O-8, O-10: the reward, the material, and PLAY goes on with the difficulty where it was (O-5).
+static void TestOverlordWin()
+{
+	PracticeSession s;
+	PlayToOverlord(s, 62);
+	float clockBefore = s.GetStats().survivalTime;
+	CHECK(OverlordWaitFight(s));
+	Stats before = s.GetStats();
+	UpdateResult u = OverlordCombo(s);
+	CHECK(u.overlordUpdated && u.boss.comboComplete && u.boss.damage == 100 && u.boss.won);
+	const KillReport& kill = u.kill;
+	CHECK(kill.killed && kill.overlord && kill.kind == EnemyKind::Boss);
+	CHECK(kill.points == PLAY_OVERLORD_POINTS || kill.points == 2 * PLAY_OVERLORD_POINTS);
+	CHECK(kill.gold >= PLAY_OVERLORD_GOLD && kill.rune != Rune::None && !kill.runeChoice);
+	CHECK(kill.droppedMaterial && kill.material == Material::PointBooster);
+	const Stats& st = s.GetStats();
+	CHECK(st.score == before.score + kill.points && st.gold == before.gold + kill.gold);
+	CHECK(st.bossesDefeated == 2 && st.overlordsBeaten == 1 && st.kills == before.kills + 1);
+	CHECK(st.correctCasts == before.correctCasts + 1 && st.combo == before.combo + 1 && st.incorrectCasts == before.incorrectCasts);
+	CHECK(s.Loadout().material[0] == 1 && s.Loadout().material[1] == 0 && s.Loadout().material[2] == 0);
+	CHECK(!s.OverlordActive() && s.State() == GameState::Playing && s.DefeatedBy() == -1);
+	CHECK(s.Invoker().GetSlot(Slot::D) == SkillId::DeafeningBlast);  // the slots come back out of the fight
+	// the next enemy: a normal PLAY enemy, as fast as if the warning and the fight had taken no time
+	float clockAfter = st.survivalTime;
+	CHECK(clockAfter - clockBefore > PLAY_OVERLORD_WARNING + 2.0f);
+	PlayWaitSpawn(s);
+	CHECK(s.Enemy().active && s.SpawnCount() == PLAY_OVERLORD_FIRST + 1 && s.Enemy().kind != EnemyKind::Boss);
+	float expected = DifficultyAt(clockBefore + (s.GetStats().survivalTime - clockAfter)).enemySpeed;
+	CHECK(NearF(s.Enemy().speed, expected, 1.0f) || NearF(s.Enemy().speed, expected * PLAY_ELITE_SPEED, 1.0f));
+	KillReport next = PlayKill(s);
+	CHECK(next.killed && !next.overlord && !next.droppedMaterial);
+
+	// a broken combo is one wrong cast; a new run starts clean
+	PracticeSession w;
+	PlayToOverlord(w, 62);
+	CHECK(OverlordWaitFight(w));
+	int wrong = w.GetStats().incorrectCasts;
+	InvokeSkill(w, SkillId::ColdSnap);
+	InvokeSkill(w, SkillId::Tornado);
+	w.Input(InputAction::D);
+	InputResult r = w.Input(InputAction::F);  // Cold Snap out of order
+	CHECK(r.overlord && r.boss.fail == ComboFail::WrongSpell && w.GetStats().incorrectCasts == wrong + 1);
+	w.Start(63);
+	CHECK(!w.OverlordActive() && w.OverlordWarningLeft() == 0.0f && w.Loadout().material[0] == 0);
+}
+
+// O-4, O-9: contact costs 1 life and knocks it back; at 0 lives the run ends and names the boss.
+static void TestOverlordContact()
+{
+	PracticeSession s;
+	PlayToOverlord(s, 63);
+	CHECK(OverlordWaitFight(s));
+	int hp = s.GetStats().hp;
+	UpdateResult u = {};
+	for (int i = 0; i < 4000 && !u.leaked; ++i)
+		u = s.Update(0.01f);
+	CHECK(u.leaked && u.leakDamage == 1 && !u.shieldUsed && u.boss.playerHit && !u.gameOver);
+	CHECK(s.GetStats().hp == hp - 1 && s.GetStats().combo == 0 && s.OverlordActive());
+	CHECK(s.Overlord().Phase() == BossPhase::PushedBack);
+	// a Shield takes the next contact and is used up
+	s.ApplyRune(Rune::Shield);
+	u = {};
+	for (int i = 0; i < 4000 && !u.leaked; ++i)
+		u = s.Update(0.01f);
+	CHECK(u.leaked && u.shieldUsed && u.leakDamage == 0 && u.boss.contactBlocked && s.GetStats().hp == hp - 1 && !s.HasShield());
+	// then it keeps coming until the lives are gone
+	for (int i = 0; i < 20000 && s.State() == GameState::Playing; ++i)
+		u = s.Update(0.01f);
+	CHECK(u.gameOver && s.State() == GameState::GameOver && s.GetStats().hp == 0);
+	CHECK(s.DefeatedBy() == 1 && !s.OverlordActive() && s.GetStats().overlordsBeaten == 0);
+	CHECK(s.Loadout().material[0] == 0);
+	s.Start(64);
+	CHECK(s.DefeatedBy() == -1);
+}
+
+// O-6: the items against an overlord.
+static void TestOverlordItems()
+{
+	// Blink: it walks back; Frost slows it
+	PracticeSession s;
+	PlayToOverlord(s, 64, LoadoutWith(ItemId::Blink, 1));
+	CHECK(OverlordWaitFight(s));
+	for (int i = 0; i < 100; ++i)
+		s.Update(0.01f);
+	float x0 = s.Overlord().X();
+	s.Update(0.1f);
+	float normal = x0 - s.Overlord().X();
+	CHECK(NearF(normal, GetBossDefinition(1).speed * 0.1f, 1e-3f));
+	s.ApplyRune(Rune::Frost);
+	x0 = s.Overlord().X();
+	s.Update(0.1f);
+	CHECK(NearF(x0 - s.Overlord().X(), normal * PLAY_FROST_SPEED, 1e-3f));
+	x0 = s.Overlord().X();
+	CHECK(s.UseItem(0).used && s.ItemCooldown(ItemId::Blink) == 40.0f);
+	s.Update(0.1f);
+	CHECK(s.Overlord().X() > x0 && s.Overlord().X() <= BOSS_START_X);
+
+	// Wind Waker: still, and pushed back at once
+	PracticeSession w;
+	PlayToOverlord(w, 64, LoadoutWith(ItemId::Euls, 2));
+	CHECK(OverlordWaitFight(w));
+	for (int i = 0; i < 80; ++i)
+		w.Update(0.1f);
+	x0 = w.Overlord().X();
+	CHECK(x0 < BOSS_START_X - PLAY_EULS_PUSHBACK);
+	CHECK(w.UseItem(0).used && NearF(w.Overlord().X(), x0 + PLAY_EULS_PUSHBACK, 1e-3f));
+	x0 = w.Overlord().X();
+	w.Update(0.1f); w.Update(0.1f);
+	CHECK(w.Overlord().X() == x0);
+
+	// Black King Bar: the contact costs nothing, and a Shield is not used up while it runs
+	PracticeSession b;
+	PlayToOverlord(b, 64, LoadoutWith(ItemId::Bkb, 1));
+	CHECK(OverlordWaitFight(b));
+	b.ApplyRune(Rune::Shield);
+	int hp = b.GetStats().hp;
+	UpdateResult u = {};
+	for (int i = 0; i < 4000 && (b.Overlord().X() - HIT_LINE_X) / b.Overlord().Speed() > 2.0f; ++i)
+		u = b.Update(0.01f);
+	CHECK(b.UseItem(0).used);
+	for (int i = 0; i < 500 && !u.leaked; ++i)
+		u = b.Update(0.01f);
+	CHECK(u.leaked && u.shieldUsed && u.leakDamage == 0 && b.GetStats().hp == hp && b.HasShield());
+
+	// Healing Salve heals inside the fight too
+	PracticeSession h;
+	PlayToOverlord(h, 64, LoadoutWith(ItemId::Salve, 1, ItemId::Salve, 1));
+	CHECK(OverlordWaitFight(h));
+	hp = h.GetStats().hp;
+	if (hp < PLAY_MAX_HP)
+	{
+		CHECK(h.UseItem(0).used && h.GetStats().hp == hp + 1);
+		h.Update(0.01f);
+		CHECK(h.Overlord().PlayerHp() == hp + 1);
+	}
+
+	// Refresher Orb: armed until the next combo that deals damage, which deals x2
+	PracticeSession r;
+	PlayToOverlord(r, 64, LoadoutWith(ItemId::Refresher, 1));
+	CHECK(!r.UseItem(0).used && !r.RefresherArmed());  // nothing to use it on during the warning
+	CHECK(OverlordWaitFight(r));
+	CHECK(r.UseItem(0).used && r.RefresherArmed() && r.ItemCooldown(ItemId::Refresher) == 90.0f);
+	CHECK(!r.UseItem(0).used);
+	for (int i = 0; i < 100; ++i)
+		r.Update(0.01f);
+	CHECK(r.RefresherArmed());
+	UpdateResult c = OverlordCombo(r);
+	CHECK(c.boss.comboComplete && c.boss.damage == 200 && c.kill.killed && !r.RefresherArmed());
+
+	// Aghanim's Scepter: the rune of an overlord is a choice too; Midas adds to its gold
+	Inventory inv = LoadoutWith(ItemId::Aghanim, 1);
+	int gold = 100000;
+	Buy(inv, ItemId::Midas, gold);
+	PracticeSession a;
+	PlayToOverlord(a, 64, inv);
+	CHECK(OverlordWaitFight(a));
+	KillReport kill = OverlordWin(a);
+	CHECK(kill.killed && kill.runeChoice && kill.rune == Rune::None && a.RuneChoiceCount() == 2);
+	CHECK(kill.gold == PLAY_OVERLORD_GOLD + PLAY_OVERLORD_GOLD / 2);
+	CHECK(a.ChooseRune(0) != Rune::None && a.RuneChoiceCount() == 0);
+}
+
+// O-1, O-2: 20 / 30 / 40 are fixed, one material each; from the 50th on a random one, faster with a shorter window.
+static void TestOverlordMilestones()
+{
+	PracticeSession s;
+	UpdateResult warn = PlayToOverlord(s, 65);
+	const int bosses[3] = { 1, 6, 7 };
+	for (int i = 0; i < 3; ++i)
+	{
+		CHECK(warn.overlordWarning && warn.overlordBoss == bosses[i] && warn.overlordTier == i + 1);
+		CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST + i * PLAY_BOSS_EVERY);
+		CHECK(OverlordWaitFight(s));
+		CHECK(s.Overlord().Speed() == GetBossDefinition(bosses[i]).speed);
+		KillReport kill = OverlordWin(s);
+		CHECK(kill.killed && kill.overlord && kill.material == MaterialOfBoss(bosses[i]));
+		warn = PlayOnToOverlord(s);
+	}
+	CHECK(s.Loadout().material[0] == 1 && s.Loadout().material[1] == 1 && s.Loadout().material[2] == 1);
+	CHECK(s.GetStats().overlordsBeaten == 3 && s.GetStats().bossesDefeated == 4);
+	// the 50th and 60th enemy
+	int last = 7;
+	for (int n = 1; n <= 2; ++n)
+	{
+		CHECK(warn.overlordWarning && warn.overlordTier == 3 && warn.overlordBoss != last);
+		CHECK(warn.overlordBoss >= 0 && warn.overlordBoss < BOSS_COUNT);
+		CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST + (2 + n) * PLAY_BOSS_EVERY);
+		last = warn.overlordBoss;
+		CHECK(OverlordWaitFight(s));
+		const BossDefinition& def = GetBossDefinition(last);
+		float window = def.window * (1.0f - PLAY_OVERLORD_WINDOW_STEP * n);
+		CHECK(NearF(s.Overlord().Speed(), def.speed * (1.0f + PLAY_OVERLORD_SPEED_STEP * n), 1e-3f));
+		CHECK(NearF(s.Overlord().Window(), window > BOSS_MIN_WINDOW ? window : BOSS_MIN_WINDOW, 1e-4f));
+		KillReport kill = OverlordWin(s);
+		CHECK(kill.killed && kill.material == MaterialOfBoss(last));
+		warn = PlayOnToOverlord(s);
+	}
+	CHECK(s.GetStats().overlordsBeaten == 5 && s.State() == GameState::Playing);
+}
+
+
 int main()
 {
 	RunTest("enemy definitions", TestEnemyDefinitions);
@@ -2800,6 +3209,13 @@ int main()
 	RunTest("items: shop, upgrades, slots", TestItemShop);
 	RunTest("items: use and cooldowns", TestItemUse);
 	RunTest("items: refresher, bkb, midas, aghanim", TestItemBossItems);
+	RunTest("overlord: tables, scaling, x2", TestOverlordTables);
+	RunTest("overlord: materials in the shop", TestMaterialShop);
+	RunTest("overlord: warning and hand-off", TestOverlordWarning);
+	RunTest("overlord: win, reward, clock", TestOverlordWin);
+	RunTest("overlord: contact, game over", TestOverlordContact);
+	RunTest("overlord: items", TestOverlordItems);
+	RunTest("overlord: 20/30/40, then harder", TestOverlordMilestones);
 
 	printf("\n%d checks, %d failed\n", g_checks, g_failed);
 	return g_failed == 0 ? 0 : 1;

@@ -249,6 +249,8 @@ const int BOSS_HP_BAR_W = 220;
 const float BOSS_DAMAGE_SHOW = 1.5f;    // s the damage of a combo stays next to the HP bar
 const float BOSS_BAR_NOW_EARLY = 0.05f; // timing bars (hint): "NOW" from this long before the ideal moment ...
 const float BOSS_BAR_NOW_LATE = 0.25f;  // ... until this long after it (casting then still scores GREAT)
+// OVERLORD in PLAY (spec §28): its name and HP bar at the bottom centre (the top rows belong to the run's numbers).
+const int OVERLORD_BAR_Y = 514;
 
 // Hit / miss / leak feedback (presentation only, owner 2026-09-28: kept light). Seconds unless noted.
 const float FEEDBACK_TEXT_TIME = 0.7f;    // "+1" / "MISS" rise and vanish
@@ -300,8 +302,10 @@ protected:
 	practice::PlayRun m_playRuns[practice::TOP_RUNS] = {}; // this device's best PLAY runs by score (spec §26)
 	int m_goldBank = 0;                  // PLAY gold banked across runs (the future shop's currency), saved
 	char m_goldText[24] = "";            // "+20 GOLD" rising from a defeated elite / boss (FloatText keeps a pointer)
-	char m_stageText[32] = "";           // "BOSS DEFEATED - STAGE 2"
+	char m_stageText[48] = "";           // "BOSS DEFEATED - STAGE 2"
 	const char* m_announce = NULL;       // the rune just received
+	char m_announceText[96] = "";        // an OVERLORD's drop and rune in one line (m_announce points here then)
+	int m_runMaterials[practice::MATERIAL_COUNT] = {};  // materials dropped in this run, for the Game Over screen
 	float m_announceLeft = 0.0f;
 	int m_lastRank = 0;                  // where the run that just ended landed in m_topRuns (0 = not listed)
 	int m_menuIndex = 0;                 // highlighted line of the main menu
@@ -481,7 +485,9 @@ private:
 	void HandleBossKey(SDL_Keycode sym, const SDL_Event& e);
 	bool HandleBossPointer(int x, int y);
 	void ProcessBossAction(invoker::InputAction action);
-	void PresentBossUpdate(const practice::BossUpdateResult& result);
+	// overlord = the fight is a PLAY run's OVERLORD: contact, win and loss are the run's business then
+	void PresentBossUpdate(const practice::BossUpdateResult& result, bool overlord = false);
+	void PresentBossInput(const practice::BossInputResult& result);  // the grade of a quick step, a broken combo
 	void OnBossFail(practice::ComboFail reason);
 	void OnBossGrade(practice::HitGrade grade);  // PERFECT! / GREAT / GOOD above the boss, with the gold ring
 	void BossText(const char* text, SDL_Color color, int raise = 0);  // rises above the boss, like "+1" / "MISS"
@@ -495,6 +501,20 @@ private:
 	void RenderBossCombo();
 	void RenderBossSelect();
 	void RenderBossResult();
+	// OVERLORD in PLAY (spec §28): the same boss drawing and combo strip, fed by the run's own BossSession
+	bool OverlordFight() const
+	{
+		return !m_bossActive && !m_tutorialActive && m_session.State() == practice::GameState::Playing && m_session.OverlordActive();
+	}
+	bool OverlordShown() const  // the warning included: the boss already stands at the edge of the field
+	{
+		return !m_bossActive && !m_tutorialActive && m_session.State() == practice::GameState::Playing
+			&& (m_session.OverlordActive() || m_session.OverlordWarningLeft() > 0.0f);
+	}
+	bool BossShown() const { return m_bossActive || OverlordShown(); }
+	const practice::BossSession& BossView() const { return m_bossActive ? m_boss : m_session.Overlord(); }
+	void RenderOverlordWarning();
+	void RenderOverlordBar();
 	// what the play view shows: the tutorial's invoker / enemy while it runs, the Practice session's otherwise
 	// (in a boss fight: the fight's invoker, and no Practice enemy)
 	const invoker::InvokerState& ShownInvoker() const

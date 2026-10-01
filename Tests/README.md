@@ -5,7 +5,7 @@ Two small console programs, no test framework, no SDL, no game assets. Each prin
 | Program | Tests | Checks |
 |---|---|---|
 | `InvokerCoreTests` | the **Invoker Core** (`Three Elements/Core/Invoker.h/.cpp`): the Q/W/E → R → D/F mechanic | 243 |
-| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`, `Tutorial.*`, `Boss.*`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile, the tutorial script, boss fights | 1319 |
+| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`, `Tutorial.*`, `Boss.*`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile, the tutorial script, boss fights, PLAY, items, OVERLORD fights and materials | 1458 |
 
 The SDL presentation (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) has no automated test; see "Not covered" at the end.
 

@@ -275,8 +275,25 @@ bool GameManager::RunFrame()
     // The enemy's position is read first: a Tornado hit removes it inside Update(), and the "+1" goes where it was.
     practice::Bounds enemyBefore = m_session.Enemy().active ? practice::EnemyBounds(m_session.Enemy())
                                                             : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+    if (OverlordFight())
+        enemyBefore = BossDrawnBody();  // the points of a beaten OVERLORD rise from where it stood
     practice::UpdateResult update = m_session.Update(dt);
     LogUpdate(update);
+    if (update.overlordWarning)  // spec §28 O-3: the banner (RenderOverlordWarning) and a horn call per tier
+    {
+        audio::Play(update.overlordTier >= 3 ? audio::Sfx::Overlord3
+            : update.overlordTier == 2 ? audio::Sfx::Overlord2 : audio::Sfx::Overlord1);
+        printf("[play] OVERLORD incoming: %s (tier %d)\n", practice::GetBossDefinition(update.overlordBoss).name, update.overlordTier);
+    }
+    if (update.overlordFight)
+        audio::Play(audio::Sfx::Start);
+    if (update.overlordUpdated)
+        PresentBossUpdate(update.boss, true);
+    if (update.kill.overlord)  // above "GOOD" and "COMBO -n%", which are rising there already
+    {
+        const SDL_Color gold = { 255, 215, 80, 255 };
+        BossText(PointsText(update.kill.points), gold, 72);
+    }
     if (update.cast != practice::CastOutcome::None)
         OnCastJudged(update.cast, enemyBefore, update.cast != practice::CastOutcome::Correct ? NULL
             : update.kill.killed ? PointsText(update.kill.points) : "HIT");
@@ -367,6 +384,8 @@ bool GameManager::RunFrame()
     RenderStatsHud();
     RenderTargetHint();
     RenderBossCombo();
+    RenderOverlordWarning();
+    RenderOverlordBar();
     RenderItemBar();
 
     if (m_tutorialActive)
@@ -500,6 +519,8 @@ void GameManager::PressEnterAction()
     {
         ResetVisualEffects();
         m_lastBestUpdate = { false, false, false };
+        for (int m = 0; m < practice::MATERIAL_COUNT; ++m)
+            m_runMaterials[m] = 0;
         printf("[practice] session started (seed %u)\n", seed);
         if (m_recipeHint)
             m_session.MarkAssisted();  // started with the recipe hint: not ranked (spec §17)
@@ -664,10 +685,18 @@ void GameManager::ProcessAction(invoker::InputAction action)
     // A correct cast removes the enemy inside Input() itself, so its position has to be read before that call.
     bool hadEnemy = m_session.Enemy().active;
     practice::Bounds enemyBody = hadEnemy ? practice::EnemyBounds(m_session.Enemy()) : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+    if (OverlordFight())
+        enemyBody = BossDrawnBody();  // effects aimed at the OVERLORD go where it is drawn
 
     practice::InputResult r = m_session.Input(action);
     if (!r.accepted)  // Ready / Game Over: the gameplay keys do nothing
         return;
+    if (r.overlord)  // spec §28: the key went to the fight, which answers like a Boss Fights fight
+    {
+        PresentInvokerResult(action, r.invoker, practice::CastOutcome::None, true, enemyBody);
+        PresentBossInput(r.boss);
+        return;
+    }
 
     switch (action)
     {
@@ -727,7 +756,8 @@ void GameManager::PresentInvokerResult(invoker::InputAction action, const invoke
         m_ghostWalkLeft = GHOST_WALK_DURATION;  // visual only; the cast is judged like any other spell
     // no-op for Tornado / Ghost Walk (own effects); in a boss fight Sun Strike, Chaos Meteor and EMP are drawn when
     // they land (PresentBossUpdate), not when they are cast
-    if (result.event == invoker::InvokerEvent::Cast && !(m_bossActive && practice::BossSpellDelay(result.skill) > 0.0f))
+    if (result.event == invoker::InvokerEvent::Cast
+        && !((m_bossActive || OverlordFight()) && practice::BossSpellDelay(result.skill) > 0.0f))
         StartSkillVfx(result.skill, hadEnemy, enemyBody);
     if (cast != practice::CastOutcome::None)
         OnCastJudged(cast, enemyBody, label);
@@ -916,9 +946,11 @@ void GameManager::RenderTornadoes()
     };
     for (int i = 0; i < m_session.ActiveTornadoCount(); ++i)
         draw(m_session.GetTornado(i));
-    for (int i = 0; m_bossActive && i < m_boss.ProjectileCount(); ++i)  // a Deafening Blast is drawn by SkillVfx
-        if (m_boss.GetProjectile(i).skill == invoker::SkillId::Tornado)
-            draw(m_boss.GetProjectile(i).motion);
+    const practice::BossSession& boss = BossView();
+    bool fight = m_bossActive || OverlordFight();
+    for (int i = 0; fight && i < boss.ProjectileCount(); ++i)  // a Deafening Blast is drawn by SkillVfx
+        if (boss.GetProjectile(i).skill == invoker::SkillId::Tornado)
+            draw(boss.GetProjectile(i).motion);
 }
 
 // One shared reset for every temporary visual effect: called on Esc (back to Ready) and on Enter (new session),
@@ -2474,6 +2506,8 @@ static const char* PointsText(int points)
     case 6:  return "+6";
     case 10: return "+10";
     case 20: return "+20";
+    case 50: return "+50";    // an OVERLORD (§28 O-8)
+    case 100: return "+100";
     default: return "+";
     }
 }
@@ -2501,14 +2535,25 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         {
             if (m_floatTexts[i].left <= 0.0f)
             {
-                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, x, static_cast<int>(enemy.y) - 44, m_goldText, gold };
+                m_floatTexts[i] = { FEEDBACK_TEXT_TIME * 1.5f, x, static_cast<int>(enemy.y) - (kill.overlord ? 118 : 44), m_goldText, gold };
                 break;
             }
         }
     }
+    if (kill.droppedMaterial)  // §28 O-10: kept for good, like the gold
+    {
+        int m = static_cast<int>(kill.material);
+        m_inventory.material[m] = m_session.Loadout().material[m];
+        ++m_runMaterials[m];
+        SaveInventory();
+    }
     if (kill.kind == practice::EnemyKind::Boss && m_session.Mode() == practice::SessionMode::Play)
     {
-        snprintf(m_stageText, sizeof(m_stageText), "BOSS DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
+        if (kill.overlord)
+            snprintf(m_stageText, sizeof(m_stageText), "%s DEFEATED - STAGE %d",
+                practice::GetBossDefinition(m_session.OverlordBoss()).name, m_session.GetStats().bossesDefeated + 1);
+        else
+            snprintf(m_stageText, sizeof(m_stageText), "BOSS DEFEATED - STAGE %d", m_session.GetStats().bossesDefeated + 1);
         switch (kill.rune)
         {
         case practice::Rune::None:         m_announce = kill.runeChoice ? "CHOOSE YOUR RUNE" : NULL; break;
@@ -2519,7 +2564,13 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         case practice::Rune::Shield:       m_announce = "RUNE: SHIELD  NEXT HIT BLOCKED"; break;
         default:                           m_announce = NULL; break;
         }
-        m_announceLeft = ANNOUNCE_TIME;
+        if (kill.droppedMaterial)  // the drop and the rune share the second line
+        {
+            snprintf(m_announceText, sizeof(m_announceText), "+1 %s   %s", practice::MaterialName(kill.material),
+                m_announce != NULL ? m_announce : "");
+            m_announce = m_announceText;
+        }
+        m_announceLeft = kill.overlord ? ANNOUNCE_TIME * 1.5f : ANNOUNCE_TIME;
         audio::Play(audio::Sfx::Start);
         printf("[play] boss defeated: stage %d, rune %d, gold bank %d\n", m_session.GetStats().bossesDefeated + 1,
             static_cast<int>(kill.rune), m_goldBank);
@@ -2646,22 +2697,40 @@ void GameManager::RenderPlayGameOver()
     pixeltext::DrawCentered(m_screen, "GAME OVER", SCREEN_WIDTH, 64, 8, red);
     bool best = m_lastRank == 1 && !st.assisted;
     snprintf(buf, sizeof(buf), best ? "SCORE %d  NEW BEST!" : "SCORE %d", st.score);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 145, 3, best ? gold : white);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 138, 3, best ? gold : white);
     snprintf(buf, sizeof(buf), "STAGE %d   KILLS %d", st.bossesDefeated + 1, st.kills);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 178, 3, white);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 168, 3, white);
     snprintf(buf, sizeof(buf), "GOLD +%d   BANK %d", st.gold, m_goldBank);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 211, 3, gold);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 198, 3, gold);
     FormatTime(value, sizeof(value), st.survivalTime);
     snprintf(buf, sizeof(buf), "SURVIVED %s", value);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 244, 3, white);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 228, 3, white);
     snprintf(buf, sizeof(buf), "BEST SCORE %d", m_playRuns[0].score);
-    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 282, 2, grey);
+    pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 260, 2, grey);
+    // §28 O-10: the materials this run brought home; O-9: the OVERLORD that ended it
+    char found[96] = "";
+    for (int m = 0; m < practice::MATERIAL_COUNT; ++m)
+        if (m_runMaterials[m] > 0)
+            snprintf(found + strlen(found), sizeof(found) - strlen(found), "%s+%d %s", found[0] != 0 ? "   " : "",
+                m_runMaterials[m], practice::MaterialName(static_cast<practice::Material>(m)));
+    if (found[0] != 0)
+    {
+        const SDL_Color cyan = { 110, 210, 255, 255 };
+        pixeltext::DrawCentered(m_screen, found, SCREEN_WIDTH, 280, 2, cyan);
+    }
+    if (m_session.DefeatedBy() >= 0)
+    {
+        char line[96];
+        const SDL_Color orange = { 255, 170, 70, 255 };
+        snprintf(line, sizeof(line), "DEFEATED BY %s - PRACTISE IT IN BOSS FIGHTS", practice::GetBossDefinition(m_session.DefeatedBy()).name);
+        pixeltext::DrawCentered(m_screen, line, SCREEN_WIDTH, 300, 2, orange);
+    }
     if (st.assisted)
-        pixeltext::DrawCentered(m_screen, "RECIPE HINT WAS ON - NOT RANKED", SCREEN_WIDTH, 312, 2, grey);
+        pixeltext::DrawCentered(m_screen, "RECIPE HINT WAS ON - NOT RANKED", SCREEN_WIDTH, 322, 2, grey);
     else if (m_lastRank > 0)
     {
         snprintf(buf, sizeof(buf), "RANK #%d ON THIS DEVICE", m_lastRank);
-        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 312, 2, gold);
+        pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 322, 2, gold);
     }
     pixeltext::DrawCentered(m_screen, "PRESS ENTER TO RESTART", SCREEN_WIDTH, 350, 3, white);
     pixeltext::DrawCentered(m_screen, "ESC  MENU", SCREEN_WIDTH, 395, 2, grey);
@@ -2687,14 +2756,16 @@ void GameManager::LoadItemIcons()
     }
 }
 
-// The inventory: items.txt next to the gold (11 levels, 11 counts, 6 slots), localStorage on the web. Anything
-// damaged or missing counts as nothing owned; slots only keep items that are owned, each once.
+// The inventory: items.txt next to the gold (11 levels, 11 counts, 6 slots, and since 1.6 the 3 materials),
+// localStorage on the web. Anything damaged or missing counts as nothing owned (a file from before 1.6 has no
+// materials); slots only keep items that are owned, each once.
 void GameManager::LoadInventory()
 {
-    const int n = practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS;
-    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS];
+    const int slots = practice::ITEM_COUNT * 2, materials = slots + practice::ITEM_SLOTS;
+    const int n = materials + practice::MATERIAL_COUNT;
+    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS + practice::MATERIAL_COUNT];
     for (int i = 0; i < n; ++i)
-        raw[i] = i < practice::ITEM_COUNT * 2 ? 0 : practice::ITEM_NONE;
+        raw[i] = i >= slots && i < materials ? practice::ITEM_NONE : 0;
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         try {
@@ -2731,12 +2802,19 @@ void GameManager::LoadInventory()
             && practice::Owns(m_inventory, static_cast<practice::ItemId>(id)))
             m_inventory.slot[s] = id;
     }
+    for (int m = 0; m < practice::MATERIAL_COUNT; ++m)
+    {
+        int count = raw[materials + m];
+        m_inventory.material[m] = count < 0 ? 0 : (count > practice::MATERIAL_MAX ? practice::MATERIAL_MAX : count);
+    }
 }
 
 void GameManager::SaveInventory()
 {
-    const int n = practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS;
-    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS];
+    const int n = practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS + practice::MATERIAL_COUNT;
+    int raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS + practice::MATERIAL_COUNT];
+    for (int m = 0; m < practice::MATERIAL_COUNT; ++m)
+        raw[practice::ITEM_COUNT * 2 + practice::ITEM_SLOTS + m] = m_inventory.material[m];
     for (int i = 0; i < practice::ITEM_COUNT; ++i)
     {
         raw[i] = m_inventory.level[i];
@@ -2889,6 +2967,11 @@ void GameManager::RenderShop()
     pixeltext::DrawShadowed(m_screen, "ITEMS WORK IN PLAY", panel.x + 110, panel.y + 26, 1, grey);
     snprintf(buf, sizeof(buf), "GOLD %d", m_goldBank);
     pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 3) - 20, panel.y + 18, 3, gold);
+    // the materials owned (§28 O-11): OVERLORD drops, needed for Aghanim's Scepter and every upgrade
+    const SDL_Color cyan = { 110, 210, 255, 255 };
+    snprintf(buf, sizeof(buf), "MATERIALS:  POINT BOOSTER %d   MYSTIC STAFF %d   SACRED RELIC %d",
+        m_inventory.material[0], m_inventory.material[1], m_inventory.material[2]);
+    pixeltext::DrawShadowed(m_screen, buf, panel.x + 110, panel.y + 40, 1, cyan);
 
     // ---- the item cards
     for (int i = 0; i < practice::ITEM_COUNT; ++i)
@@ -2960,7 +3043,10 @@ void GameManager::RenderShop()
             snprintf(buf, sizeof(buf), "COOLDOWN %d S   PRICE %d", static_cast<int>(lv.cooldown), lv.price);
         else
             snprintf(buf, sizeof(buf), def.kind == practice::ItemKind::Consumable ? "PRICE %d EACH" : "PRICE %d", lv.price);
-        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y + 28, 1, grey);
+        int needs = practice::MaterialForLevel(sel, l + 1);
+        if (needs != practice::MATERIAL_NONE)
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), " + %s", practice::MaterialName(static_cast<practice::Material>(needs)));
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y + 28, 1, needs != practice::MATERIAL_NONE && !owned ? cyan : grey);
         y += 56;
     }
     if (def.kind == practice::ItemKind::Consumable)
@@ -2975,7 +3061,7 @@ void GameManager::RenderShop()
         snprintf(buf, sizeof(buf), def.kind == practice::ItemKind::Consumable ? "FULL" : "MAXED");
     else
         snprintf(buf, sizeof(buf), "%s %d", level > 0 && def.kind != practice::ItemKind::Consumable ? "UPGRADE" : "BUY", price);
-    RenderButton(SHOP_BUY_RECT, buf, price > 0 && price <= m_goldBank);
+    RenderButton(SHOP_BUY_RECT, buf, practice::CanBuy(m_inventory, sel, m_goldBank));
     bool owned = practice::Owns(m_inventory, sel);
     RenderButton(SHOP_EQUIP_RECT, !owned ? "-" : practice::IsEquipped(m_inventory, sel) ? "UNEQUIP" : "EQUIP", false);
     if (price > m_goldBank)
@@ -2983,6 +3069,13 @@ void GameManager::RenderShop()
         const SDL_Color red = { 235, 110, 110, 255 };
         snprintf(buf, sizeof(buf), "NOT ENOUGH GOLD: %d MORE NEEDED", price - m_goldBank);
         pixeltext::DrawShadowed(m_screen, buf, d.x + 12, SHOP_BUY_RECT.y - 16, 1, red);
+    }
+    int missing = practice::RequiredMaterial(m_inventory, sel);
+    if (missing != practice::MATERIAL_NONE && m_inventory.material[missing] <= 0)
+    {
+        const SDL_Color red = { 235, 110, 110, 255 };
+        snprintf(buf, sizeof(buf), "NEEDS %s (OVERLORD DROP)", practice::MaterialName(static_cast<practice::Material>(missing)));
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, SHOP_BUY_RECT.y - 30, 1, red);
     }
 
     // ---- the loadout (2 x 3) with its keys
@@ -3007,6 +3100,8 @@ void GameManager::RenderShop()
     pixeltext::DrawShadowed(m_screen, help2, SHOP_LOADOUT_X + 190, SHOP_LOADOUT_Y + 28, 1, grey);
     pixeltext::DrawShadowed(m_screen, "NO REAL MONEY: GOLD COMES FROM ELITES AND BOSSES IN PLAY.", SHOP_LOADOUT_X + 190,
         SHOP_LOADOUT_Y + 60, 1, grey);
+    pixeltext::DrawShadowed(m_screen, "MATERIALS DROP FROM OVERLORDS: THE 20TH, 30TH, 40TH... ENEMY OF A RUN.", SHOP_LOADOUT_X + 190,
+        SHOP_LOADOUT_Y + 76, 1, grey);
     RenderButton(SHOP_CLOSE_RECT, "CLOSE", false);
 }
 
@@ -3255,6 +3350,11 @@ void GameManager::ProcessBossAction(invoker::InputAction action)
     if (!r.accepted)
         return;
     PresentInvokerResult(action, r.invoker, practice::CastOutcome::None, true, body);
+    PresentBossInput(r);
+}
+
+void GameManager::PresentBossInput(const practice::BossInputResult& r)
+{
     if (r.attemptStarted)
         printf("[boss] combo attempt started\n");
     if (r.grade == practice::HitGrade::Miss)  // a quick step cast too late (B-16)
@@ -3265,7 +3365,7 @@ void GameManager::ProcessBossAction(invoker::InputAction action)
         OnBossFail(r.fail);
 }
 
-void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
+void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r, bool overlord)
 {
     const SDL_Color gold = { 255, 215, 80, 255 };
     if (r.lifted)
@@ -3274,7 +3374,7 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
     for (int i = 0; i < r.impactCount; ++i)
     {
         const practice::BossImpact& impact = r.impacts[i];
-        practice::Bounds body = m_boss.Body();
+        practice::Bounds body = BossView().Body();
         if (practice::BossSpellDelay(impact.skill) > 0.0f)  // the delayed spells appear when they land, where they land
         {
             practice::Bounds at = body;
@@ -3311,8 +3411,10 @@ void GameManager::PresentBossUpdate(const practice::BossUpdateResult& r)
         m_bossDamageShown = r.damage;
         m_bossDamageLeft = BOSS_DAMAGE_SHOW;
         m_shakeLeft = FEEDBACK_SHAKE_TIME;
-        printf("[boss] combo: -%d%%, boss HP %d%%\n", r.damage, m_boss.BossHp());
+        printf("[boss] combo: -%d%%, boss HP %d%%\n", r.damage, BossView().BossHp());
     }
+    if (overlord)  // the run handles the contact (lives, Shield), the reward and the Game Over itself
+        return;
     if (r.playerHit)
     {
         OnLeak(m_boss.PlayerHp());
@@ -3346,7 +3448,7 @@ void GameManager::OnBossGrade(practice::HitGrade grade)
     bool perfect = grade == practice::HitGrade::Perfect;
     BossText(perfect ? "PERFECT!" : grade == practice::HitGrade::Great ? "GREAT" : "GOOD",
         perfect ? gold : grade == practice::HitGrade::Great ? cyan : white);
-    practice::Bounds body = m_boss.Body();
+    practice::Bounds body = BossView().Body();
     for (int k = 0; k < FEEDBACK_MAX_BURSTS; ++k)
     {
         if (m_bursts[k].left <= 0.0f)
@@ -3449,9 +3551,10 @@ SDL_Rect GameManager::BossSelectRect(int index) const
 
 practice::Bounds GameManager::BossDrawnBody() const
 {
-    practice::Bounds b = m_boss.Body();
-    if (m_boss.Phase() == practice::BossPhase::Airborne)
-        b.y -= practice::BossLiftHeight(m_boss.AirTime());
+    const practice::BossSession& boss = BossView();
+    practice::Bounds b = boss.Body();
+    if (boss.Phase() == practice::BossPhase::Airborne)
+        b.y -= practice::BossLiftHeight(boss.AirTime());
     return b;
 }
 
@@ -3481,14 +3584,15 @@ static void DrawEllipse(SDL_Renderer* r, int cx, int cy, int rx, int ry)
 // and the enemy sprite drawn larger and tinted. It flashes red when a combo fails.
 void GameManager::RenderBoss()
 {
-    if (!m_bossActive)
+    if (!BossShown())
         return;
-    const practice::BossDefinition& def = m_boss.Def();
+    const practice::BossSession& boss = BossView();
+    const practice::BossDefinition& def = boss.Def();
     const practice::EnemyDefinition& e = practice::GetEnemyDefinition(def.enemyDefinition);
     EnemyObject& sprite = m_enemySprites[def.enemyDefinition];
-    bool airborne = m_boss.Phase() == practice::BossPhase::Airborne;
-    float lift = airborne ? practice::BossLiftHeight(m_boss.AirTime()) : 0.0f;
-    practice::Bounds body = m_boss.Body();
+    bool airborne = boss.Phase() == practice::BossPhase::Airborne;
+    float lift = airborne ? practice::BossLiftHeight(boss.AirTime()) : 0.0f;
+    practice::Bounds body = boss.Body();
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
     int cx = static_cast<int>(body.x + body.w * 0.5f);
 
@@ -3500,7 +3604,7 @@ void GameManager::RenderBoss()
 
     if (airborne && m_tornadoSheet != NULL)
     {
-        int frame = practice::TornadoFrame(m_boss.AirTime());
+        int frame = practice::TornadoFrame(boss.AirTime());
         SDL_Rect src = { (frame % TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE, (frame / TORNADO_SHEET_COLUMNS) * TORNADO_FRAME_SIZE,
             TORNADO_FRAME_SIZE, TORNADO_FRAME_SIZE };
         const int size = 112;
@@ -3516,16 +3620,16 @@ void GameManager::RenderBoss()
     // B-17 holds: frozen = ice blue, slowed by the Ice Wall = pale blue, confused by Ghost Walk = a "?" above it
     if (flash)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
-    else if (m_boss.FreezeLeft() > 0.0f)
+    else if (boss.FreezeLeft() > 0.0f)
         SDL_SetTextureColorMod(sprite.p_object_, 120, 190, 255);
-    else if (m_boss.SlowLeft() > 0.0f)
+    else if (boss.SlowLeft() > 0.0f)
         SDL_SetTextureColorMod(sprite.p_object_, 190, 220, 255);
     else
         SDL_SetTextureColorMod(sprite.p_object_, def.tint[0], def.tint[1], def.tint[2]);
     sprite.RenderFrameScaled(m_screen, x, y, def.scale);
     SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
-    const char* hold = m_boss.FreezeLeft() > 0.0f ? "FROZEN" : m_boss.ConfuseLeft() > 0.0f ? "?" : m_boss.SlowLeft() > 0.0f ? "SLOWED" : NULL;
-    if (hold != NULL && m_boss.State() == practice::BossState::Fighting)
+    const char* hold = boss.FreezeLeft() > 0.0f ? "FROZEN" : boss.ConfuseLeft() > 0.0f ? "?" : boss.SlowLeft() > 0.0f ? "SLOWED" : NULL;
+    if (hold != NULL && boss.State() == practice::BossState::Fighting)
     {
         const SDL_Color ice = { 170, 225, 255, 255 };
         int scale = hold[0] == '?' ? 4 : 2;
@@ -3537,13 +3641,14 @@ void GameManager::RenderBoss()
 // Where each delayed spell will land: a faint circle of its reach and a ring closing in on the impact point.
 void GameManager::RenderBossImpacts()
 {
-    if (!m_bossActive)
+    if (!(m_bossActive || OverlordFight()))
         return;
+    const practice::BossSession& boss = BossView();
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < m_boss.PendingCount(); ++i)
+    for (int i = 0; i < boss.PendingCount(); ++i)
     {
-        const practice::PendingSpell& p = m_boss.GetPending(i);
+        const practice::PendingSpell& p = boss.GetPending(i);
         SDL_Color c = p.skill == invoker::SkillId::SunStrike ? SDL_Color{ 255, 215, 80, 255 }
             : p.skill == invoker::SkillId::ChaosMeteor ? SDL_Color{ 255, 120, 30, 255 } : SDL_Color{ 190, 100, 255, 255 };
         float radius = practice::BossSpellRadius(p.skill);
@@ -3551,7 +3656,7 @@ void GameManager::RenderBossImpacts()
         int cx = static_cast<int>(p.x);
         if (p.skill == invoker::SkillId::ChaosMeteor && m_meteorSheet != NULL && p.left < METEOR_FALL_TIME)
         {
-            practice::Bounds body = m_boss.Body();  // the rock is seen falling onto its impact point
+            practice::Bounds body = boss.Body();  // the rock is seen falling onto its impact point
             RenderMeteorSprite(METEOR_FALL_TIME - p.left, cx, static_cast<int>(body.y + body.h * 0.5f));
             SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
         }
@@ -3622,20 +3727,22 @@ void GameManager::RenderBossHud()
 // In the middle: boss 1's lesson line and its CAST NOW cue, or why the last attempt failed.
 void GameManager::RenderBossCombo()
 {
-    if (!m_bossActive || m_boss.State() != practice::BossState::Fighting)
+    if (!BossShown() || BossView().State() != practice::BossState::Fighting)
         return;
-    const practice::BossDefinition& def = m_boss.Def();
+    const practice::BossSession& boss = BossView();
+    bool warning = OverlordShown() && !m_session.OverlordActive();  // the banner has the middle of the screen
+    const practice::BossDefinition& def = boss.Def();
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color grey = { 190, 190, 200, 255 };
     const SDL_Color red = { 255, 110, 110, 255 };
     char buf[64];
 
-    const invoker::SkillId* combo = m_boss.Combo();  // the second phase's once the boss is at 50 % (B-19)
-    int n = m_boss.ComboLength();
+    const invoker::SkillId* combo = boss.Combo();  // the second phase's once the boss is at 50 % (B-19)
+    int n = boss.ComboLength();
     int width = n * BOSS_COMBO_TILE + (n - 1) * BOSS_COMBO_GAP;
     int x0 = SCREEN_WIDTH - 16 - width;
-    bool running = m_boss.AttemptRunning();
-    int next = running ? m_boss.CastSteps() : 0;
+    bool running = boss.AttemptRunning();
+    int next = running ? boss.CastSteps() : 0;
     int nowStep = -1;  // hint: the follow-up whose timing bar says NOW
 
     if (running && next >= n)
@@ -3647,7 +3754,7 @@ void GameManager::RenderBossCombo()
     for (int i = 0; i < n; ++i)
     {
         SDL_Rect tile = { x0 + i * (BOSS_COMBO_TILE + BOSS_COMBO_GAP), BOSS_COMBO_Y, BOSS_COMBO_TILE, BOSS_COMBO_TILE };
-        bool done = running && m_boss.StepDone(i);
+        bool done = running && boss.StepDone(i);
         bool cast = running && i < next;
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(m_screen, 10, 12, 20, 190);
@@ -3671,7 +3778,7 @@ void GameManager::RenderBossCombo()
             pixeltext::DrawShadowed(m_screen, ">", tile.x + BOSS_COMBO_TILE + BOSS_COMBO_GAP / 2 - 5, tile.y + 13, 2, grey);
         // B-15, hint only: the timing bar shrinks to empty at the ideal moment to cast this spell
         float until = 0.0f, span = 0.0f;
-        if (m_recipeHint && m_boss.StepTiming(i, until, span))
+        if (m_recipeHint && boss.StepTiming(i, until, span))
         {
             SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
             SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
@@ -3701,7 +3808,7 @@ void GameManager::RenderBossCombo()
         }
         // B-16: the next quick step shows how long is left to cast it (always, with or without the hint)
         float quickLeft = 0.0f, quickTotal = 0.0f;
-        if (m_boss.QuickTiming(i, quickLeft, quickTotal))
+        if (boss.QuickTiming(i, quickLeft, quickTotal))
         {
             SDL_Rect back = { tile.x, BOSS_COMBO_Y + BOSS_COMBO_TILE + 20, BOSS_COMBO_TILE, 4 };
             SDL_SetRenderDrawColor(m_screen, 30, 32, 44, 255);
@@ -3737,9 +3844,11 @@ void GameManager::RenderBossCombo()
         }
     }
 
+    if (warning)
+        return;
     if (def.guided)
         pixeltext::DrawCentered(m_screen, "TORNADO LIFTS IT. LAND SUN STRIKE AS IT COMES DOWN.", SCREEN_WIDTH, 100, 1, grey);
-    else if (n > 1 && m_boss.StepKind(1) == practice::BossStepKind::Quick)
+    else if (n > 1 && boss.StepKind(1) == practice::BossStepKind::Quick)
         pixeltext::DrawCentered(m_screen, "QUICK COMBO: CAST EACH SPELL RIGHT AFTER THE LAST ONE.", SCREEN_WIDTH, 100, 1, grey);
     if (nowStep > 0)
     {
@@ -3749,15 +3858,15 @@ void GameManager::RenderBossCombo()
         int scale = pixeltext::Width(buf, 3) <= 400 ? 3 : 2;  // long names: keep clear of the combo strip
         pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 116, scale, pulse);
     }
-    else if (m_boss.CueNow())
+    else if (boss.CueNow())
     {
         float t = SDL_GetTicks() / 1000.0f;
         SDL_Color pulse = { 255, static_cast<Uint8>(200 + 55 * (0.5f + 0.5f * std::sin(t * 12.0f))), 80, 255 };
         pixeltext::DrawCentered(m_screen, "CAST NOW!", SCREEN_WIDTH, 116, 3, pulse);
     }
-    else if (!running && m_boss.LastFail() != practice::ComboFail::None)
+    else if (!running && boss.LastFail() != practice::ComboFail::None)
     {
-        practice::ComboFail f = m_boss.LastFail();
+        practice::ComboFail f = boss.LastFail();
         snprintf(buf, sizeof(buf), "LAST TRY: %s", f == practice::ComboFail::WrongSpell ? "WRONG SPELL"
             : f == practice::ComboFail::TooEarly ? "TOO EARLY" : f == practice::ComboFail::TooLate ? "TOO LATE" : "MISSED");
         pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, 118, 2, red);
@@ -3821,6 +3930,63 @@ void GameManager::RenderBossSelect()
     }
     const char* help = m_showTouchControls ? "TAP A BOSS TO FIGHT   -   TAP OUTSIDE TO GO BACK" : "1-8 OR ARROWS + ENTER: FIGHT   -   ESC: BACK";
     pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, panel.y + panel.h - 20, 1, grey);
+}
+
+// spec §28 O-3: "OVERLORD INCOMING" and its name, pulsing, while the warning counts down (the boss stands at the
+// edge of the field and its combo strip is up already, so the player can prepare the first spells).
+void GameManager::RenderOverlordWarning()
+{
+    if (!OverlordShown() || m_session.OverlordActive())
+        return;
+    float t = SDL_GetTicks() / 1000.0f;
+    float pulse = 0.5f + 0.5f * std::sin(t * 11.0f);
+    SDL_Color red = { 255, static_cast<Uint8>(60 + 90 * pulse), static_cast<Uint8>(60 + 40 * pulse), 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 200, 30, 30, static_cast<Uint8>(50 + 60 * pulse));
+    for (int k = 0; k < 6; ++k)  // a red frame around the screen, like an alarm
+    {
+        SDL_Rect frame = { k, k, SCREEN_WIDTH - 2 * k, SCREEN_HEIGHT - 2 * k };
+        SDL_RenderDrawRect(m_screen, &frame);
+    }
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    pixeltext::DrawCentered(m_screen, "OVERLORD INCOMING", SCREEN_WIDTH, 92, 3, red);
+    pixeltext::DrawCentered(m_screen, practice::GetBossDefinition(m_session.OverlordBoss()).name, SCREEN_WIDTH, 122, 2, gold);
+}
+
+// The OVERLORD's name and HP bar (in %), bottom centre; the last combo's damage beside it, and "X2" while a
+// Refresher Orb is armed (O-6).
+void GameManager::RenderOverlordBar()
+{
+    if (!OverlordFight())
+        return;
+    const practice::BossSession& boss = m_session.Overlord();
+    const SDL_Color white = { 255, 255, 255, 255 };
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    char buf[32];
+    const char* name = boss.Def().name;
+    int nameW = pixeltext::Width(name, 2);
+    int x = (SCREEN_WIDTH - (nameW + 16 + BOSS_HP_BAR_W + 10 + pixeltext::Width("100%", 2))) / 2;
+    int y = OVERLORD_BAR_Y;
+    pixeltext::DrawShadowed(m_screen, name, x, y + 3, 2, gold);
+    int barX = x + nameW + 16;
+    SDL_Rect bar = { barX, y, BOSS_HP_BAR_W, 20 };
+    SDL_Rect fill = { barX + 1, y + 1, (BOSS_HP_BAR_W - 2) * boss.BossHp() / practice::BOSS_FULL_HP, 18 };
+    SDL_SetRenderDrawColor(m_screen, 30, 20, 40, 255);
+    SDL_RenderFillRect(m_screen, &bar);
+    SDL_SetRenderDrawColor(m_screen, 200, 50, 70, 255);
+    SDL_RenderFillRect(m_screen, &fill);
+    SDL_SetRenderDrawColor(m_screen, 255, 255, 255, 255);
+    SDL_RenderDrawRect(m_screen, &bar);
+    snprintf(buf, sizeof(buf), "%d%%", boss.BossHp());
+    pixeltext::DrawShadowed(m_screen, buf, barX + BOSS_HP_BAR_W + 10, y + 3, 2, white);
+    if (m_bossDamageLeft > 0.0f)
+    {
+        snprintf(buf, sizeof(buf), "-%d%%", m_bossDamageShown);
+        pixeltext::DrawShadowed(m_screen, buf, barX + BOSS_HP_BAR_W + 70, y + 3, 2, gold);
+    }
+    else if (m_session.RefresherArmed())
+        pixeltext::DrawShadowed(m_screen, "X2", barX + BOSS_HP_BAR_W + 70, y + 3, 2, gold);
 }
 
 // Victory or defeat: the time, the best time, and how to go on (the same tap zones as Practice's Game Over).

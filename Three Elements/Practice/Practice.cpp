@@ -132,6 +132,17 @@ namespace practice
 		return c > PLAY_ELITE_CHANCE_MAX ? PLAY_ELITE_CHANCE_MAX : c;
 	}
 
+	bool IsOverlordEnemy(int enemyNumber)
+	{
+		return enemyNumber >= PLAY_OVERLORD_FIRST && enemyNumber % PLAY_BOSS_EVERY == 0;
+	}
+
+	int OverlordTier(int enemyNumber)
+	{
+		int tier = enemyNumber / PLAY_BOSS_EVERY - 1;  // 20 -> 1, 30 -> 2, 40 -> 3
+		return tier < 1 ? 1 : tier > 3 ? 3 : tier;
+	}
+
 	// ------------------------------------------------------------------ records
 
 	BestUpdate MergeBests(BestStats& bests, const Stats& session)
@@ -210,6 +221,13 @@ namespace practice
 			m_itemCooldown[i] = m_itemCooldownTotal[i] = 0.0f;
 		m_backLeft = m_stillLeft = m_bkbLeft = m_smokeLeft = 0.0f;
 		m_runeChoiceCount = 0;
+		m_difficultyTime = 0.0f;
+		m_overlordActive = false;                // an OVERLORD fight ends with the session too
+		m_overlordWarning = 0.0f;
+		m_overlordBoss = m_overlordTier = 0;
+		m_lastOverlord = -1;
+		m_refresherArmed = false;
+		m_defeatedBy = -1;
 		m_tornadoes.clear();                     // projectiles in flight disappear with the session
 		m_invoker.Reset();                       // orbs and D/F slots
 		m_lastTarget = SkillId::None;
@@ -255,11 +273,22 @@ namespace practice
 		result.cast = CastOutcome::None;
 		result.tornadoLaunched = false;
 		result.kill = {};
+		result.overlord = false;
+		result.boss = {};
 
 		if (m_state != GameState::Playing || m_runeChoiceCount > 0)  // the rune choice pauses the run
 			return result;
 
 		result.accepted = true;
+		if (m_overlordActive)  // §28: the fight has the keys (its own lift, delays and grades)
+		{
+			result.overlord = true;
+			result.boss = m_overlord.Input(action);
+			result.invoker = result.boss.invoker;
+			if (result.boss.fail != ComboFail::None)
+				++m_stats.incorrectCasts;        // a broken combo counts as one wrong cast
+			return result;
+		}
 		result.invoker = m_invoker.Apply(action);
 
 		// Only a cast of a filled slot while an enemy is active is judged.
@@ -319,29 +348,7 @@ namespace practice
 				if (m_enemy.kind == EnemyKind::Boss)
 				{
 					++m_stats.bossesDefeated;
-					int choices = static_cast<int>(GetItemDefinition(ItemId::Aghanim).level[0].value);
-					int aghanim = EquippedLevel(m_inv, ItemId::Aghanim);
-					if (aghanim > 0)  // §27 I-5: the player chooses (the run waits)
-					{
-						choices = static_cast<int>(GetItemDefinition(ItemId::Aghanim).level[aghanim - 1].value);
-						m_runeChoiceCount = 0;
-						for (int guard = 0; guard < 50 && m_runeChoiceCount < choices; ++guard)
-						{
-							Rune r = PickRune();
-							bool seen = false;
-							for (int k = 0; k < m_runeChoiceCount; ++k)
-								seen = seen || m_runeChoices[k] == r;
-							if (!seen)
-								m_runeChoices[m_runeChoiceCount++] = r;
-						}
-						m_kill.runeChoice = true;
-					}
-					else
-					{
-						int before = m_stats.gold;
-						m_kill.rune = ApplyRune(PickRune());
-						m_kill.gold += m_stats.gold - before;  // Bounty
-					}
+					GiveBossRune();
 				}
 			}
 			m_stats.score += m_kill.points;          // Survival: +1 per enemy, as always
@@ -353,6 +360,33 @@ namespace practice
 
 		++m_stats.incorrectCasts;                // no damage, no HP loss, combo untouched, enemy keeps coming
 		return CastOutcome::Incorrect;
+	}
+
+	// P3-4 / §27 I-5: a random rune at once, or (Aghanim equipped) a choice the run waits for.
+	void PracticeSession::GiveBossRune()
+	{
+		int aghanim = EquippedLevel(m_inv, ItemId::Aghanim);
+		if (aghanim > 0)
+		{
+			int choices = static_cast<int>(GetItemDefinition(ItemId::Aghanim).level[aghanim - 1].value);
+			m_runeChoiceCount = 0;
+			for (int guard = 0; guard < 50 && m_runeChoiceCount < choices; ++guard)
+			{
+				Rune r = PickRune();
+				bool seen = false;
+				for (int k = 0; k < m_runeChoiceCount; ++k)
+					seen = seen || m_runeChoices[k] == r;
+				if (!seen)
+					m_runeChoices[m_runeChoiceCount++] = r;
+			}
+			m_kill.runeChoice = true;
+		}
+		else
+		{
+			int before = m_stats.gold;
+			m_kill.rune = ApplyRune(PickRune());
+			m_kill.gold += m_stats.gold - before;  // Bounty
+		}
 	}
 
 	Rune PracticeSession::PickRune()
@@ -421,24 +455,34 @@ namespace practice
 			return result;
 		const ItemLevel& lv = def.level[level - 1];
 		int left = m_enemy.chainLength - m_enemy.chainStep;  // skills of the chain still to break
+		bool anyEnemy = m_enemy.active || m_overlordActive;  // §28 O-6: the items work on an OVERLORD too
 		switch (item)
 		{
 		case ItemId::Blink:
-			if (!m_enemy.active)
+			if (!anyEnemy)
 				return result;
 			m_backLeft = lv.value;
 			m_stillLeft = 0.0f;
 			break;
 		case ItemId::Euls:
-			if (!m_enemy.active)
+			if (!anyEnemy)
 				return result;
 			m_stillLeft = lv.value;
 			m_backLeft = 0.0f;
-			if (level >= 2)  // Wind Waker
+			if (level >= 2 && m_overlordActive)  // Wind Waker
+				m_overlord.PushBack(PLAY_EULS_PUSHBACK);
+			else if (level >= 2)
 				m_enemy.x = m_enemy.x + PLAY_EULS_PUSHBACK < SPAWN_X ? m_enemy.x + PLAY_EULS_PUSHBACK : SPAWN_X;
 			break;
 		case ItemId::Refresher:
 		{
+			if (m_overlordActive)  // O-6: against an OVERLORD it arms x2 damage for the next combo that hurts it
+			{
+				if (m_refresherArmed)
+					return result;
+				m_refresherArmed = true;
+				break;
+			}
 			if (!m_enemy.active || left <= 1)
 				return result;
 			int n = static_cast<int>(lv.value) < left - 1 ? static_cast<int>(lv.value) : left - 1;
@@ -538,6 +582,9 @@ namespace practice
 			return result;
 
 		m_stats.survivalTime += dt;
+		bool overlord = m_overlordActive || m_overlordWarning > 0.0f;
+		if (!overlord)
+			m_difficultyTime += dt;              // O-5: the difficulty clock stops for an OVERLORD
 		m_frostLeft = m_frostLeft > dt ? m_frostLeft - dt : 0.0f;
 		m_doubleLeft = m_doubleLeft > dt ? m_doubleLeft - dt : 0.0f;
 		m_backLeft = m_backLeft > dt ? m_backLeft - dt : 0.0f;
@@ -547,13 +594,24 @@ namespace practice
 		for (int i = 0; i < ITEM_COUNT; ++i)
 			m_itemCooldown[i] = m_itemCooldown[i] > dt ? m_itemCooldown[i] - dt : 0.0f;
 
+		if (overlord)
+		{
+			UpdateOverlord(dt, result);
+			return result;
+		}
+
 		if (!m_enemy.active)
 		{
 			m_spawnTimer -= dt;
 			if (m_spawnTimer <= 0.0f)
 			{
-				SpawnEnemy();
-				result.spawned = true;
+				if (m_mode == SessionMode::Play && IsOverlordEnemy(m_spawnCount + 1))
+					BeginOverlord(result);           // §28 O-1: the 20th, 30th, ... enemy is an OVERLORD
+				else
+				{
+					SpawnEnemy();
+					result.spawned = true;
+				}
 			}
 		}
 		else
@@ -607,9 +665,132 @@ namespace practice
 		return result;
 	}
 
+	// O-1 / O-2 / O-3: which boss comes, and the warning before it. It takes the place of that enemy of the run.
+	void PracticeSession::BeginOverlord(UpdateResult& result)
+	{
+		++m_spawnCount;
+		int boss;
+		if (m_spawnCount == PLAY_OVERLORD_FIRST)
+			boss = 1;                            // Dark Wizard
+		else if (m_spawnCount == PLAY_OVERLORD_FIRST + PLAY_BOSS_EVERY)
+			boss = 6;                            // Shadow Assassin
+		else if (m_spawnCount == PLAY_OVERLORD_FIRST + 2 * PLAY_BOSS_EVERY)
+			boss = 7;                            // Archon
+		else
+		{
+			boss = static_cast<int>(NextRandom() % static_cast<unsigned>(BOSS_COUNT - 1));
+			if (m_lastOverlord >= 0 && boss >= m_lastOverlord)
+				++boss;                          // any of the eight but the last one
+		}
+		m_overlordBoss = m_lastOverlord = boss;
+		m_overlordTier = OverlordTier(m_spawnCount);
+		m_overlordWarning = PLAY_OVERLORD_WARNING;
+		m_backLeft = m_stillLeft = 0.0f;         // what was left of Blink / Eul's on the last enemy does not carry over
+		m_tornadoes.clear();
+		StartOverlordSession();                  // shown during the warning; started again when the fight begins
+		result.overlordWarning = true;
+		result.overlordBoss = boss;
+		result.overlordTier = m_overlordTier;
+	}
+
+	void PracticeSession::StartOverlordSession()
+	{
+		int harder = m_stats.overlordsBeaten - 2;  // O-2: the 50th enemy is the first harder one
+		if (harder < 0)
+			harder = 0;
+		float windowScale = 1.0f - PLAY_OVERLORD_WINDOW_STEP * static_cast<float>(harder);
+		m_overlord.StartOverlord(m_overlordBoss, m_stats.hp, m_invoker,
+			1.0f + PLAY_OVERLORD_SPEED_STEP * static_cast<float>(harder), windowScale > 0.0f ? windowScale : 0.0f);
+	}
+
+	// The warning counts down, then the §25 fight runs with the run's lives, orbs and item effects (O-4, O-6).
+	void PracticeSession::UpdateOverlord(float dt, UpdateResult& result)
+	{
+		if (!m_overlordActive)
+		{
+			m_overlordWarning -= dt;
+			if (m_overlordWarning > 0.0f)
+				return;
+			m_overlordWarning = 0.0f;
+			StartOverlordSession();              // with the orbs and slots prepared during the warning
+			m_overlordActive = true;
+			result.overlordFight = true;
+			return;
+		}
+
+		bool bkb = m_bkbLeft > 0.0f;
+		float speedFactor = (m_frostLeft > 0.0f ? PLAY_FROST_SPEED : 1.0f) * (m_smokeLeft > 0.0f ? PLAY_SMOKE_SPEED : 1.0f);
+		m_overlord.SetPlayerHp(m_stats.hp);      // a Salve or Cheese used since the last update
+		m_overlord.SetModifiers(speedFactor, m_stillLeft > 0.0f, m_backLeft > 0.0f, bkb || m_shield, m_refresherArmed ? 2 : 1);
+		BossUpdateResult r = m_overlord.Update(dt);
+		result.overlordUpdated = true;
+		result.boss = r;
+
+		if (r.comboComplete)                     // a combo that hurt it: one correct cast for the run's numbers
+		{
+			m_refresherArmed = false;
+			++m_stats.correctCasts;
+			++m_stats.combo;
+			if (!m_stats.assisted && m_stats.combo > m_stats.bestCombo)
+				m_stats.bestCombo = m_stats.combo;
+		}
+		else if (r.fail != ComboFail::None)
+			++m_stats.incorrectCasts;
+
+		if (r.playerHit)                         // O-4: 1 life and it is knocked back
+		{
+			result.leaked = true;
+			m_stats.combo = 0;
+			if (r.contactBlocked)
+			{
+				if (!bkb)
+					m_shield = false;            // the Shield rune is used up; a running Black King Bar is not
+				result.shieldUsed = true;
+			}
+			else
+			{
+				m_stats.hp = m_overlord.PlayerHp();
+				result.leakDamage = 1;
+			}
+		}
+		if (r.lost)
+		{
+			m_stats.hp = 0;
+			m_invoker = m_overlord.Invoker();
+			m_overlordActive = false;
+			m_defeatedBy = m_overlordBoss;       // O-9
+			m_state = GameState::GameOver;
+			result.gameOver = true;
+			return;
+		}
+		if (!r.won)
+			return;
+
+		// O-8: points, gold, a rune, a material, the next stage; then PLAY goes on
+		m_kill = {};
+		m_kill.killed = true;
+		m_kill.kind = EnemyKind::Boss;
+		m_kill.overlord = true;
+		m_kill.points = PLAY_OVERLORD_POINTS * (m_doubleLeft > 0.0f ? 2 : 1);
+		m_kill.gold = AddGold(PLAY_OVERLORD_GOLD);
+		++m_stats.bossesDefeated;
+		++m_stats.overlordsBeaten;
+		++m_stats.kills;
+		GiveBossRune();
+		m_kill.material = MaterialOfBoss(m_overlordBoss);  // O-10: always exactly one
+		m_kill.droppedMaterial = true;
+		AddMaterial(m_inv, m_kill.material);
+		m_stats.score += m_kill.points;
+		m_invoker = m_overlord.Invoker();        // orbs and slots come back out
+		m_overlordActive = false;
+		m_backLeft = m_stillLeft = 0.0f;
+		StartWaiting();
+		result.kill = m_kill;
+	}
+
 	void PracticeSession::StartWaiting()
 	{
-		m_spawnTimer = DifficultyAt(m_stats.survivalTime).challengeDelay;
+		m_spawnTimer = DifficultyAt(m_difficultyTime).challengeDelay;
 	}
 
 	void PracticeSession::SpawnEnemy()
@@ -629,7 +810,7 @@ namespace practice
 		m_enemy.definition = pick;
 		m_enemy.target = def.targetSkill;
 		m_enemy.x = SPAWN_X;
-		m_enemy.speed = DifficultyAt(m_stats.survivalTime).enemySpeed * def.speedMultiplier;  // fixed at spawn
+		m_enemy.speed = DifficultyAt(m_difficultyTime).enemySpeed * def.speedMultiplier;  // fixed at spawn
 		m_enemy.kind = EnemyKind::Normal;
 		m_enemy.chain[0] = def.targetSkill;
 		m_enemy.chainLength = 1;
@@ -643,7 +824,7 @@ namespace practice
 		// PLAY (P3-2): every 10th enemy is a boss (chain of 3), others may be elites (chain of 2)
 		if (m_spawnCount % PLAY_BOSS_EVERY == 0)
 			m_enemy.kind = EnemyKind::Boss;
-		else if (static_cast<float>(NextRandom() % 1000u) / 1000.0f < EliteChance(m_stats.survivalTime))
+		else if (static_cast<float>(NextRandom() % 1000u) / 1000.0f < EliteChance(m_difficultyTime))
 			m_enemy.kind = EnemyKind::Elite;
 		if (m_enemy.kind == EnemyKind::Normal)
 			return;

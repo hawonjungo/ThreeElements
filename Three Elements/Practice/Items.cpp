@@ -55,7 +55,63 @@ namespace practice
 			inv.level[i] = inv.count[i] = 0;
 		for (int s = 0; s < ITEM_SLOTS; ++s)
 			inv.slot[s] = ITEM_NONE;
+		for (int m = 0; m < MATERIAL_COUNT; ++m)
+			inv.material[m] = 0;
 		return inv;
+	}
+
+	const char* MaterialName(Material material)
+	{
+		switch (material)
+		{
+		case Material::PointBooster: return "POINT BOOSTER";
+		case Material::MysticStaff:  return "MYSTIC STAFF";
+		default:                     return "SACRED RELIC";
+		}
+	}
+
+	Material MaterialOfBoss(int boss)
+	{
+		return boss <= 2 ? Material::PointBooster : boss <= 6 ? Material::MysticStaff : Material::SacredRelic;
+	}
+
+	// O-11: level 1 of Aghanim's Scepter and every level-2 upgrade need a material; consumables never do.
+	int RequiredMaterial(const Inventory& inv, ItemId id)
+	{
+		int level = inv.level[static_cast<int>(id)];  // the level owned now; the purchase gives level + 1
+		return level < GetItemDefinition(id).levels ? MaterialForLevel(id, level + 1) : MATERIAL_NONE;
+	}
+
+	int MaterialForLevel(ItemId id, int level)
+	{
+		const ItemDefinition& def = GetItemDefinition(id);
+		if (def.kind == ItemKind::Consumable || level < 1 || level > def.levels)
+			return MATERIAL_NONE;
+		if (level == 1)
+			return id == ItemId::Aghanim ? static_cast<int>(Material::PointBooster) : MATERIAL_NONE;
+		switch (id)
+		{
+		case ItemId::Blink:
+		case ItemId::Euls:      return static_cast<int>(Material::PointBooster);
+		case ItemId::Bkb:
+		case ItemId::Midas:
+		case ItemId::Octarine:  return static_cast<int>(Material::MysticStaff);
+		default:                return static_cast<int>(Material::SacredRelic);  // Refresher II, Aghanim's Blessing
+		}
+	}
+
+	bool CanBuy(const Inventory& inv, ItemId id, int gold)
+	{
+		int price = NextPrice(inv, id);
+		int material = RequiredMaterial(inv, id);
+		return price > 0 && gold >= price && (material == MATERIAL_NONE || inv.material[material] > 0);
+	}
+
+	void AddMaterial(Inventory& inv, Material material)
+	{
+		int m = static_cast<int>(material);
+		if (inv.material[m] < MATERIAL_MAX)
+			++inv.material[m];
 	}
 
 	bool Owns(const Inventory& inv, ItemId id)
@@ -115,10 +171,12 @@ namespace practice
 
 	bool Buy(Inventory& inv, ItemId id, int& gold)
 	{
-		int price = NextPrice(inv, id);
-		if (price <= 0 || gold < price)
+		if (!CanBuy(inv, id, gold))
 			return false;
-		gold -= price;
+		int material = RequiredMaterial(inv, id);
+		if (material != MATERIAL_NONE)
+			--inv.material[material];  // one material is used up by the purchase
+		gold -= NextPrice(inv, id);
 		int i = static_cast<int>(id);
 		if (GetItemDefinition(id).kind == ItemKind::Consumable)
 			++inv.count[i];

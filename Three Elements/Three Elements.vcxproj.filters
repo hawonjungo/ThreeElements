@@ -110,6 +110,9 @@
     <ClInclude Include="Practice\Boss.h">
       <Filter>Practice</Filter>
     </ClInclude>
+    <ClInclude Include="Practice\Field.h">
+      <Filter>Practice</Filter>
+    </ClInclude>
     <ClInclude Include="Practice\Items.h">
       <Filter>Practice</Filter>
     </ClInclude>

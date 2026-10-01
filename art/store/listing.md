@@ -64,6 +64,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **No data collected, no data shared.** The app has no internet permission and keeps its records on the device. (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
+## Release notes (1.6.0, versionCode 16, max 500)
+
+```
+OVERLORDS invade PLAY: the 20th, 30th and 40th enemy of a run is a boss from Boss Fights, announced by war horns. Lift it, time your spells and bring it down to clear the stage - then they keep coming, faster each time. Every OVERLORD drops a material (Point Booster, Mystic Staff, Sacred Relic) that the shop now needs for Aghanim's Scepter and for item upgrades. Refresher Orb doubles your next combo against an OVERLORD.
+```
+
 ## Release notes (1.5.0, versionCode 15, max 500)
 
 ```

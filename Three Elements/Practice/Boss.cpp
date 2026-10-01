@@ -160,9 +160,41 @@ namespace practice
 			m_castTime[i] = 0.0f;
 		m_comboPhase = 0;
 		m_freezeLeft = m_slowLeft = m_confuseLeft = 0.0f;
+		m_speed = Def().speed;
+		m_window = Def().window;
+		m_speedFactor = 1.0f;
+		m_still = m_walkBack = m_contactBlocked = false;
+		m_damageMultiplier = 1;
 
 		m_projectiles.clear();
 		m_pendingCount = 0;
+	}
+
+	void BossSession::StartOverlord(int boss, int playerHp, const invoker::InvokerState& invoker, float speedScale, float windowScale)
+	{
+		Start(boss);
+		m_playerHp = playerHp;
+		m_invoker = invoker;      // the run's orbs and D / F slots carry over (spec §28 O-4)
+		m_speed = Def().speed * speedScale;
+		m_window = Def().window * windowScale;
+		if (m_window < BOSS_MIN_WINDOW)
+			m_window = BOSS_MIN_WINDOW;
+	}
+
+	void BossSession::SetModifiers(float speedFactor, bool still, bool walkBack, bool contactBlocked, int damageMultiplier)
+	{
+		m_speedFactor = speedFactor;
+		m_still = still;
+		m_walkBack = walkBack;
+		m_contactBlocked = contactBlocked;
+		m_damageMultiplier = damageMultiplier > 1 ? damageMultiplier : 1;
+	}
+
+	void BossSession::PushBack(float px)
+	{
+		if (m_phase == BossPhase::Airborne)
+			return;
+		m_x = m_x + px < BOSS_START_X ? m_x + px : BOSS_START_X;
 	}
 
 	Bounds BossSession::Body() const
@@ -259,7 +291,7 @@ namespace practice
 		{
 			if (p.skill != SkillId::Tornado || p.attempt != m_attempt || p.resolved || !p.motion.active)
 				continue;
-			float closing = TORNADO_SPEED * p.motion.dirX + (m_phase == BossPhase::Walking ? Def().speed : 0.0f);
+			float closing = TORNADO_SPEED * p.motion.dirX + (m_phase == BossPhase::Walking ? m_speed : 0.0f);
 			if (closing <= 0.0f)
 				return false;
 			float distance = Body().x - (p.motion.x + TORNADO_HIT_RADIUS);
@@ -396,7 +428,6 @@ namespace practice
 		BossImpact impact = { skill, x, HitGrade::None, ComboFail::None };
 		if (m_running && attempt == m_attempt)
 		{
-			const BossDefinition& def = Def();
 			int step = -1;
 			for (int i = 1; i < ComboLength(); ++i)
 			{
@@ -421,7 +452,7 @@ namespace practice
 				}
 				else
 				{
-					impact.grade = GradeHit(m_elapsed - m_landTime, def.window);
+					impact.grade = GradeHit(m_elapsed - m_landTime, m_window);
 					if (impact.grade == HitGrade::Miss)
 						impact.miss = ComboFail::TooLate;
 				}
@@ -446,7 +477,7 @@ namespace practice
 			if (m_grades[i] == HitGrade::Miss && firstMiss == ComboFail::None)
 				firstMiss = m_missReasons[i];
 		}
-		int damage = (total + followUps / 2) / followUps;
+		int damage = (total + followUps / 2) / followUps * m_damageMultiplier;  // x2 with an armed Refresher (§28 O-6)
 		if (damage <= 0)
 		{
 			Fail(firstMiss != ComboFail::None ? firstMiss : ComboFail::TooLate, result.fail);
@@ -487,7 +518,6 @@ namespace practice
 			dt = 0.0f;
 		if (dt > MAX_FRAME_TIME)
 			dt = MAX_FRAME_TIME;
-		const BossDefinition& def = Def();
 		m_elapsed += dt;
 
 		// ---- the boss moves: walks, floats, or slides back
@@ -515,8 +545,13 @@ namespace practice
 				m_phase = BossPhase::Walking;
 			}
 		}
-		else if (m_freezeLeft <= 0.0f && m_confuseLeft <= 0.0f)  // B-17: frozen / confused bosses do not move
-			m_x -= def.speed * (m_slowLeft > 0.0f ? BOSS_ICE_WALL_SPEED : 1.0f) * dt;
+		else if (m_freezeLeft <= 0.0f && m_confuseLeft <= 0.0f && !m_still)  // B-17 (and Eul's on an OVERLORD): no move
+		{
+			if (m_walkBack)  // Blink Dagger on an OVERLORD: it walks back, never past where it started
+				m_x = m_x + m_speed * dt < BOSS_START_X ? m_x + m_speed * dt : BOSS_START_X;
+			else
+				m_x -= m_speed * m_speedFactor * (m_slowLeft > 0.0f ? BOSS_ICE_WALL_SPEED : 1.0f) * dt;
+		}
 		m_freezeLeft = m_freezeLeft > dt ? m_freezeLeft - dt : 0.0f;
 		m_slowLeft = m_slowLeft > dt ? m_slowLeft - dt : 0.0f;
 		m_confuseLeft = m_confuseLeft > dt ? m_confuseLeft - dt : 0.0f;
@@ -596,7 +631,7 @@ namespace practice
 			bool allGraded = true;
 			for (int i = 1; i < ComboLength(); ++i)
 				allGraded = allGraded && m_grades[i] != HitGrade::None;
-			if (!allGraded && m_landed && m_elapsed > m_landTime + def.window)
+			if (!allGraded && m_landed && m_elapsed > m_landTime + m_window)
 			{
 				for (int i = 1; i < ComboLength(); ++i)
 				{
@@ -621,7 +656,10 @@ namespace practice
 		{
 			result.playerHit = true;
 			m_running = false;
-			--m_playerHp;
+			if (m_contactBlocked)
+				result.contactBlocked = true;  // a Shield or a Black King Bar took it (OVERLORD only)
+			else
+				--m_playerHp;
 			if (m_playerHp <= 0)
 			{
 				m_state = BossState::Lost;

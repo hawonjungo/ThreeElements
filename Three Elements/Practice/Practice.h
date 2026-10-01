@@ -13,50 +13,14 @@
 // and an enemy that reaches the player costs 1 HP.
 
 #include "../Core/Invoker.h"
+#include "Field.h"
 #include "Items.h"
+#include "Boss.h"
 
 #include <vector>
 
 namespace practice
 {
-	// ---- play field (logical pixels of the 928x544 window) ----
-	// Enemy positions are the x of the enemy's visible body, left edge (see EnemyDefinition::bodyLeft).
-	const float SPAWN_X = 990.0f;        // sprite starts fully off-screen on the right
-	const float HIT_LINE_X = 140.0f;     // an enemy whose body reaches this x has reached the player
-	const float MAX_FRAME_TIME = 0.1f;   // dt is clamped to this so a hitch never teleports an enemy
-	const int   START_HP = 3;
-
-	// The window the game is drawn in (GameManager.h asserts that it matches SCREEN_WIDTH / SCREEN_HEIGHT).
-	constexpr float FIELD_WIDTH = 928.0f;
-	constexpr float FIELD_HEIGHT = 544.0f;
-	const float GROUND_LINE_Y = 500.0f;  // y of the ground the enemies run on: their feetRow is drawn here
-
-	// Where spells leave the player: the front of the player's body, at the hand holding the staff. The Injoker
-	// sprite (assets/player/injoker.png) is drawn 82 x 120 px with its left edge at x 44 and its feet on the ground
-	// (GameManager.h, PLAYER_DRAW_*), so it spans x 44..126, y 378..498; the staff hand is near (120, 450).
-	const float PLAYER_CAST_X = 128.0f;
-	const float PLAYER_CAST_Y = 450.0f;
-
-	// ---- enemies ----
-	const int ENEMY_TYPE_COUNT = 10;     // one visual identity per skill
-
-	struct EnemyDefinition
-	{
-		int id;                          // equals its index in the table
-		const char* name;                // for logs / the debug overlay only
-		const char* sprite;              // asset path (data only, no textures here)
-		int frames;                      // frames in the horizontal sprite sheet
-		int bodyLeft;                    // first visible column of a drawn frame (after the horizontal flip)
-		int feetRow;                     // row of the sprite that is drawn on GROUND_LINE_Y
-		int bodyWidth;                   // visible body: width, and first / last visible row of a frame
-		int bodyTop;                     //   (union over all animation frames); together with bodyLeft this is
-		int bodyBottom;                  //   the hit box that spells collide with
-		invoker::SkillId targetSkill;    // the skill this enemy requires; data, not derived from the sprite
-		float speedMultiplier;           // applied on top of the difficulty speed
-	};
-
-	const EnemyDefinition& GetEnemyDefinition(int index);  // 0 <= index < ENEMY_TYPE_COUNT
-
 	// ---- difficulty: a plain deterministic function of the elapsed survival time ----
 	// INITIAL MVP TUNING VALUES. They are a starting point for playtesting, not balanced or final.
 	// Bounds: the speed never exceeds MAX_ENEMY_SPEED and the delay never drops below MIN_CHALLENGE_DELAY.
@@ -93,6 +57,7 @@ namespace practice
 		int gold;           // PLAY: gold earned in this run (elites, bosses, Bounty); Survival: always 0
 		int kills;          // enemies defeated
 		int bossesDefeated; // PLAY: stage = bossesDefeated + 1
+		int overlordsBeaten; // PLAY: overlords among them (spec §28)
 
 		int TotalCasts() const { return correctCasts + incorrectCasts; }
 		double Accuracy() const  // 0.0 .. 1.0; 0.0 while no cast has been judged yet
@@ -165,6 +130,16 @@ namespace practice
 
 	float EliteChance(float elapsedSeconds);        // 0 .. PLAY_ELITE_CHANCE_MAX
 
+	// ---- OVERLORD (spec §28, update 1.6): a Boss-Fights boss inside the run. INITIAL TUNING VALUES. ----
+	const int   PLAY_OVERLORD_FIRST = 20;           // the 20th enemy and every 10th after it (the 10th stays a chain boss)
+	const float PLAY_OVERLORD_WARNING = 2.5f;       // s of "OVERLORD INCOMING" before the fight
+	const int   PLAY_OVERLORD_POINTS = 50;
+	const int   PLAY_OVERLORD_GOLD = 100;
+	const float PLAY_OVERLORD_SPEED_STEP = 0.15f;   // from the 50th enemy on: +15 % walking speed per overlord ...
+	const float PLAY_OVERLORD_WINDOW_STEP = 0.10f;  // ... and -10 % landing window (never below BOSS_MIN_WINDOW)
+	bool IsOverlordEnemy(int enemyNumber);          // enemyNumber = 1 for the first enemy of the run
+	int OverlordTier(int enemyNumber);              // 1 at the 20th enemy, 2 at the 30th, 3 from the 40th on
+
 	// PLAY leaderboard (by score; ties: more bosses, then longer time). Same list rules as InsertTopRun.
 	struct PlayRun
 	{
@@ -197,6 +172,9 @@ namespace practice
 		int gold;
 		Rune rune;
 		bool runeChoice;   // a boss with Aghanim equipped: the game waits for ChooseRune() instead of a random rune
+		bool overlord;     // it was an OVERLORD (§28): kind is Boss, and a material dropped
+		bool droppedMaterial;
+		Material material;
 	};
 
 	struct ItemUseResult
@@ -205,49 +183,7 @@ namespace practice
 		ItemId item;
 	};
 
-	// Axis-aligned box in field pixels.
-	struct Bounds
-	{
-		float x;
-		float y;
-		float w;
-		float h;
-	};
-
 	Bounds EnemyBounds(const ActiveEnemy& enemy);  // visible body of the enemy, where spells can hit it
-
-	// ---- Tornado: the first spell with a real effect ----
-	// Casting Tornado (from D or F) launches a projectile from the player toward the enemy. The direction is
-	// fixed at launch (no homing). The cast is judged when the projectile hits the enemy, not when it is cast.
-	// INITIAL MVP TUNING VALUES, like the difficulty ones.
-	const float TORNADO_SPEED = 700.0f;         // px/s
-	const float TORNADO_HIT_RADIUS = 20.0f;     // hit circle around the projectile centre (the sprite is drawn 64 px wide)
-	const float TORNADO_MAX_DISTANCE = 1200.0f; // it is removed after flying this far ...
-	const float TORNADO_FIELD_MARGIN = 64.0f;   // ... or when its centre is this far outside the field
-	const float TORNADO_MAX_STEP = 10.0f;       // px: longest move tested for a hit at once, so nothing tunnels
-	// No limit on how many projectiles are in flight: every valid cast makes one. Each lives at most
-	// TORNADO_MAX_DISTANCE / TORNADO_SPEED (about 1.7 s) and a cast needs its own key press, so the number
-	// alive is bounded by how fast keys can be pressed and no technical cap is needed.
-	const int   TORNADO_FRAME_COUNT = 16;       // frames of the sprite sheet (4 x 4 grid)
-	const float TORNADO_ANIM_FPS = 10.0f;       // animation speed, independent of the projectile speed
-
-	struct Tornado
-	{
-		bool active;
-		float x;          // centre, field pixels
-		float y;
-		float dirX;       // unit vector, set once at launch
-		float dirY;
-		float travelled;  // px flown so far
-		float animTime;   // seconds alive, drives the animation
-		int enemyId;      // the enemy it was launched at (PracticeSession::SpawnCount() at that moment)
-	};
-
-	// (dx, dy) is only a direction (it is normalised); a zero vector falls back to "straight right".
-	Tornado MakeTornado(float originX, float originY, float dx, float dy, int enemyId);
-	void AdvanceTornado(Tornado& tornado, float dt);           // moves it by dir * speed * dt; deactivates it when done
-	bool TornadoHits(const Tornado& tornado, const Bounds& target);  // hit circle against box
-	int TornadoFrame(float animTime);                          // 0 .. TORNADO_FRAME_COUNT-1, looping
 
 	struct InputResult
 	{
@@ -256,6 +192,8 @@ namespace practice
 		CastOutcome cast;               // Correct / Incorrect only for a filled slot cast against an active enemy
 		bool tornadoLaunched;           // a Tornado projectile was created (it is judged later, when it hits)
 		KillReport kill;                // a Correct cast that finished the enemy (a chain step is Correct, not a kill)
+		bool overlord;                  // the key went to the OVERLORD fight: `boss` says what it did there
+		BossInputResult boss;
 	};
 
 	struct UpdateResult
@@ -267,6 +205,12 @@ namespace practice
 		KillReport kill;   // that hit finished the enemy
 		int leakDamage;    // lives lost by the leak (PLAY: 1 / 2 / 3)
 		bool shieldUsed;   // a Shield rune or a Black King Bar took the leak instead
+		bool overlordWarning;  // "OVERLORD INCOMING" started this update (overlordBoss, overlordTier)
+		int overlordBoss;
+		int overlordTier;
+		bool overlordFight;    // the warning ended: the fight starts
+		bool overlordUpdated;  // an OVERLORD fight ran this update: `boss` is its result (a contact also sets `leaked`)
+		BossUpdateResult boss;
 	};
 
 	class PracticeSession
@@ -292,7 +236,8 @@ namespace practice
 		GameState State() const { return m_state; }
 		const Stats& GetStats() const { return m_stats; }
 		const ActiveEnemy& Enemy() const { return m_enemy; }
-		const invoker::InvokerState& Invoker() const { return m_invoker; }
+		// orbs and D / F slots (the OVERLORD fight works on its own copy, taken in and handed back, §28 O-4)
+		const invoker::InvokerState& Invoker() const { return m_overlordActive ? m_overlord.Invoker() : m_invoker; }
 		int SpawnCount() const { return m_spawnCount; }  // enemies spawned this session
 		// Seeds the best combo record from saved data (never lowers it). Used once at start-up.
 		void RestoreBestCombo(int record) { if (record > m_stats.bestCombo) m_stats.bestCombo = record; }
@@ -326,6 +271,16 @@ namespace practice
 		float DoubleLeft() const { return m_doubleLeft; }
 		bool HasShield() const { return m_shield; }
 
+		// OVERLORD (§28): first the warning, then the fight (Overlord() is a §25 boss fight driven by this run).
+		float OverlordWarningLeft() const { return m_overlordWarning; }   // > 0 during the warning
+		bool OverlordActive() const { return m_overlordActive; }          // the fight is on
+		int OverlordBoss() const { return m_overlordBoss; }               // boss index, valid during warning and fight
+		int OverlordTierNow() const { return m_overlordTier; }
+		// the boss; it stands at the edge of the field (not moving) during the warning already
+		const BossSession& Overlord() const { return m_overlord; }
+		bool RefresherArmed() const { return m_refresherArmed; }          // the next damaging combo deals x2 (O-6)
+		int DefeatedBy() const { return m_defeatedBy; }                   // boss index after losing to one, else -1 (O-9)
+
 		// Launches a Tornado from the player along (dx, dy) at the current enemy. Input() calls it with the direction
 		// toward the enemy; it is public so a test can aim somewhere else. false = no enemy (or not Playing).
 		bool LaunchTornado(float dx, float dy);
@@ -339,6 +294,10 @@ namespace practice
 		void ResetSession();              // fresh stats (best combo kept), no enemy, empty orbs and D/F
 		CastOutcome JudgeCast(invoker::SkillId spell);  // the one place that decides right / wrong and scores it
 		void UpdateTornadoes(float dt, UpdateResult& result);
+		void BeginOverlord(UpdateResult& result);       // the warning starts instead of a spawn
+		void StartOverlordSession();                    // the boss with this run's lives, slots and scaling
+		void UpdateOverlord(float dt, UpdateResult& result);
+		void GiveBossRune();                            // a boss's rune (or Aghanim's choice), into m_kill
 
 		GameState m_state;
 		Stats m_stats;
@@ -366,6 +325,15 @@ namespace practice
 		float m_smokeLeft = 0.0f;
 		Rune m_runeChoices[PLAY_MAX_RUNE_CHOICES] = {};
 		int m_runeChoiceCount = 0;
+		float m_difficultyTime = 0.0f;    // the difficulty clock: survival time minus the OVERLORD time (O-5)
+		BossSession m_overlord;
+		bool m_overlordActive = false;
+		float m_overlordWarning = 0.0f;
+		int m_overlordBoss = 0;
+		int m_overlordTier = 0;
+		int m_lastOverlord = -1;          // never the same one twice in a row once they are random
+		bool m_refresherArmed = false;
+		int m_defeatedBy = -1;
 	};
 }
 

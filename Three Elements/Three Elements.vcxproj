@@ -187,6 +187,7 @@
     <ClInclude Include="Practice\Practice.h" />
     <ClInclude Include="Practice\Tutorial.h" />
     <ClInclude Include="Practice\Boss.h" />
+    <ClInclude Include="Practice\Field.h" />
     <ClInclude Include="Practice\Items.h" />
     <ClInclude Include="PixelText.h" />
     <ClInclude Include="Draw.h" />

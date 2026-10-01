@@ -200,7 +200,7 @@ Proposed new bosses (to confirm in B1): Frost Troll — Cold Snap → Sun Strike
 
 Boss art format for the owner: PNG with transparency, square frames of 256 px in a grid (like the Injoker sheets), boss **facing left** (it walks toward the player), feet on the same row in every frame; sheets: walk (8-16 frames), hit (4-8), death (8-16); optional idle. One sheet per animation, file names `assets/bosses/<name>-walk.png` etc.
 
-#### 1.6.0 — OVERLORD in PLAY and material drops  *(spec §28 PROPOSED 2026-10-01, waiting for the owner's approval; no code yet)*
+#### 1.6.0 — OVERLORD in PLAY and material drops  *(done 2026-10-01, spec §28 confirmed by the owner)*
 
 Owner idea 2026-10-01: Boss Fights bosses appear inside PLAY as **OVERLORDS** (20th / 30th / 40th enemy: Dark Wizard, Shadow Assassin, Archon; random and harder from the 50th on), fought by the Boss-mode rules with the run's lives and slots; a warning with a sound per tier; contact costs 1 life; the difficulty clock stops during the fight; Refresher Orb = the next combo deals x2. Each overlord drops a **material** (Point Booster, Mystic Staff, Sacred Relic) that the shop requires for Aghanim's Scepter and for every level-2 upgrade.
 
@@ -210,6 +210,8 @@ Owner idea 2026-10-01: Boss Fights bosses appear inside PLAY as **OVERLORDS** (2
 | C2 | Practice layer: overlord hand-off in `PracticeSession` (shared invoker, lives, items, clock), materials and requirements in `Practice/Items.*`, tests |
 | C3 | Presentation: warning banner and three synthesised warning sounds, the Boss-mode HUD inside PLAY, drop and Game Over lines, shop requirement lines and material counts |
 | C4 | Saving materials, privacy page, store text; release on PC / web / Android |
+
+All four steps done in 1.6.0. Left for playtesting: the numbers (reward, scaling), and whether overlords should also appear by chance (the owner was undecided).
 
 ### Phase 8 — Future Combat / Story  *(deliberately not started)*
 Design note only, when the MVP has proven fun: Threne story, Evil King, hero roles, assign-cards screens, real skill effects/damage, bosses, multi-target hard modes, beginner-mode hints. Builds on Core; no code before this phase is explicitly opened.
@@ -252,4 +254,5 @@ Only if the game proves worthwhile: IP review of names/icons/assets (currently "
 - 2026-10-01 — **1.4.0 Shop and items** (spec §27): `Practice/Items.*` + item effects in PLAY, SHOP screen, 2 x 3 item bar (U I O / J K L), Aghanim rune choice, pixel icons (`art/make_item_icons.py`), inventory saved; 83 new test checks → Practice tests 1231; versionCode 13.
 - 2026-10-01 — **1.4.1:** shop: the price is written on the BUY / UPGRADE button (the label under it was crossed by the button's pulsing frame), and a line says how much gold is missing; versionCode 14.
 - 2026-10-01 — **1.5.0 Boss Fights with all ten skills** (spec §25 B-16..B-20): quick steps graded on cast speed, holds (Cold Snap freeze, Ice Wall slow, Ghost Walk confusion), five new bosses with combos of up to five spells, the two-phase Archon, compact boss list for eight bosses; 88 new test checks → Practice tests 1319; versionCode 15. Boss art still placeholder (owner draws it).
+- 2026-10-01 — **1.6.0 OVERLORD in PLAY and materials** (spec §28): the 20th / 30th / 40th enemy of a PLAY run is a Boss Fights boss (Dark Wizard, Shadow Assassin, Archon), random and harder from the 50th on; `PracticeSession` owns a `BossSession` and hands the run to it (lives, orbs, slots, item effects; shared declarations moved to `Practice/Field.h`); warning banner with one to three horn calls; contact costs 1 life; the difficulty clock stops; Refresher Orb arms x2 damage; +50 points, +100 gold, a rune and one material per overlord; the shop needs materials for Aghanim's Scepter and every level-2 upgrade; 139 new test checks → Practice tests 1458; versionCode 16.
 - Next (owner): **shop** for the gold (Invoker-only items with Dota-like pixel icons, 6 activatable item slots, mix of permanent and consumable, high prices; Refresher Orb removes 2 skills of a chain, Blink Dagger makes enemies walk back for 3 s) — to be confirmed again with the owner before any code; then Boss Fights with all 10 skills; then stage backgrounds (owner looking for art) with difficulty tuning.

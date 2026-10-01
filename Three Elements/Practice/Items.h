@@ -20,6 +20,14 @@ namespace practice
 
 	enum class ItemKind { Active, Passive, Consumable };
 
+	// Materials (spec §28 O-10): one drops from every OVERLORD beaten in PLAY; the shop asks for them (O-11).
+	enum class Material { PointBooster, MysticStaff, SacredRelic };
+	const int MATERIAL_COUNT = 3;
+	const int MATERIAL_MAX = 99;
+	const int MATERIAL_NONE = -1;
+	const char* MaterialName(Material material);   // English capitals, e.g. "POINT BOOSTER"
+	Material MaterialOfBoss(int boss);              // bosses 1-3 -> Point Booster, 4-7 -> Mystic Staff, 8 -> Sacred Relic
+
 	struct ItemLevel
 	{
 		const char* name;
@@ -45,6 +53,7 @@ namespace practice
 		int level[ITEM_COUNT];  // permanent items: 0 = not owned, 1, 2
 		int count[ITEM_COUNT];  // consumables: units owned
 		int slot[ITEM_SLOTS];   // the item in each slot (as an int), or ITEM_NONE
+		int material[MATERIAL_COUNT];  // materials owned (0..MATERIAL_MAX)
 	};
 
 	Inventory EmptyInventory();
@@ -52,9 +61,15 @@ namespace practice
 	int CurrentLevel(const Inventory& inv, ItemId id);      // 1 for an owned consumable
 	// Price of the next purchase (level 1, the upgrade, or one more unit); 0 when there is nothing left to buy.
 	int NextPrice(const Inventory& inv, ItemId id);
-	// Spends the price from `gold` and gives the item (a new item is equipped in the first free slot). false = not
-	// enough gold or nothing to buy; nothing changes then.
+	// The material the next purchase of this item uses up (O-11: Aghanim's Scepter and every level-2 upgrade), as an
+	// int, or MATERIAL_NONE.
+	int RequiredMaterial(const Inventory& inv, ItemId id);
+	int MaterialForLevel(ItemId id, int level);             // what buying `level` (1 or 2) of the item needs
+	bool CanBuy(const Inventory& inv, ItemId id, int gold);  // something to buy, enough gold, and the material
+	// Spends the price from `gold` (and the material) and gives the item (a new item is equipped in the first free
+	// slot). false = CanBuy says no; nothing changes then.
 	bool Buy(Inventory& inv, ItemId id, int& gold);
+	void AddMaterial(Inventory& inv, Material material);    // +1, up to MATERIAL_MAX
 	int SlotOf(const Inventory& inv, ItemId id);            // its slot, or ITEM_NONE
 	bool Equip(Inventory& inv, ItemId id);                  // into the first free slot; false if not owned / full
 	void Unequip(Inventory& inv, ItemId id);
