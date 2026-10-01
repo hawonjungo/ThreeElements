@@ -300,12 +300,22 @@ bool GameManager::RunFrame()
         enemyBefore = BossDrawnBody();  // the points of a beaten OVERLORD rise from where it stood
     if (m_paused && !CanPause())
         m_paused = false;
-    if (m_paused)
+    bool frozen = m_paused || TipShown();  // a first-time tip is being read: the run waits, like a pause
+    if (frozen)
         dt = 0.0f;  // nothing moves or animates; the rules below are not even called
     practice::UpdateResult update = {};
-    if (!m_paused)
+    if (!frozen)
         update = m_session.Update(dt);
     LogUpdate(update);
+    if (update.spawned && m_session.Mode() == practice::SessionMode::Play)  // spec §31: the first elite / boss
+    {
+        if (m_session.Enemy().kind == practice::EnemyKind::Elite)
+            QueueTip(TIP_ELITE);
+        else if (m_session.Enemy().kind == practice::EnemyKind::Boss)
+            QueueTip(TIP_BOSS);
+    }
+    if (update.overlordWarning)
+        QueueTip(TIP_OVERLORD);
     if (update.overlordWarning)  // spec §28 O-3: the banner (RenderOverlordWarning) and a horn call per tier
     {
         audio::Play(update.overlordTier >= 3 ? audio::Sfx::Overlord3
@@ -350,7 +360,7 @@ bool GameManager::RunFrame()
         if (t.finished)
             audio::Play(audio::Sfx::Start);
     }
-    if (m_bossActive && !m_paused)
+    if (m_bossActive && !frozen)
         PresentBossUpdate(m_boss.Update(dt));
     m_bossDamageLeft -= dt;
     m_announceLeft -= dt;  // the fight's clock stops by itself once it is won or lost
@@ -440,8 +450,11 @@ bool GameManager::RunFrame()
         RenderLayoutEditor();
     if (m_showShop)
         RenderShop();
+    if (m_showGuide)
+        RenderGuide();
     RenderRuneChoice();
     RenderPause();
+    RenderTip();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
 
     //Update screen
@@ -457,6 +470,17 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
 
     SDL_Keycode sym = e.key.keysym.sym;
+    if (TipShown())  // only these close a tip, so a player hammering Q / W / E does not skip it unread
+    {
+        if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE || sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
+            DismissTip();
+        return;
+    }
+    if (m_showGuide)
+    {
+        HandleGuideKey(sym);
+        return;
+    }
     if (m_showRecipes || m_showLeaderboard)  // an overlay is open: any key just closes it
     {
         m_showRecipes = m_showLeaderboard = false;
@@ -574,6 +598,17 @@ void GameManager::PressEnterAction()
         printf("[practice] session started (seed %u)\n", seed);
         if (m_recipeHint)
             m_session.MarkAssisted();  // started with the recipe hint (information only, spec §17)
+        m_missStreak = 0;
+        m_tipQueued = 0;
+        if (m_session.Mode() == practice::SessionMode::Play)
+        {
+            for (int s = 0; s < practice::ITEM_SLOTS; ++s)
+                if (m_inventory.slot[s] != practice::ITEM_NONE)
+                {
+                    QueueTip(TIP_ITEMS);  // the first run with something in a slot
+                    break;
+                }
+        }
         audio::Play(audio::Sfx::Start);
     }
 }
@@ -607,6 +642,17 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     };
 
     bool menu = !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Ready;
+    if (TipShown())  // only its button closes a tip
+    {
+        if (hit(TIP_BUTTON_RECT))
+            DismissTip();
+        return;
+    }
+    if (m_showGuide)
+    {
+        HandleGuidePointer(x, y);
+        return;
+    }
     if (m_showLeaderboard && online::Available() && hit(GLOBAL_BOARDS_BUTTON_RECT))
     {
         OpenGlobalBoards();  // the list stays open underneath
@@ -1102,6 +1148,9 @@ void GameManager::OnCastJudged(practice::CastOutcome outcome, const practice::Bo
     int textX = cx < margin ? margin : (cx > SCREEN_WIDTH - margin ? SCREEN_WIDTH - margin : cx);
     bool correct = outcome == practice::CastOutcome::Correct;
     audio::Play(correct ? audio::Sfx::CastCorrect : audio::Sfx::CastWrong);
+    m_missStreak = correct ? 0 : m_missStreak + 1;
+    if (m_missStreak >= TIP_MISS_STREAK && !m_recipeHint)
+        QueueTip(TIP_HINT);  // spec §31: several wrong casts in a row - the recipe hint exists
     if (correct)
     {
         for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
@@ -1391,6 +1440,9 @@ void GameManager::LoadSettings()
     hint = EM_ASM_INT({
         try { return localStorage.getItem('threeElements_recipeHint') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
+    m_tipsSeen = EM_ASM_INT({
+        try { return Number(localStorage.getItem('threeElements_tips')) | 0; } catch (e) { return 0; }
+    });
     muted = EM_ASM_INT({
         try { return localStorage.getItem('threeElements_muted') === '1' ? 1 : 0; } catch (e) { return 0; }
     });
@@ -1406,6 +1458,8 @@ void GameManager::LoadSettings()
         if (fscanf(f, " layout %d %d %d %d %d %d %d %d", &layout[0], &layout[1], &layout[2], &layout[3], &layout[4],
             &layout[5], &layout[6], &layout[7]) != 8)
             layout[2] = -1;  // an older file: the default layout
+        if (fscanf(f, " tips %d", &m_tipsSeen) != 1)
+            m_tipsSeen = 0;
         fclose(f);
     }
 #endif
@@ -1443,14 +1497,15 @@ void GameManager::SaveSettings()
             for (var i = 0; i < 8; ++i)
                 values.push(HEAP32[($3 >> 2) + i]);
             localStorage.setItem('threeElements_layout', values.join(','));
+            localStorage.setItem('threeElements_tips', String($4));
         } catch (e) {}
-    }, muted, tutorialDone, hint, layout);
+    }, muted, tutorialDone, hint, layout, m_tipsSeen);
 #else
     FILE* f = fopen(SavePath("settings.txt").c_str(), "w");
     if (f != NULL)
     {
-        fprintf(f, "muted %d tutorial %d hint %d layout %d %d %d %d %d %d %d %d\n", muted, tutorialDone, hint, layout[0],
-            layout[1], layout[2], layout[3], layout[4], layout[5], layout[6], layout[7]);
+        fprintf(f, "muted %d tutorial %d hint %d layout %d %d %d %d %d %d %d %d tips %d\n", muted, tutorialDone, hint, layout[0],
+            layout[1], layout[2], layout[3], layout[4], layout[5], layout[6], layout[7], m_tipsSeen);
         fclose(f);
     }
 #endif
@@ -1549,6 +1604,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_TUTORIAL:    StartTutorial(); break;
     case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
+    case MENU_GUIDE:       m_showGuide = true; break;
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
     case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
     case MENU_SHOP:        m_showShop = true; break;
@@ -1578,6 +1634,7 @@ void GameManager::RenderMenu()
         case MENU_BOSS:        label = "BOSS FIGHTS"; key = "B"; break;
         case MENU_TUTORIAL:    label = "TUTORIAL";    key = "T"; break;
         case MENU_RECIPES:     label = "RECIPES";     key = "H"; break;
+        case MENU_GUIDE:       label = "GUIDE";       key = ""; break;
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
         case MENU_SETTINGS:    label = "SETTINGS";    key = ""; break;
         case MENU_SHOP:        label = "SHOP";        key = "P"; break;
@@ -1640,12 +1697,17 @@ SDL_Rect GameManager::SettingsCloseRect() const
 
 void GameManager::ActivateSettingsRow(int row)
 {
-    if (row == 0)
-        ToggleMute();
-    else if (row == 1)
-        ToggleRecipeHint();
-    else
-        OpenLayoutEditor();
+    switch (SettingsRowAt(row))
+    {
+    case SETTING_SOUND:  ToggleMute(); break;
+    case SETTING_HINT:   ToggleRecipeHint(); break;
+    case SETTING_LAYOUT: OpenLayoutEditor(); break;
+    case SETTING_TIPS:   // every first-time tip will be shown once more (spec §31)
+        m_tipsSeen = 0;
+        SaveSettings();
+        audio::Play(audio::Sfx::CastCorrect);
+        break;
+    }
 }
 
 void GameManager::HandleSettingsKey(SDL_Keycode sym)
@@ -1697,12 +1759,14 @@ void GameManager::RenderSettings()
     const SDL_Color off = { 220, 110, 110, 255 };
     pixeltext::DrawCentered(m_screen, "SETTINGS", SCREEN_WIDTH, panel.y + 18, 3, gold);
 
-    const char* names[3] = { "SOUND", "RECIPE HINT", "BUTTON LAYOUT" };
-    const char* keys[3] = { "M", "G", "" };
-    bool values[3] = { !audio::IsMuted(), m_recipeHint, true };
+    const char* names[4] = { "SOUND", "RECIPE HINT", "BUTTON LAYOUT", "TIPS" };
+    const char* keys[4] = { "M", "G", "", "" };
     int n = SettingsRowCount();
     for (int i = 0; i < n; ++i)
     {
+        SettingsRow kind = SettingsRowAt(i);
+        const char* name = names[kind];
+        bool value = kind == SETTING_SOUND ? !audio::IsMuted() : m_recipeHint;
         SDL_Rect r = SettingsRowRect(i);
         bool selected = i == m_settingsIndex;
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
@@ -1711,17 +1775,20 @@ void GameManager::RenderSettings()
         SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 130, 220);
         SDL_RenderDrawRect(m_screen, &r);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-        pixeltext::DrawShadowed(m_screen, names[i], r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
-        if (i == 2)  // not a switch: it opens the editor
+        pixeltext::DrawShadowed(m_screen, name, r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
+        if (kind == SETTING_LAYOUT || kind == SETTING_TIPS)  // not a switch: it opens the editor / shows the tips again
         {
-            pixeltext::DrawShadowed(m_screen, "EDIT", r.x + r.w - pixeltext::Width("EDIT", 3) - 16, r.y + (r.h - 21) / 2, 3, gold);
+            const char* action = kind == SETTING_LAYOUT ? "EDIT" : (m_tipsSeen == 0 ? "ALL ON" : "SHOW AGAIN");
+            int scale = kind == SETTING_LAYOUT ? 3 : 2;
+            pixeltext::DrawShadowed(m_screen, action, r.x + r.w - pixeltext::Width(action, scale) - 16, r.y + (r.h - 7 * scale) / 2,
+                scale, m_tipsSeen == 0 && kind == SETTING_TIPS ? on : gold);
             continue;
         }
-        const char* value = values[i] ? "ON" : "OFF";
-        int valueX = r.x + r.w - pixeltext::Width(value, 3) - 16;
-        pixeltext::DrawShadowed(m_screen, value, valueX, r.y + (r.h - 21) / 2, 3, values[i] ? on : off);
+        const char* text = value ? "ON" : "OFF";
+        int valueX = r.x + r.w - pixeltext::Width(text, 3) - 16;
+        pixeltext::DrawShadowed(m_screen, text, valueX, r.y + (r.h - 21) / 2, 3, value ? on : off);
         if (!m_showTouchControls)
-            pixeltext::DrawShadowed(m_screen, keys[i], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
+            pixeltext::DrawShadowed(m_screen, keys[kind], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
     }
     pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST A BOSS.", SCREEN_WIDTH,
         SettingsRowRect(n - 1).y + 62, 1, grey);
@@ -2876,6 +2943,18 @@ void GameManager::OnKill(const practice::KillReport& kill, const practice::Bound
         snprintf(label, sizeof(label), "+1 %s", practice::MaterialName(kill.material));
         AddDrop(m_materialIcons[m], label, dropX, dropY, hasRune ? -70 : 0);
     }
+    if (hasRune || kill.runeChoice)
+    {
+        m_tipRune = kill.rune;
+        QueueTip(TIP_RUNE);
+    }
+    if (kill.gold > 0)
+        QueueTip(TIP_GOLD);
+    if (kill.droppedMaterial)
+    {
+        m_tipMaterial = kill.material;
+        QueueTip(TIP_MATERIAL);
+    }
     if (hasRune)  // the player sees what fell, not only its name (owner 2026-10-01)
         AddDrop(m_runeIcons[static_cast<int>(kill.rune)], RuneName(kill.rune), dropX, dropY, kill.droppedMaterial ? 70 : 0);
     if (kill.kind == practice::EnemyKind::Boss && m_session.Mode() == practice::SessionMode::Play)
@@ -3690,6 +3769,344 @@ void GameManager::RenderRuneChoice()
         RenderButton(row, buf, false);
         RenderIconScaled(m_runeIcons[static_cast<int>(m_session.RuneChoice(i))], row.x + 4, row.y + 3, 40);
     }
+}
+
+// ------------------------------------------------------------------ first-time tips (spec §31)
+
+// Queues a tip unless it was shown before. Only inside a PLAY / SURVIVAL run: the Tutorial and Boss Fights explain
+// themselves. The run waits while a tip is on screen (RunFrame), and only GOT IT / Enter closes it.
+void GameManager::QueueTip(TipId tip)
+{
+    if (m_tutorialActive || m_bossActive || m_session.State() != practice::GameState::Playing)
+        return;
+    if ((m_tipsSeen & (1 << tip)) != 0 || m_tipQueued >= TIP_COUNT)
+        return;
+    for (int i = 0; i < m_tipQueued; ++i)
+        if (m_tipQueue[i] == tip)
+            return;
+    m_tipQueue[m_tipQueued++] = tip;
+}
+
+void GameManager::DismissTip()
+{
+    if (m_tipQueued <= 0)
+        return;
+    m_tipsSeen |= 1 << m_tipQueue[0];
+    for (int i = 1; i < m_tipQueued; ++i)
+        m_tipQueue[i - 1] = m_tipQueue[i];
+    --m_tipQueued;
+    m_missStreak = 0;
+    SaveSettings();
+    audio::Play(audio::Sfx::Cast);
+}
+
+void GameManager::RenderTip()
+{
+    if (!TipShown())
+        return;
+    if (m_session.State() != practice::GameState::Playing)  // the run ended under it: nothing left to explain
+    {
+        m_tipQueued = 0;
+        return;
+    }
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    bool touch = m_showTouchControls;
+    const char* title = "";
+    const char* lines[4] = { "", "", "", "" };
+    SDL_Texture* icon = NULL;
+    char runeLine[48] = "";
+    switch (m_tipQueue[0])
+    {
+    case TIP_ELITE:
+        title = "ELITE";
+        lines[0] = "IT NEEDS 2 SPELLS, IN ORDER.";
+        lines[1] = "IF IT REACHES YOU: -2 LIVES.";
+        lines[2] = "BEAT IT FOR 3 POINTS AND 5 GOLD.";
+        break;
+    case TIP_BOSS:
+        title = "BOSS";
+        lines[0] = "IT NEEDS 3 SPELLS, IN ORDER.";
+        lines[1] = "IF IT REACHES YOU: -3 LIVES.";
+        lines[2] = "BEAT IT FOR A RUNE AND A NEW STAGE.";
+        break;
+    case TIP_RUNE:
+        title = "RUNE";
+        icon = m_runeIcons[static_cast<int>(m_tipRune)];
+        lines[0] = "EVERY BOSS LEAVES A RUNE:";
+        lines[1] = "A SHORT BONUS FOR THIS RUN.";
+        switch (m_tipRune)
+        {
+        case practice::Rune::Regeneration: lines[2] = "REGENERATION: +1 LIFE."; break;
+        case practice::Rune::Frost:        lines[2] = "FROST: ENEMIES ARE SLOWER."; break;
+        case practice::Rune::DoubleDamage: lines[2] = "DOUBLE DAMAGE: POINTS X2."; break;
+        case practice::Rune::Bounty:       lines[2] = "BOUNTY: EXTRA GOLD."; break;
+        case practice::Rune::Shield:       lines[2] = "SHIELD: BLOCKS THE NEXT HIT."; break;
+        default:                           lines[2] = "YOU CHOOSE WHICH ONE."; break;
+        }
+        break;
+    case TIP_GOLD:
+        title = "GOLD";
+        lines[0] = "ELITES AND BOSSES GIVE GOLD.";
+        lines[1] = "IT IS KEPT AFTER THE RUN.";
+        lines[2] = "SPEND IT IN THE SHOP (MENU).";
+        break;
+    case TIP_ITEMS:
+        title = "ITEMS";
+        for (int s = 0; s < practice::ITEM_SLOTS && icon == NULL; ++s)
+            if (m_inventory.slot[s] != practice::ITEM_NONE)
+                icon = m_itemIcons[m_inventory.slot[s]][0];
+        lines[0] = "YOUR ITEMS ARE IN THE SLOTS.";
+        lines[1] = touch ? "TAP A SLOT TO USE ITS ITEM." : "KEYS U I O / J K L USE THEM.";
+        lines[2] = "A NUMBER ON A SLOT: SECONDS TO WAIT.";
+        break;
+    case TIP_OVERLORD:
+        title = "OVERLORD";
+        lines[0] = "A BOSS WITH A LIFE BAR. ONLY ITS";
+        lines[1] = "COMBO HURTS IT: CAST THE SPELLS AT";
+        lines[2] = "THE TOP RIGHT IN ORDER, WELL TIMED.";
+        lines[3] = "PRACTISE IN BOSS FIGHTS (MENU).";
+        break;
+    case TIP_MATERIAL:
+        title = "MATERIAL";
+        icon = m_materialIcons[static_cast<int>(m_tipMaterial)];
+        snprintf(runeLine, sizeof(runeLine), "YOU FOUND A %s.", practice::MaterialName(m_tipMaterial));
+        lines[0] = runeLine;
+        lines[1] = "EVERY OVERLORD DROPS A MATERIAL.";
+        lines[2] = "THE SHOP NEEDS ONE FOR AGHANIM'S";
+        lines[3] = "SCEPTER AND FOR ITEM UPGRADES.";
+        break;
+    default:
+        title = "NEED HELP?";
+        lines[0] = "RECIPE HINT SHOWS THE KEYS OF THE";
+        lines[1] = "TARGET SPELL. TURN IT ON WITH THE";
+        lines[2] = touch ? "HINT BUTTON, TOP LEFT." : "HINT BUTTON, TOP LEFT (OR KEY G).";
+        break;
+    }
+
+    DimScreen(150);
+    const SDL_Rect& panel = TIP_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 220);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    int textX = panel.x + 28;
+    if (icon != NULL)
+    {
+        RenderIconScaled(icon, panel.x + 24, panel.y + 22, 64);
+        textX = panel.x + 106;
+    }
+    pixeltext::DrawShadowed(m_screen, title, textX, panel.y + 20, 3, gold);
+    for (int i = 0; i < 4; ++i)
+        pixeltext::DrawShadowed(m_screen, lines[i], textX, panel.y + 58 + i * 24, 2, white);
+    RenderButton(TIP_BUTTON_RECT, touch ? "GOT IT" : "ENTER  GOT IT", true);
+}
+
+// ------------------------------------------------------------------ GUIDE (spec §31)
+
+SDL_Rect GameManager::GuideTabRect(int tab) const
+{
+    SDL_Rect r = { GUIDE_PANEL_RECT.x + 24 + tab * 168, GUIDE_PANEL_RECT.y + 50, 160, 32 };
+    return r;
+}
+
+void GameManager::HandleGuideKey(SDL_Keycode sym)
+{
+    if (sym == SDLK_LEFT || sym == SDLK_UP)
+        m_guideTab = (m_guideTab + GUIDE_TABS - 1) % GUIDE_TABS;
+    else if (sym == SDLK_RIGHT || sym == SDLK_DOWN || sym == SDLK_TAB || sym == SDLK_SPACE)
+        m_guideTab = (m_guideTab + 1) % GUIDE_TABS;
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK || sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+        m_showGuide = false;
+    else if (sym == SDLK_m)
+        ToggleMute();
+}
+
+void GameManager::HandleGuidePointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    for (int t = 0; t < GUIDE_TABS; ++t)
+    {
+        if (hit(GuideTabRect(t)))
+        {
+            m_guideTab = t;
+            return;
+        }
+    }
+    if (hit(GUIDE_CLOSE_RECT) || !hit(GUIDE_PANEL_RECT))
+        m_showGuide = false;
+}
+
+// What the Tutorial does not teach, one tab per subject, every line short. The numbers come from the rules.
+void GameManager::RenderGuide()
+{
+    DimScreen(200);
+    const SDL_Rect& panel = GUIDE_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    const SDL_Color orange = { 255, 170, 70, 255 };
+    const SDL_Color red = { 255, 110, 110, 255 };
+    char buf[128];
+    pixeltext::DrawShadowed(m_screen, "GUIDE", panel.x + 24, panel.y + 14, 3, gold);
+    const char* tabs[GUIDE_TABS] = { "BASICS", "ENEMIES", "RUNES", "ITEMS", "BOSSES" };
+    for (int t = 0; t < GUIDE_TABS; ++t)
+    {
+        SDL_Rect r = GuideTabRect(t);
+        bool selected = t == m_guideTab;
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, selected ? 70 : 28, selected ? 44 : 30, selected ? 16 : 46, 240);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 135, 230);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        pixeltext::DrawShadowed(m_screen, tabs[t], r.x + (r.w - pixeltext::Width(tabs[t], 2)) / 2, r.y + 9, 2, selected ? gold : white);
+    }
+    const int left = panel.x + 24;
+    const int top = panel.y + 100;
+
+    if (m_guideTab == 0)
+    {
+        const char* lines[] = {
+        "Q, W, E LOAD ORBS. THE THREE ORBS YOU HOLD MAKE A SPELL.",
+        "ONLY THE MIX COUNTS, NOT THE ORDER: Q Q W IS THE SAME AS W Q Q.",
+        "R INVOKES THAT SPELL INTO D. THE SPELL THAT WAS IN D MOVES TO F.",
+        "D AND F CAST. A SPELL STAYS IN ITS SLOT: CAST IT AS OFTEN AS YOU LIKE.",
+        "EVERY ENEMY NEEDS ONE SPELL. ITS NAME IS AT THE TOP RIGHT.",
+        "A WRONG SPELL DOES NOTHING. AN ENEMY THAT REACHES YOU COSTS A LIFE.",
+        "RECIPES (MENU) LISTS THE TEN SPELLS. RECIPE HINT SHOWS THE KEYS.",
+        "PLAY IS THE MAIN GAME. SURVIVAL: ONE SPELL PER ENEMY, WITHOUT END."
+        };
+        for (int i = 0; i < static_cast<int>(sizeof(lines) / sizeof(lines[0])); ++i)
+            pixeltext::DrawShadowed(m_screen, lines[i], left, top + 8 + i * 40, 2, white);
+    }
+    else if (m_guideTab == 1)
+    {
+        // one row per kind of enemy; the columns are filled from the PLAY rules
+        const int columns[5] = { left, left + 240, left + 420, left + 650, left + 760 };
+        const char* heads[5] = { "ENEMY", "SPELLS", "IF IT REACHES YOU", "POINTS", "GOLD" };
+        for (int c = 0; c < 5; ++c)
+            pixeltext::DrawShadowed(m_screen, heads[c], columns[c], top, 1, grey);
+        struct Row { const char* name; SDL_Color color; const char* spells; int lives; int points; int gold; const char* note; };
+        const Row rows[4] = {
+            { "NORMAL", white, "1", practice::PLAY_LEAK_NORMAL, practice::PLAY_POINTS_NORMAL, 0,
+                "MOST ENEMIES." },
+            { "ELITE", orange, "2 IN ORDER", practice::PLAY_LEAK_ELITE, practice::PLAY_POINTS_ELITE, practice::PLAY_GOLD_ELITE,
+                "LARGER AND A LITTLE SLOWER. MORE OF THEM THE LONGER YOU LAST." },
+            { "BOSS", red, "3 IN ORDER", practice::PLAY_LEAK_BOSS, practice::PLAY_POINTS_BOSS, practice::PLAY_GOLD_BOSS,
+                "THE 10TH ENEMY. LEAVES A RUNE, THEN THE NEXT STAGE BEGINS." },
+            { "OVERLORD", gold, "ITS COMBO", 1, practice::PLAY_OVERLORD_POINTS, practice::PLAY_OVERLORD_GOLD,
+                "THE 20TH, 30TH, 40TH... ENEMY. A BOSS FIGHT: A LIFE BAR, A COMBO. LEAVES A RUNE AND A MATERIAL." },
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            int y = top + 22 + i * 52;
+            pixeltext::DrawShadowed(m_screen, rows[i].name, columns[0], y, 2, rows[i].color);
+            pixeltext::DrawShadowed(m_screen, rows[i].spells, columns[1], y, 2, white);
+            snprintf(buf, sizeof(buf), rows[i].lives == 1 ? "-%d LIFE" : "-%d LIVES", rows[i].lives);
+            pixeltext::DrawShadowed(m_screen, buf, columns[2], y, 2, white);
+            snprintf(buf, sizeof(buf), "%d", rows[i].points);
+            pixeltext::DrawShadowed(m_screen, buf, columns[3], y, 2, white);
+            if (rows[i].gold > 0)
+                snprintf(buf, sizeof(buf), "%d", rows[i].gold);
+            else
+                snprintf(buf, sizeof(buf), "-");
+            pixeltext::DrawShadowed(m_screen, buf, columns[4], y, 2, gold);
+            pixeltext::DrawShadowed(m_screen, rows[i].note, columns[0], y + 20, 1, grey);
+        }
+        const char* notes[3] = {
+            "A WRONG SPELL NEVER HURTS YOU: TRY AGAIN. A CHAIN KEEPS ITS PROGRESS.",
+            "GOLD COMES ONLY FROM ELITES, BOSSES, OVERLORDS AND THE BOUNTY RUNE.",
+            "IN SURVIVAL EVERY ENEMY IS A NORMAL ONE AND COSTS 1 LIFE.",
+        };
+        for (int i = 0; i < 3; ++i)
+            pixeltext::DrawShadowed(m_screen, notes[i], left, top + 246 + i * 32, 2, white);
+    }
+    else if (m_guideTab == 2)
+    {
+        const practice::Rune runes[5] = { practice::Rune::Regeneration, practice::Rune::Frost, practice::Rune::DoubleDamage,
+            practice::Rune::Bounty, practice::Rune::Shield };
+        for (int i = 0; i < 5; ++i)
+        {
+            int y = top + i * 56;
+            RenderIconScaled(m_runeIcons[static_cast<int>(runes[i])], left, y, 44);
+            pixeltext::DrawShadowed(m_screen, RuneName(runes[i]), left + 60, y + 15, 2, gold);
+            switch (runes[i])
+            {
+            case practice::Rune::Regeneration: snprintf(buf, sizeof(buf), "+1 LIFE (%d AT MOST)", practice::PLAY_MAX_HP); break;
+            case practice::Rune::Frost:
+                snprintf(buf, sizeof(buf), "ENEMIES AT %d %% SPEED FOR %d S", static_cast<int>(practice::PLAY_FROST_SPEED * 100.0f + 0.5f),
+                    static_cast<int>(practice::PLAY_FROST_TIME));
+                break;
+            case practice::Rune::DoubleDamage: snprintf(buf, sizeof(buf), "POINTS X2 FOR %d S", static_cast<int>(practice::PLAY_DOUBLE_TIME)); break;
+            case practice::Rune::Bounty:       snprintf(buf, sizeof(buf), "+%d GOLD", practice::PLAY_BOUNTY_GOLD); break;
+            default:                           snprintf(buf, sizeof(buf), "THE NEXT HIT COSTS NO LIFE"); break;
+            }
+            pixeltext::DrawShadowed(m_screen, buf, left + 290, y + 15, 2, white);
+        }
+        pixeltext::DrawShadowed(m_screen, "A BOSS OR AN OVERLORD LEAVES ONE AT RANDOM.", left, top + 296, 2, white);
+        pixeltext::DrawShadowed(m_screen, "WITH AGHANIM'S SCEPTER YOU CHOOSE 1 OF 2 (BLESSING: 1 OF 3).", left, top + 328, 2, white);
+    }
+    else if (m_guideTab == 3)
+    {
+        // two columns; the texts are the shop's own (Practice/Items)
+        for (int i = 0; i < practice::ITEM_COUNT; ++i)
+        {
+            const practice::ItemDefinition& def = practice::GetItemDefinition(i);
+            int x = left + (i / 6) * 424;
+            int y = top - 4 + (i % 6) * 60;
+            RenderIconScaled(m_itemIcons[i][0], x, y, 40);
+            pixeltext::DrawShadowed(m_screen, def.level[0].name, x + 50, y, 2, gold);
+            if (def.level[0].cooldown > 0.0f)
+                snprintf(buf, sizeof(buf), "%s  -  COOLDOWN %d S", def.level[0].effect, static_cast<int>(def.level[0].cooldown));
+            else
+                snprintf(buf, sizeof(buf), "%s%s", def.level[0].effect,
+                    def.kind == practice::ItemKind::Consumable ? "  -  USED UP" : "  -  ALWAYS ON");
+            pixeltext::DrawShadowed(m_screen, buf, x + 50, y + 19, 1, white);
+            if (def.levels > 1)
+            {
+                snprintf(buf, sizeof(buf), "LV 2 %s: %s", def.level[1].name, def.level[1].effect);
+                pixeltext::DrawShadowed(m_screen, buf, x + 50, y + 31, 1, grey);
+            }
+        }
+        pixeltext::DrawShadowed(m_screen, "ITEMS WORK IN PLAY. BUY THEM IN THE SHOP WITH GOLD. UPGRADES ALSO NEED A MATERIAL.", left, top + 352, 1, grey);
+        pixeltext::DrawShadowed(m_screen, "AGAINST AN OVERLORD, REFRESHER ORB DOUBLES THE DAMAGE OF YOUR NEXT COMBO INSTEAD.", left, top + 364, 1, grey);
+    }
+    else
+    {
+        char lift[96], delays[96];
+        snprintf(lift, sizeof(lift), "TORNADO LIFTS IT FOR %.1f S. LAND THE NEXT SPELLS AS IT COMES DOWN:", practice::BOSS_LIFT_TIME);
+        snprintf(delays, sizeof(delays), "SUN STRIKE HITS %.1f S AFTER THE CAST, CHAOS METEOR %.1f S, EMP %.1f S.",
+            practice::BOSS_SUN_STRIKE_DELAY, practice::BOSS_METEOR_DELAY, practice::BOSS_EMP_DELAY);
+        const char* lines[] = {
+        "ONLY ITS COMBO HURTS A BOSS: THE SPELLS AT THE TOP RIGHT, IN ORDER.",
+        "",
+        "",
+        "GRADES: PERFECT 100 %, GREAT 60 %, GOOD 35 % OF ITS LIFE, AVERAGED.",
+        "OTHER SPELLS ARE QUICK STEPS: CAST EACH RIGHT AFTER THE LAST ONE.",
+        "COLD SNAP FREEZES IT, ICE WALL SLOWS IT, GHOST WALK MAKES IT LOSE YOU.",
+        "WITH RECIPE HINT ON, A BAR UNDER EACH SPELL SHOWS WHEN TO CAST IT.",
+        "OVERLORDS IN PLAY ARE THESE BOSSES. PRACTISE THEM IN BOSS FIGHTS."
+        };
+        for (int i = 0; i < static_cast<int>(sizeof(lines) / sizeof(lines[0])); ++i)
+        {
+            const char* text = i == 1 ? lift : i == 2 ? delays : lines[i];
+            pixeltext::DrawShadowed(m_screen, text, left, top + 8 + i * 40, 2, white);
+        }
+    }
+
+    const char* help = m_showTouchControls ? "TAP A TAB." : "ARROWS: NEXT TAB    ESC: CLOSE";
+    pixeltext::DrawShadowed(m_screen, help, left, GUIDE_CLOSE_RECT.y + 14, 1, grey);
+    RenderButton(GUIDE_CLOSE_RECT, "CLOSE", false);
 }
 
 // ------------------------------------------------------------------ pause (owner 2026-10-01)

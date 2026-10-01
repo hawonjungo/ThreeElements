@@ -187,7 +187,7 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Home (the Ready screen, owner 2026-10-01): no logo picture; the four modes are big buttons in a column, the rest
 // (RECIPES, LEADERBOARD, SETTINGS, QUIT on desktop) small buttons in a row below. Arrows + Enter, hotkeys, or a tap.
 // PLAY = the main game (spec §26); SURVIVAL = the former Practice. SETTINGS holds sound and the recipe hint.
-enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_SHOP, MENU_RECIPES, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
+enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_SHOP, MENU_RECIPES, MENU_GUIDE, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
 const int MENU_MAIN_COUNT = 4;           // the big buttons: the modes
 const int MENU_MAIN_W = 300;
 const int MENU_MAIN_H = 50;
@@ -220,6 +220,15 @@ const int ITEM_SLOT_GAP = 6;
 // The item bar while playing PLAY: 2 rows of 3 on the right edge, for the right hand (keys U I O / J K L).
 // (its place is the ITEMS block of the touch layout, TouchLayout.h: by default the right edge, y 292)
 // BUTTON LAYOUT (spec §30): the editor's four buttons along the top; the blocks are dragged below them.
+// GUIDE (spec §31): a reference of what the Tutorial does not teach, in tabs; opened from the menu.
+const SDL_Rect GUIDE_PANEL_RECT = { 24, 16, 880, 512 };
+const SDL_Rect GUIDE_CLOSE_RECT = { 748, 482, 136, 34 };
+const int GUIDE_TABS = 5;                // BASICS, ENEMIES, RUNES, ITEMS, BOSSES
+// First-time tips (spec §31): one small card the first time something new shows up in a run; the run waits.
+enum TipId { TIP_ELITE, TIP_BOSS, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_OVERLORD, TIP_MATERIAL, TIP_HINT, TIP_COUNT };
+const SDL_Rect TIP_PANEL_RECT = { 204, 148, 520, 236 };
+const SDL_Rect TIP_BUTTON_RECT = { 364, 336, 200, 36 };
+const int TIP_MISS_STREAK = 3;           // wrong casts in a row before the recipe hint is suggested
 const float SLOT_FLASH_TIME = 0.45f;     // s a D / F button glows after a new skill went into it
 const SDL_Rect LAYOUT_SPLIT_RECT = { 24, 20, 230, 40 };
 const SDL_Rect LAYOUT_SIZE_RECT = { 266, 20, 230, 40 };
@@ -336,6 +345,14 @@ protected:
 	// touch screens: the D / F buttons are the skill slots (spec §30 L-8); a slot glows when a new skill enters it
 	invoker::SkillId m_slotShown[2] = { invoker::SkillId::None, invoker::SkillId::None };
 	float m_slotFlash[2] = {};
+	bool m_showGuide = false;            // the GUIDE is open (Home)
+	int m_guideTab = 0;
+	int m_tipsSeen = 0;                  // bit per TipId: shown already (saved with the settings)
+	int m_tipQueue[TIP_COUNT] = {};      // tips waiting to be read, the first one is on screen
+	int m_tipQueued = 0;
+	practice::Rune m_tipRune = practice::Rune::None;                      // what the RUNE / MATERIAL card shows
+	practice::Material m_tipMaterial = practice::Material::PointBooster;
+	int m_missStreak = 0;                // wrong casts in a row (for TIP_HINT)
 	bool m_showLayout = false;           // the BUTTON LAYOUT editor is open
 	int m_dragBlock = -1;                // the block under the finger in the editor, or -1
 	int m_dragDX = 0, m_dragDY = 0;      // from the block's corner to the finger
@@ -482,7 +499,24 @@ private:
 	void LayoutPointerMove(int x, int y);
 	void LayoutPointerUp();
 	void RenderLayoutEditor();
-	int SettingsRowCount() const { return m_showTouchControls ? 3 : 2; }
+	// rows: SOUND, RECIPE HINT, BUTTON LAYOUT (touch devices only), TIPS
+	enum SettingsRow { SETTING_SOUND, SETTING_HINT, SETTING_LAYOUT, SETTING_TIPS };
+	int SettingsRowCount() const { return m_showTouchControls ? 4 : 3; }
+	SettingsRow SettingsRowAt(int row) const
+	{
+		if (row <= 1)
+			return row == 0 ? SETTING_SOUND : SETTING_HINT;
+		return m_showTouchControls && row == 2 ? SETTING_LAYOUT : SETTING_TIPS;
+	}
+	// first-time tips and the GUIDE (spec §31)
+	bool TipShown() const { return m_tipQueued > 0; }
+	void QueueTip(TipId tip);      // only in a PLAY / SURVIVAL run, and only the first time
+	void DismissTip();
+	void RenderTip();
+	SDL_Rect GuideTabRect(int tab) const;
+	void HandleGuideKey(SDL_Keycode sym);
+	void HandleGuidePointer(int x, int y);
+	void RenderGuide();
 	SDL_Rect SettingsPanelRect() const;
 	void ActivateSettingsRow(int row);
 	// main menu and leaderboard

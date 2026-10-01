@@ -30,7 +30,8 @@ HOW TO PLAY
 
 FEATURES
 - A short guided tutorial that walks you through your first spell, key by key.
-- A recipe list to look up any spell between runs.
+- A recipe list to look up any spell between runs, and a GUIDE to enemies, runes, items and boss timing.
+- First-time tips that explain each new thing when you meet it.
 - An optional recipe hint while you learn.
 - PLAY: elites, bosses, runes, stages and gold.
 - A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
@@ -64,6 +65,12 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.8.0, versionCode 21, max 500)
+
+```
+New players welcome: a short tip now explains each new thing the first time you meet it - elites, bosses, runes, gold, items, overlords, materials - and the game waits while you read. The new GUIDE in the menu lists enemies, runes, items and how boss combos are timed. Also: the D and F buttons show your spells, and you can move, split and resize the on-screen buttons.
+```
 
 ## Release notes (1.7.2, versionCode 20, max 500)
 
