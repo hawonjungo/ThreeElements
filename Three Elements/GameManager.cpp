@@ -2969,19 +2969,20 @@ void GameManager::RenderShop()
         pixeltext::DrawShadowed(m_screen, buf, d.x + 12, y, 1, white);
     }
 
+    // the price is written on the button itself (a label under it was crossed by the button's pulsing frame)
     int price = practice::NextPrice(m_inventory, sel);
     if (price <= 0)
         snprintf(buf, sizeof(buf), def.kind == practice::ItemKind::Consumable ? "FULL" : "MAXED");
     else
-        snprintf(buf, sizeof(buf), level > 0 && def.kind != practice::ItemKind::Consumable ? "UPGRADE" : "BUY");
+        snprintf(buf, sizeof(buf), "%s %d", level > 0 && def.kind != practice::ItemKind::Consumable ? "UPGRADE" : "BUY", price);
     RenderButton(SHOP_BUY_RECT, buf, price > 0 && price <= m_goldBank);
     bool owned = practice::Owns(m_inventory, sel);
     RenderButton(SHOP_EQUIP_RECT, !owned ? "-" : practice::IsEquipped(m_inventory, sel) ? "UNEQUIP" : "EQUIP", false);
-    if (price > 0)
+    if (price > m_goldBank)
     {
-        snprintf(buf, sizeof(buf), "%d GOLD", price);
-        pixeltext::DrawShadowed(m_screen, buf, SHOP_BUY_RECT.x + (SHOP_BUY_RECT.w - pixeltext::Width(buf, 1)) / 2,
-            SHOP_BUY_RECT.y + SHOP_BUY_RECT.h + 4, 1, price <= m_goldBank ? gold : grey);
+        const SDL_Color red = { 235, 110, 110, 255 };
+        snprintf(buf, sizeof(buf), "NOT ENOUGH GOLD: %d MORE NEEDED", price - m_goldBank);
+        pixeltext::DrawShadowed(m_screen, buf, d.x + 12, SHOP_BUY_RECT.y - 16, 1, red);
     }
 
     // ---- the loadout (2 x 3) with its keys
