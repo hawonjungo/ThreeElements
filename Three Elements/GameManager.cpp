@@ -4170,13 +4170,15 @@ void GameManager::RenderGuide()
             pixeltext::DrawShadowed(m_screen, buf, columns[4], y, 2, gold);
             pixeltext::DrawShadowed(m_screen, rows[i].note, columns[0], y + 20, 1, grey);
         }
-        const char* notes[3] = {
-            "A WRONG SPELL NEVER HURTS YOU. EACH SPELL OF A CHAIN YOU BREAK SAVES 1 LIFE.",
+        // at this size a line holds 69 characters inside the panel (1.9.5 had one of 76 that ran over the frame)
+        const char* notes[4] = {
+            "A WRONG SPELL NEVER HURTS YOU: TRY AGAIN. A CHAIN KEEPS ITS PROGRESS.",
+            "A CHAIN ENEMY THAT REACHES YOU COSTS 1 LIFE PER SPELL STILL ON IT.",
             "GOLD: FROM ELITES, OVERLORDS, IMMORTALS AND THE BOUNTY RUNE.",
             "IN SURVIVAL EVERY ENEMY IS A NORMAL ONE AND COSTS 1 LIFE.",
         };
-        for (int i = 0; i < 3; ++i)
-            pixeltext::DrawShadowed(m_screen, notes[i], left, top + 246 + i * 32, 2, white);
+        for (int i = 0; i < 4; ++i)
+            pixeltext::DrawShadowed(m_screen, notes[i], left, top + 244 + i * 28, 2, white);
     }
     else if (m_guideTab == 2)
     {
