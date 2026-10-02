@@ -114,16 +114,17 @@ const float METEOR_FALL_TIME = 0.35f;   // s from the sky to the impact
 const float METEOR_BLAST_TIME = 0.6f;
 const int METEOR_FROM_X = -300;         // where the fall starts, relative to the impact (the tail points up-left)
 const int METEOR_FROM_Y = -330;
-// Ice Wall (the owner's second sheet, 2026-10-03): a wall of ice shards in front of the player, seen at an angle
-// like Dota's, glinting while it stands. 4 x 4 frames of 256 px (art/make_vfx.py stores them with a palette).
+// Ice Wall (the owner's third sheet, 2026-10-03): a wall of ice crystals in plain side view in front of the player,
+// standing on the ground, a crack in the ground under it, glinting while it stands. 4 x 4 frames of 256 px.
 const char* const ICE_WALL_SHEET_PATH = "assets/Skills/IceWall-spritesheet.png";
 const int ICE_WALL_COLUMNS = 4;
 const int ICE_WALL_FRAME = 256;
 const int ICE_WALL_FRAMES = 16;
-const int ICE_WALL_DRAW = 190;          // px on screen
-const int ICE_WALL_AHEAD = 150;         // px in front of the player's centre
-const int ICE_WALL_SINK = 46;           // px of the drawn frame below the ground line: the wall is seen at an angle (its base
-                                        // climbs 66 px from front to back), so the middle of its base is put on the ground
+const int ICE_WALL_DRAW = 220;          // px on screen: the wall is about 205 px wide and 130 px tall
+const int ICE_WALL_AHEAD = 175;         // px in front of the player's centre
+const int ICE_WALL_BASE_ROW = 191;      // the row of a frame the wall stands on; the crack is below it
+// px of the drawn frame below the ground line: the wall's base is put 2 px into the grass, the crack under it
+const int ICE_WALL_SINK = (ICE_WALL_FRAME - ICE_WALL_BASE_ROW) * ICE_WALL_DRAW / ICE_WALL_FRAME + 2;
 const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames, once; then the later ones go back and forth (the glints)
 // The frames are drawn exactly as the owner made them: never stretched or squeezed (1.9.7 drew the wall rising
 // and sinking by squeezing the picture; the owner had that removed, it distorted the art). A rise or a break-up

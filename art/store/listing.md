@@ -66,10 +66,10 @@ Train your fingers. Remember the recipes. Beat your best time.
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
-## Release notes (1.9.9, versionCode 32, max 500)
+## Release notes (1.9.10, versionCode 33, max 500)
 
 ```
-A new Ice Wall: a wall of ice shards that glints while it stands. Fairer chains: an elite or overlord that reaches you now costs one life per spell still on its chain, so every spell you break counts. The first elite now comes on the 10th enemy, so a run gets interesting sooner. Small shadows under the mage and the enemies, and a beaten enemy fades away instead of vanishing. New in 1.9: five IMMORTALS with their own art and real combos of 4 to 8 spells - beat elites and overlords to raise the IMMORTAL chance shown on screen. Only Immortals drop upgrade materials.
+A new Ice Wall: a wall of ice crystals that stands on the ground and glints. Fairer chains: an elite or overlord that reaches you now costs one life per spell still on its chain, so every spell you break counts. The first elite now comes on the 10th enemy, so a run gets interesting sooner. Small shadows under the mage and the enemies, and a beaten enemy fades away instead of vanishing. New in 1.9: five IMMORTALS with their own art and real combos of 4 to 8 spells - beat elites and overlords to raise the IMMORTAL chance shown on screen. Only Immortals drop upgrade materials.
 ```
 
 ## Release notes (1.9.1, versionCode 24, max 500)
