@@ -2635,7 +2635,7 @@ SDL_Texture* GameManager::LoadTexture(const char* path)
     return texture;
 }
 
-// Ice Wall: the pillar grows in front of the player (16 frames), stands, and fades out at the end.
+// Ice Wall: the wall of shards appears in front of the player, glints while it stands, and fades out at the end.
 void GameManager::RenderIceWallSprite(float age, float left)
 {
     if (age < 0.0f)
@@ -2647,21 +2647,13 @@ void GameManager::RenderIceWallSprite(float age, float left)
         int step = static_cast<int>((age - ICE_WALL_GROW_TIME) * ICE_WALL_IDLE_FPS) % (2 * span);
         frame = ICE_WALL_FRAMES - 1 - (step <= span ? step : 2 * span - step);
     }
-    // it rises out of the ground (fast, slowing down at the top) and sinks back at the end
-    float up = age < ICE_WALL_RISE_TIME ? age / ICE_WALL_RISE_TIME : 1.0f;
-    up = 1.0f - (1.0f - up) * (1.0f - up);
-    float down = left < ICE_WALL_SINK_TIME ? left / ICE_WALL_SINK_TIME : 1.0f;
-    float height = up * (0.35f + 0.65f * down);
-    SDL_SetTextureAlphaMod(m_iceWallSheet, static_cast<Uint8>(255.0f * (up < down ? up : down)));
+    // the picture itself is never stretched: it only fades in and out
+    float in = age < ICE_WALL_FADE_IN ? age / ICE_WALL_FADE_IN : 1.0f;
+    float out = left < ICE_WALL_FADE_OUT ? left / ICE_WALL_FADE_OUT : 1.0f;
+    SDL_SetTextureAlphaMod(m_iceWallSheet, static_cast<Uint8>(255.0f * (in < out ? in : out)));
     SDL_Rect src = { (frame % ICE_WALL_COLUMNS) * ICE_WALL_FRAME, (frame / ICE_WALL_COLUMNS) * ICE_WALL_FRAME, ICE_WALL_FRAME, ICE_WALL_FRAME };
-    // the frames touch each other in the sheet: leave out the top rows, where the frame above reaches in
-    const int cut = 6;
-    src.y += cut;
-    src.h -= cut;
-    int drawCut = cut * ICE_WALL_DRAW / ICE_WALL_FRAME;
     const int bottom = static_cast<int>(practice::GROUND_LINE_Y) + ICE_WALL_SINK;
-    int drawn = static_cast<int>((ICE_WALL_DRAW - drawCut) * height);  // squeezed toward the ground while it rises / sinks
-    SDL_Rect dst = { PLAYER_BODY_CENTER_X + ICE_WALL_AHEAD - ICE_WALL_DRAW / 2, bottom - drawn, ICE_WALL_DRAW, drawn };
+    SDL_Rect dst = { PLAYER_BODY_CENTER_X + ICE_WALL_AHEAD - ICE_WALL_DRAW / 2, bottom - ICE_WALL_DRAW, ICE_WALL_DRAW, ICE_WALL_DRAW };
     SDL_RenderCopy(m_screen, m_iceWallSheet, &src, &dst);
     SDL_SetTextureAlphaMod(m_iceWallSheet, 255);
 }

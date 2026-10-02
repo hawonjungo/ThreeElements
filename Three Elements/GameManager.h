@@ -114,22 +114,23 @@ const float METEOR_FALL_TIME = 0.35f;   // s from the sky to the impact
 const float METEOR_BLAST_TIME = 0.6f;
 const int METEOR_FROM_X = -300;         // where the fall starts, relative to the impact (the tail points up-left)
 const int METEOR_FROM_Y = -330;
-// Ice Wall (owner 2026-10-01): one pillar of ice grows in front of the player, the ice spreads on the ground, it
-// stands, then fades. 4 x 4 frames of 256 px (art/make_vfx.py shrinks the 2560 px original).
+// Ice Wall (the owner's second sheet, 2026-10-03): a wall of ice shards in front of the player, seen at an angle
+// like Dota's, glinting while it stands. 4 x 4 frames of 256 px (art/make_vfx.py stores them with a palette).
 const char* const ICE_WALL_SHEET_PATH = "assets/Skills/IceWall-spritesheet.png";
 const int ICE_WALL_COLUMNS = 4;
 const int ICE_WALL_FRAME = 256;
 const int ICE_WALL_FRAMES = 16;
 const int ICE_WALL_DRAW = 190;          // px on screen
 const int ICE_WALL_AHEAD = 150;         // px in front of the player's centre
-const int ICE_WALL_SINK = 14;           // px of the frame below the ground line (the ice on the ground)
-const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames (the ice spreading on the ground)
-// The sheet's first frame already shows the whole pillar, which made it pop in: it is drawn rising out of the
-// ground instead, and it sinks back at the end; while it stands, its last frames shimmer (1.9.7).
-const float ICE_WALL_RISE_TIME = 0.22f; // s from nothing to its full height
-const float ICE_WALL_SINK_TIME = 0.35f; // s at the end: back into the ground, fading
-const int ICE_WALL_IDLE_FIRST = 12;     // the frames that go back and forth while it stands
-const float ICE_WALL_IDLE_FPS = 7.0f;
+const int ICE_WALL_SINK = 16;           // px of the drawn frame below the ground line (the empty rows under the wall)
+const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames, once; then the later ones go back and forth (the glints)
+// The frames are drawn exactly as the owner made them: never stretched or squeezed (1.9.7 drew the wall rising
+// and sinking by squeezing the picture; the owner had that removed, it distorted the art). A rise or a break-up
+// has to come as frames of the sheet. The only thing the code adds is a short fade at both ends.
+const float ICE_WALL_FADE_IN = 0.08f;   // s
+const float ICE_WALL_FADE_OUT = 0.3f;   // s
+const int ICE_WALL_IDLE_FIRST = 8;      // the frames that go back and forth while it stands
+const float ICE_WALL_IDLE_FPS = 9.0f;
 // Forge Spirit: 4 x 4 frames of 256 px, 0..7 standing / walking, 8..15 the lunge and its fiery blast; the spirit's
 // feet are at row 243 of a frame. It walks from the player to the enemy, then attacks.
 const char* const FORGE_SHEET_PATH = "assets/Skills/Forge Sprit-spritesheet.png";
