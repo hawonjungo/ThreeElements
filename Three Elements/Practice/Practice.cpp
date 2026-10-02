@@ -14,20 +14,20 @@ namespace practice
 		const EnemyDefinition kEnemies[ENEMY_TYPE_COUNT] =
 		{
 			// The last column (1.9): the sheets come from different packs, some bodies are only 30 - 40 px tall next
-			// to a player of about 106 px. Each is drawn at the size that brings it to 99 - 126 px, about as tall as
-			// the player or a little taller (1.9.2, owner: "still a little small"; half steps where a whole one
-			// would be too much).
+			// to a player of about 106 px; those are drawn 2x or 3x, which brings every enemy to 66 - 102 px. (1.9.2
+			// made them 99 - 126 px; the owner took that back the same day: when every enemy is large, an overlord
+			// or an Immortal no longer stands out. Normal enemies stay smaller than the player.)
 			// id  name        sprite                            frames left feet  w  top bottom  target                    speed size
-			{ 0, "goblin",   "assets/enemies/goblin_run.png",    8,  56, 100, 38, 63, 100, SkillId::Alacrity,       1.0f, 3.0f },
+			{ 0, "goblin",   "assets/enemies/goblin_run.png",    8,  56, 100, 38, 63, 100, SkillId::Alacrity,       1.0f, 2.0f },
 			{ 1, "skeleton", "assets/enemies/skeleton.png",      4,  45, 100, 45, 50, 100, SkillId::ColdSnap,       1.0f, 2.0f },
-			{ 2, "fire wiz", "assets/enemies/fire_wiz.png",      8,  52, 100, 52, 33, 100, SkillId::SunStrike,      1.0f, 1.5f },
-			{ 3, "dark wiz", "assets/enemies/dark_wiz.png",      8,  54, 100, 43, 59,  99, SkillId::ChaosMeteor,    1.0f, 2.5f },
-			{ 4, "eyes",     "assets/enemies/eyes_fly.png",      8,  52, 100, 42, 60,  92, SkillId::GhostWalk,      1.0f, 3.0f },
-			{ 5, "mushroom", "assets/enemies/mushroom_run.png",  8,  62, 100, 26, 62, 100, SkillId::ForgeSpirit,    1.0f, 3.0f },
-			{ 6, "necro",    "assets/enemies/nec_walk.png",     10,  45, 100, 51, 19,  99, SkillId::DeafeningBlast, 1.0f, 1.5f },
-			{ 7, "worm",     "assets/enemies/worm_run.png",      9,  35, 100, 88, 24,  96, SkillId::Tornado,        1.0f, 1.5f },
-			{ 8, "kitsune",  "assets/enemies/kitsune_run.png",   8,  54, 127, 57, 44, 127, SkillId::EMP,            1.0f, 1.5f },
-			{ 9, "knight",   "assets/enemies/knight_run.png",    8,  24,  43, 31, 14,  43, SkillId::IceWall,        1.0f, 4.0f }
+			{ 2, "fire wiz", "assets/enemies/fire_wiz.png",      8,  52, 100, 52, 33, 100, SkillId::SunStrike,      1.0f, 1.0f },
+			{ 3, "dark wiz", "assets/enemies/dark_wiz.png",      8,  54, 100, 43, 59,  99, SkillId::ChaosMeteor,    1.0f, 2.0f },
+			{ 4, "eyes",     "assets/enemies/eyes_fly.png",      8,  52, 100, 42, 60,  92, SkillId::GhostWalk,      1.0f, 2.0f },
+			{ 5, "mushroom", "assets/enemies/mushroom_run.png",  8,  62, 100, 26, 62, 100, SkillId::ForgeSpirit,    1.0f, 2.0f },
+			{ 6, "necro",    "assets/enemies/nec_walk.png",     10,  45, 100, 51, 19,  99, SkillId::DeafeningBlast, 1.0f, 1.0f },
+			{ 7, "worm",     "assets/enemies/worm_run.png",      9,  35, 100, 88, 24,  96, SkillId::Tornado,        1.0f, 1.0f },
+			{ 8, "kitsune",  "assets/enemies/kitsune_run.png",   8,  54, 127, 57, 44, 127, SkillId::EMP,            1.0f, 1.0f },
+			{ 9, "knight",   "assets/enemies/knight_run.png",    8,  24,  43, 31, 14,  43, SkillId::IceWall,        1.0f, 3.0f }
 		};
 	}
 

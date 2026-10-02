@@ -144,9 +144,12 @@ const Uint8 BEATEN_ENEMY_ALPHA = 150;
 const float BEATEN_FADE_TIME = 0.3f;
 const int BEATEN_FADE_RISE = 16;        // px
 // Shadows on the ground under the player and the enemies (1.9.2), drawn in code like the Immortals' one.
+// Small on purpose (owner, 1.9.3: the first ones were too large): a third of the body's width under an enemy.
 const Uint8 SHADOW_ALPHA = 110;
-const int PLAYER_SHADOW_RX = 34;
-const int PLAYER_SHADOW_RY = 6;
+const int PLAYER_SHADOW_RX = 20;
+const int PLAYER_SHADOW_RY = 4;
+const float ENEMY_SHADOW_WIDTH = 0.3f;  // half-width of an enemy's shadow, as a part of its body's width
+const int ENEMY_SHADOW_MAX_RX = 40;     // an overlord's is not a carpet either
 
 // Centre of the player's visible body; shared by every effect drawn on the player (Ghost Walk, Alacrity...).
 const int PLAYER_BODY_CENTER_X = 86;

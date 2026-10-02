@@ -112,8 +112,8 @@ namespace practice
 	const int   PLAY_OVERLORD_EVERY = 10;           // (the first 14 enemies are all normal)
 	const float PLAY_ELITE_SPEED = 0.8f;            // speed multipliers (longer chains need more keys)
 	const float PLAY_OVERLORD_SPEED = 0.6f;
-	const float PLAY_ELITE_SCALE = 1.25f;           // drawn (and hit) this much larger than the enemy's own size
-	const float PLAY_OVERLORD_SCALE = 1.6f;         // (1.4 and 2.0 before 1.9.2, when the enemies themselves grew)
+	const float PLAY_ELITE_SCALE = 1.4f;            // drawn (and hit) this much larger than the enemy's own size:
+	const float PLAY_OVERLORD_SCALE = 2.0f;         // the tiers must look different at a glance (owner, 1.9.3)
 	const int   PLAY_LEAK_NORMAL = 1;               // lives lost when it reaches the player
 	const int   PLAY_LEAK_ELITE = 2;
 	const int   PLAY_LEAK_OVERLORD = 3;

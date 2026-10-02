@@ -1107,11 +1107,12 @@ void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 al
         return;
     // its shadow on the ground (it stays there under a flying enemy, and under one that fades away rising)
     practice::Bounds body = practice::EnemyBounds(e);
-    int shadowRx = static_cast<int>(body.w * 0.5f);
+    int shadowRx = static_cast<int>(body.w * ENEMY_SHADOW_WIDTH);
+    shadowRx = shadowRx > ENEMY_SHADOW_MAX_RX ? ENEMY_SHADOW_MAX_RX : shadowRx;
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(m_screen, 0, 0, 0, static_cast<Uint8>(SHADOW_ALPHA * alpha / 255));
     FillEllipse(m_screen, static_cast<int>(body.x + body.w * 0.5f), static_cast<int>(practice::GROUND_LINE_Y) + 2,
-        shadowRx, shadowRx / 6 > 5 ? shadowRx / 6 : 5);
+        shadowRx, shadowRx / 5 > 3 ? shadowRx / 5 : 3);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     SDL_SetTextureAlphaMod(sprite.p_object_, alpha);
     if (flash)
