@@ -2515,10 +2515,11 @@ static SkillId WrongSkillFor(SkillId target)
 
 static void TestPlayTables()
 {
-	// §32 M-2: the first 14 are normal; 15, 25, 35 ... elites; 20, 30, 40 ... overlords
-	for (int n = 1; n <= 14; ++n)
+	// §32 M-2: the first 9 are normal; then every 5th is special: 20, 30, 40 ... overlords, 10, 15, 25, 35 ... elites
+	for (int n = 1; n <= 9; ++n)
 		CHECK(PlayEnemyKind(n) == EnemyKind::Normal);
-	for (int n = 15; n <= 200; ++n)
+	CHECK(PlayEnemyKind(10) == EnemyKind::Elite && PlayEnemyKind(15) == EnemyKind::Elite && PlayEnemyKind(20) == EnemyKind::Overlord);
+	for (int n = 11; n <= 200; ++n)
 	{
 		EnemyKind expected = n % 10 == 0 ? EnemyKind::Overlord : n % 10 == 5 ? EnemyKind::Elite : EnemyKind::Normal;
 		CHECK(PlayEnemyKind(n) == expected);
@@ -2552,7 +2553,7 @@ static void TestPlaySurvivalUnchanged()
 	CHECK(s.Mode() == SessionMode::Survival);
 }
 
-// §32 M-2: 14 normal enemies, the 15th an elite (chain of 2), the 20th an overlord (chain of 3), slower and larger.
+// §32 M-2: 9 normal enemies, the 10th and 15th an elite (chain of 2), the 20th an overlord (chain of 3), slower and larger.
 static void TestPlayBossCadence()
 {
 	PracticeSession s;
@@ -2564,7 +2565,7 @@ static void TestPlayBossCadence()
 	{
 		const ActiveEnemy& e = s.Enemy();
 		float size = GetEnemyDefinition(e.definition).size;
-		CHECK(s.SpawnCount() == n && e.kind == (n == PLAY_ELITE_FIRST ? EnemyKind::Elite : EnemyKind::Normal));
+		CHECK(s.SpawnCount() == n && e.kind == (n == 10 || n == 15 ? EnemyKind::Elite : EnemyKind::Normal));
 		if (e.kind == EnemyKind::Elite)
 		{
 			CHECK(e.chainLength == 2 && e.chain[0] != e.chain[1]);
@@ -2626,8 +2627,8 @@ static void TestPlayChain()
 	CHECK(kill.rune != Rune::None && kill.gold >= PLAY_GOLD_OVERLORD);
 	CHECK(s.GetStats().bossesDefeated == 1 && s.GetStats().gold >= PLAY_GOLD_OVERLORD);
 	CHECK(s.GetStats().score == scoreBefore + kill.points);
-	// §32 M-3: the elite before it added 10 %, the overlord adds 20 %, and the roll is reported
-	CHECK(kill.immortalChance == PLAY_IMMORTAL_CHANCE_ELITE + PLAY_IMMORTAL_CHANCE_OVERLORD);
+	// §32 M-3: the two elites before it added 10 % each, the overlord adds 20 %, and the roll is reported
+	CHECK(kill.immortalChance == 2 * PLAY_IMMORTAL_CHANCE_ELITE + PLAY_IMMORTAL_CHANCE_OVERLORD);
 	CHECK(s.ImmortalChance() == kill.immortalChance && s.ImmortalDue() == kill.immortalComing);
 }
 
@@ -3060,7 +3061,7 @@ static void TestImmortalWarning()
 	UpdateResult warn = PlayToImmortalClean(s, 61);
 	CHECK(warn.immortalWarning && warn.immortalBoss == 0 && warn.immortalTier == 1 && !warn.spawned);
 	int count = s.SpawnCount();
-	CHECK(count >= PLAY_ELITE_FIRST && count <= 45 && count % 5 == 0);  // right after an elite or an overlord
+	CHECK(count >= PLAY_ELITE_FIRST && count <= 40 && count % 5 == 0);  // right after an elite or an overlord
 	CHECK(s.GetStats().kills == count);                                  // an extra: every enemy so far was a kill
 	CHECK(s.ImmortalChance() == 0 && !s.ImmortalDue());                  // it has come: the chance starts again
 	CHECK(s.ImmortalWarningLeft() == PLAY_IMMORTAL_WARNING && !s.ImmortalActive() && !s.Enemy().active);
@@ -3273,8 +3274,8 @@ static void TestImmortalItems()
 	CHECK(a.ChooseRune(0) != Rune::None && a.RuneChoiceCount() == 0);
 }
 
-// §32 M-3: the chance. Nothing for 14 enemies; an elite beaten adds 10 %, an overlord 20 %; one that reaches the
-// player adds nothing; the roll is made at once; by the 45th enemy the Immortal has always come.
+// §32 M-3: the chance. Nothing for 9 enemies; an elite beaten adds 10 %, an overlord 20 %; one that reaches the
+// player adds nothing; the roll is made at once; by the 40th enemy the Immortal has always come.
 static void TestImmortalChance()
 {
 	PracticeSession s;
@@ -3297,10 +3298,10 @@ static void TestImmortalChance()
 		PlayKill(s);
 		PlayWaitSpawn(s);
 	}
-	CHECK(s.SpawnCount() == PLAY_OVERLORD_FIRST && s.Enemy().kind == EnemyKind::Overlord && s.ImmortalChance() == 0);
-	KillReport kill = PlayKill(s);
-	CHECK(kill.killed && kill.immortalChance == PLAY_IMMORTAL_CHANCE_OVERLORD);
-	CHECK(s.ImmortalChance() == PLAY_IMMORTAL_CHANCE_OVERLORD && s.ImmortalDue() == kill.immortalComing);
+	CHECK(s.SpawnCount() == PLAY_ELITE_FIRST + PLAY_ELITE_EVERY && s.Enemy().kind == EnemyKind::Elite && s.ImmortalChance() == 0);
+	KillReport kill = PlayKill(s);  // the next elite, beaten: the first 10 %
+	CHECK(kill.killed && kill.immortalChance == PLAY_IMMORTAL_CHANCE_ELITE);
+	CHECK(s.ImmortalChance() == PLAY_IMMORTAL_CHANCE_ELITE && s.ImmortalDue() == kill.immortalComing);
 
 	// the first roll (10 % after the 15th enemy) hits about one run in ten
 	int hits = 0;
@@ -3330,14 +3331,14 @@ static void TestImmortalChance()
 	}
 	CHECK(hits >= runs / 20 && hits <= runs / 5);
 
-	// with every elite and overlord beaten the chance reaches 100 % at the 45th enemy at the latest; then it builds
+	// with every elite and overlord beaten the chance reaches 100 % at the 40th enemy at the latest; then it builds
 	// again from 0 and the second Immortal is the next of the list
 	int latest = 0;
 	for (unsigned seed = 1; seed <= 40; ++seed)
 	{
 		PracticeSession r;
 		UpdateResult warn = PlayToImmortal(r, seed * 104729u);
-		CHECK(warn.immortalWarning && warn.immortalBoss == 0 && r.SpawnCount() <= 45);
+		CHECK(warn.immortalWarning && warn.immortalBoss == 0 && r.SpawnCount() <= 40);
 		if (r.SpawnCount() > latest)
 			latest = r.SpawnCount();
 		if (seed > 5)

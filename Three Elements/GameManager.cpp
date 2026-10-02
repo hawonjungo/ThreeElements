@@ -4148,7 +4148,7 @@ void GameManager::RenderGuide()
             { "NORMAL", white, "1", practice::PLAY_LEAK_NORMAL, practice::PLAY_POINTS_NORMAL, 0,
                 "MOST ENEMIES." },
             { "ELITE", orange, "2 IN ORDER", practice::PLAY_LEAK_ELITE, practice::PLAY_POINTS_ELITE, practice::PLAY_GOLD_ELITE,
-                "THE 15TH, 25TH, 35TH... ENEMY. LARGER AND A LITTLE SLOWER." },
+                "THE 10TH, 15TH, 25TH, 35TH... ENEMY. LARGER AND A LITTLE SLOWER." },
             { "OVERLORD", red, "3 IN ORDER", practice::PLAY_LEAK_OVERLORD, practice::PLAY_POINTS_OVERLORD, practice::PLAY_GOLD_OVERLORD,
                 "THE 20TH, 30TH, 40TH... ENEMY. LEAVES A RUNE, THEN THE NEXT STAGE BEGINS." },
             { "IMMORTAL", gold, "ITS COMBO", 1, practice::PLAY_IMMORTAL_POINTS, practice::PLAY_IMMORTAL_GOLD,

@@ -107,9 +107,12 @@ namespace practice
 	// and, above them, the Immortal: a §25 combo fight ("overlord" in 1.6 - 1.8).
 	enum class Rune { None, Regeneration, Frost, DoubleDamage, Bounty, Shield };  // the reward for an overlord
 	const int   PLAY_MAX_CHAIN = 3;
-	const int   PLAY_ELITE_FIRST = 15;              // the 15th, 25th, 35th ... enemy of a PLAY run is an elite,
-	const int   PLAY_OVERLORD_FIRST = 20;           // the 20th, 30th, 40th ... an overlord; the others are normal
-	const int   PLAY_OVERLORD_EVERY = 10;           // (the first 14 enemies are all normal)
+	// From the 10th enemy on, every 5th one is special: the 20th, 30th, 40th ... an overlord, the others of them
+	// (the 10th, 15th, 25th, 35th ...) an elite. The first 9 enemies are all normal (14 before 1.9.4).
+	const int   PLAY_ELITE_FIRST = 10;
+	const int   PLAY_ELITE_EVERY = 5;
+	const int   PLAY_OVERLORD_FIRST = 20;
+	const int   PLAY_OVERLORD_EVERY = 10;
 	const float PLAY_ELITE_SPEED = 0.8f;            // speed multipliers (longer chains need more keys)
 	const float PLAY_OVERLORD_SPEED = 0.6f;
 	const float PLAY_ELITE_SCALE = 1.4f;            // drawn (and hit) this much larger than the enemy's own size:

@@ -128,12 +128,12 @@ namespace practice
 		return p;
 	}
 
-	// §32 M-2: a fixed schedule. 15, 25, 35 ... are elites; 20, 30, 40 ... overlords; everything else is normal.
+	// §32 M-2: a fixed schedule. 20, 30, 40 ... are overlords; 10, 15, 25, 35 ... elites; everything else is normal.
 	EnemyKind PlayEnemyKind(int enemyNumber)
 	{
 		if (enemyNumber >= PLAY_OVERLORD_FIRST && (enemyNumber - PLAY_OVERLORD_FIRST) % PLAY_OVERLORD_EVERY == 0)
 			return EnemyKind::Overlord;
-		if (enemyNumber >= PLAY_ELITE_FIRST && (enemyNumber - PLAY_ELITE_FIRST) % PLAY_OVERLORD_EVERY == 0)
+		if (enemyNumber >= PLAY_ELITE_FIRST && (enemyNumber - PLAY_ELITE_FIRST) % PLAY_ELITE_EVERY == 0)
 			return EnemyKind::Elite;
 		return EnemyKind::Normal;
 	}
@@ -836,7 +836,7 @@ namespace practice
 
 		if (m_mode != SessionMode::Play)
 			return;
-		// PLAY (§32 M-2): the 15th, 25th ... enemy is an elite (chain of 2), the 20th, 30th ... an overlord (chain of 3)
+		// PLAY (§32 M-2): the 10th, 15th, 25th ... enemy is an elite (chain of 2), the 20th, 30th ... an overlord (chain of 3)
 		m_enemy.kind = PlayEnemyKind(m_spawnCount);
 		if (m_enemy.kind == EnemyKind::Normal)
 			return;
