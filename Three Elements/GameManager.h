@@ -123,7 +123,13 @@ const int ICE_WALL_FRAMES = 16;
 const int ICE_WALL_DRAW = 190;          // px on screen
 const int ICE_WALL_AHEAD = 150;         // px in front of the player's centre
 const int ICE_WALL_SINK = 14;           // px of the frame below the ground line (the ice on the ground)
-const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames; the last one stays until the effect fades
+const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames (the ice spreading on the ground)
+// The sheet's first frame already shows the whole pillar, which made it pop in: it is drawn rising out of the
+// ground instead, and it sinks back at the end; while it stands, its last frames shimmer (1.9.7).
+const float ICE_WALL_RISE_TIME = 0.22f; // s from nothing to its full height
+const float ICE_WALL_SINK_TIME = 0.35f; // s at the end: back into the ground, fading
+const int ICE_WALL_IDLE_FIRST = 12;     // the frames that go back and forth while it stands
+const float ICE_WALL_IDLE_FPS = 7.0f;
 // Forge Spirit: 4 x 4 frames of 256 px, 0..7 standing / walking, 8..15 the lunge and its fiery blast; the spirit's
 // feet are at row 243 of a frame. It walks from the player to the enemy, then attacks.
 const char* const FORGE_SHEET_PATH = "assets/Skills/Forge Sprit-spritesheet.png";
