@@ -2581,13 +2581,16 @@ static void TestPlayBossCadence()
 	CHECK(boss.chain[0] != boss.chain[1] && boss.chain[0] != boss.chain[2] && boss.chain[1] != boss.chain[2]);
 	CHECK(boss.scale == GetEnemyDefinition(boss.definition).size * PLAY_OVERLORD_SCALE);
 	CHECK(boss.speed <= DifficultyAt(s.GetStats().survivalTime).enemySpeed * PLAY_OVERLORD_SPEED + 0.5f);
-	// the enemies are drawn in whole sizes (M-8), and none is tiny any more
+	// every enemy is about as tall as the player (M-8, 1.9.2), in half steps of its own pixels; an overlord of the
+	// tallest one still stands clear of the HUD
+	CHECK(PLAY_ELITE_SCALE == 1.25f && PLAY_OVERLORD_SCALE == 1.6f);
 	for (int i = 0; i < ENEMY_TYPE_COUNT; ++i)
 	{
 		const EnemyDefinition& d = GetEnemyDefinition(i);
 		float height = static_cast<float>(d.bodyBottom - d.bodyTop + 1) * d.size;
-		CHECK(d.size == 1.0f || d.size == 2.0f || d.size == 3.0f);
-		CHECK(height >= 60.0f && height <= 110.0f);
+		CHECK(d.size >= 1.5f && d.size <= 4.0f && d.size * 2.0f == static_cast<float>(static_cast<int>(d.size * 2.0f)));
+		CHECK(height >= 95.0f && height <= 130.0f);
+		CHECK(height * PLAY_OVERLORD_SCALE <= 210.0f);
 	}
 }
 

@@ -302,6 +302,7 @@ bool GameManager::RunFrame()
     // The enemy's position is read first: a Tornado hit removes it inside Update(), and the "+1" goes where it was.
     practice::Bounds enemyBefore = m_session.Enemy().active ? practice::EnemyBounds(m_session.Enemy())
                                                             : practice::Bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
+    practice::ActiveEnemy enemyShown = m_session.Enemy();
     if (ImmortalFight())
         enemyBefore = BossDrawnBody();  // the points of a beaten IMMORTAL rise from where it stood
     if (m_paused && !CanPause())
@@ -342,6 +343,8 @@ bool GameManager::RunFrame()
             : update.kill.killed ? PointsText(update.kill.points) : "HIT");
     if (update.kill.killed)
         OnKill(update.kill, enemyBefore);
+    if (update.kill.killed && !update.kill.immortal && enemyShown.active)  // a Tornado's kill: it fades out too
+        BeginBeatenFade(enemyShown, 0.0f);
     if (update.leaked && update.shieldUsed)  // PLAY Shield rune: the hit is blocked
     {
         const SDL_Color cyan = { 110, 210, 255, 255 };
@@ -833,12 +836,7 @@ void GameManager::ProcessAction(invoker::InputAction action)
     if (r.kill.killed)
     {
         OnKill(r.kill, enemyBody);
-        float wait = KillImpactDelay(r.invoker.skill);  // the Forge Spirit / the meteor is still on its way
-        if (wait > 0.0f)
-        {
-            m_beatenEnemy = enemyBefore;
-            m_beatenLeft = wait;
-        }
+        BeginBeatenFade(enemyBefore, KillImpactDelay(r.invoker.skill));  // the Forge Spirit / the meteor is on its way
     }
 
     const invoker::InvokerState& inv = m_session.Invoker();
@@ -1060,15 +1058,34 @@ void GameManager::RenderOrb(invoker::Orb orb, int centerX, int centerY)
     pixeltext::DrawShadowed(m_screen, letter, centerX - pixeltext::Width(letter, 2) / 2, centerY - 7, 2, white);
 }
 
+static void FillEllipse(SDL_Renderer* r, int cx, int cy, int rx, int ry);  // defined with the boss drawing
+
 // The single active enemy, drawn where the Practice session says it is.
 void GameManager::RenderEnemy()
 {
-    // the enemy just beaten, still there until the spell that beat it arrives (see FORGE_HIT_TIME)
-    if (m_beatenLeft > 0.0f && !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Playing)
-        DrawEnemy(m_beatenEnemy, false, BEATEN_ENEMY_ALPHA);
+    // the enemy just beaten: still there until the spell that beat it arrives (see FORGE_HIT_TIME), then it fades
+    // out drifting up
+    if (!m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Playing)
+    {
+        if (m_beatenLeft > 0.0f)
+            DrawEnemy(m_beatenEnemy, false, BEATEN_ENEMY_ALPHA);
+        else if (m_beatenFade > 0.0f)
+        {
+            float f = m_beatenFade / BEATEN_FADE_TIME;
+            DrawEnemy(m_beatenEnemy, false, static_cast<Uint8>(m_beatenAlpha * f), static_cast<int>(BEATEN_FADE_RISE * (1.0f - f)));
+        }
+    }
     const practice::ActiveEnemy& e = ShownEnemy();
     if (e.active)
         DrawEnemy(e, m_enemyFlashLeft > 0.0f, 255);  // red tint after a wrong cast
+}
+
+void GameManager::BeginBeatenFade(const practice::ActiveEnemy& enemy, float wait)
+{
+    m_beatenEnemy = enemy;
+    m_beatenLeft = wait;
+    m_beatenFade = BEATEN_FADE_TIME;
+    m_beatenAlpha = wait > 0.0f ? BEATEN_ENEMY_ALPHA : 255;
 }
 
 float GameManager::KillImpactDelay(invoker::SkillId skill) const
@@ -1080,14 +1097,22 @@ float GameManager::KillImpactDelay(invoker::SkillId skill) const
     return 0.0f;
 }
 
-void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha)
+void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha, int raise)
 {
     const practice::EnemyDefinition& def = practice::GetEnemyDefinition(e.definition);
     EnemyObject& sprite = m_enemySprites[e.definition];
     // e.x is the left edge of the visible body; the frame starts bodyLeft pixels earlier
-    sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow);
+    sprite.SetPos(static_cast<int>(e.x) - def.bodyLeft, static_cast<int>(practice::GROUND_LINE_Y) - def.feetRow - raise);
     if (sprite.p_object_ == NULL)
         return;
+    // its shadow on the ground (it stays there under a flying enemy, and under one that fades away rising)
+    practice::Bounds body = practice::EnemyBounds(e);
+    int shadowRx = static_cast<int>(body.w * 0.5f);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, static_cast<Uint8>(SHADOW_ALPHA * alpha / 255));
+    FillEllipse(m_screen, static_cast<int>(body.x + body.w * 0.5f), static_cast<int>(practice::GROUND_LINE_Y) + 2,
+        shadowRx, shadowRx / 6 > 5 ? shadowRx / 6 : 5);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
     SDL_SetTextureAlphaMod(sprite.p_object_, alpha);
     if (flash)
         SDL_SetTextureColorMod(sprite.p_object_, 255, 90, 90);
@@ -1097,7 +1122,7 @@ void GameManager::DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 al
         SDL_SetTextureColorMod(sprite.p_object_, 255, 130, 130);
     if (e.scale > 1.0f)
         sprite.RenderFrameScaled(m_screen, static_cast<int>(e.x - def.bodyLeft * e.scale),
-            static_cast<int>(practice::GROUND_LINE_Y - def.feetRow * e.scale), e.scale);
+            static_cast<int>(practice::GROUND_LINE_Y - def.feetRow * e.scale) - raise, e.scale);
     else
         sprite.Render(m_screen);
     SDL_SetTextureColorMod(sprite.p_object_, 255, 255, 255);
@@ -1168,7 +1193,7 @@ void GameManager::ResetVisualEffects()
     for (int i = 0; i < DROP_MAX; ++i)
         m_drops[i].active = false;
     m_enemyFlashLeft = m_leakFlashLeft = m_shakeLeft = m_hpBlinkLeft = 0.0f;
-    m_beatenLeft = 0.0f;
+    m_beatenLeft = m_beatenFade = 0.0f;
 }
 
 // ------------------------------------------------------------------ feedback (presentation only)
@@ -1247,7 +1272,10 @@ void GameManager::UpdateFeedback(float dt)
     m_leakFlashLeft -= dt;
     m_shakeLeft -= dt;
     m_hpBlinkLeft -= dt;
-    m_beatenLeft -= dt;
+    if (m_beatenLeft > 0.0f)
+        m_beatenLeft -= dt;
+    else
+        m_beatenFade -= dt;
 }
 
 
@@ -2079,6 +2107,11 @@ void GameManager::RenderPlayer()
     int bob = m_playerRunSheet != NULL ? 0 : static_cast<int>(PLAYER_BOB_PX * std::sin(t * PLAYER_BOB_SPEED));
     const int ground = static_cast<int>(practice::GROUND_LINE_Y);
     const int cx = PLAYER_BODY_CENTER_X;
+
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);  // the shadow under the feet
+    SDL_SetRenderDrawColor(m_screen, 0, 0, 0, SHADOW_ALPHA);
+    FillEllipse(m_screen, cx, ground + 2, PLAYER_SHADOW_RX, PLAYER_SHADOW_RY);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
 
     // the orbs the player has loaded (0..3), spaced evenly on the orbit; sin(angle) < 0 is the far side
     const invoker::InvokerState& inv = ShownInvoker();

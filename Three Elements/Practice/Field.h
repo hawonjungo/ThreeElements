@@ -46,8 +46,8 @@ namespace practice
 		int bodyBottom;                  //   the hit box that spells collide with
 		invoker::SkillId targetSkill;    // the skill this enemy requires; data, not derived from the sprite
 		float speedMultiplier;           // applied on top of the difficulty speed
-		float size;                      // drawn size and hit box, a whole number so the pixels stay square (§32 M-8):
-		                                 // the sheets come from different packs and the small ones are drawn 2x or 3x
+		float size;                      // drawn size and hit box (§32 M-8): the sheets come from different packs and
+		                                 // each is drawn 1.5x to 4x, so that every enemy is about the player's height
 	};
 
 	const EnemyDefinition& GetEnemyDefinition(int index);  // 0 <= index < ENEMY_TYPE_COUNT

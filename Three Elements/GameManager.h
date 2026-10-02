@@ -140,6 +140,13 @@ const float FORGE_ATTACK_TIME = 0.7f;
 // enemy that had already vanished). Presentation only: the kill itself is still judged at the cast.
 const float FORGE_HIT_TIME = FORGE_WALK_TIME + 0.25f;  // the walk, then the lunge
 const Uint8 BEATEN_ENEMY_ALPHA = 150;
+// Every enemy beaten in a run fades out and drifts up for a moment instead of vanishing in one frame (1.9.2).
+const float BEATEN_FADE_TIME = 0.3f;
+const int BEATEN_FADE_RISE = 16;        // px
+// Shadows on the ground under the player and the enemies (1.9.2), drawn in code like the Immortals' one.
+const Uint8 SHADOW_ALPHA = 110;
+const int PLAYER_SHADOW_RX = 34;
+const int PLAYER_SHADOW_RY = 6;
 
 // Centre of the player's visible body; shared by every effect drawn on the player (Ghost Walk, Alacrity...).
 const int PLAYER_BODY_CENTER_X = 86;
@@ -409,6 +416,8 @@ protected:
 	float m_enemyFlashLeft = 0.0f;
 	practice::ActiveEnemy m_beatenEnemy = {};  // the enemy just beaten, kept on screen until the spell reaches it
 	float m_beatenLeft = 0.0f;
+	float m_beatenFade = 0.0f;                 // s left of its fade-out (it starts when m_beatenLeft has run out)
+	Uint8 m_beatenAlpha = 255;                 // where the fade starts
 	float m_leakFlashLeft = 0.0f;
 	float m_shakeLeft = 0.0f;
 	float m_hpBlinkLeft = 0.0f;
@@ -515,7 +524,8 @@ private:
 
 	void RenderOrb(invoker::Orb orb, int centerX, int centerY);
 	void RenderEnemy();
-	void DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha);
+	void DrawEnemy(const practice::ActiveEnemy& e, bool flash, Uint8 alpha, int raise = 0);
+	void BeginBeatenFade(const practice::ActiveEnemy& enemy, float wait);  // wait: s it stands until the spell arrives
 	float KillImpactDelay(invoker::SkillId skill) const;  // s the beaten enemy stays visible (0 for instant spells)
 	void RenderTornadoes();
 	void RenderGhostWalk();
