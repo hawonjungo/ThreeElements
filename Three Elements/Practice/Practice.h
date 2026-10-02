@@ -117,7 +117,9 @@ namespace practice
 	const float PLAY_OVERLORD_SPEED = 0.6f;
 	const float PLAY_ELITE_SCALE = 1.4f;            // drawn (and hit) this much larger than the enemy's own size:
 	const float PLAY_OVERLORD_SCALE = 2.0f;         // the tiers must look different at a glance (owner, 1.9.3)
-	const int   PLAY_LEAK_NORMAL = 1;               // lives lost when it reaches the player
+	// Lives lost when it reaches the player untouched. Since 1.9.5 every skill of the chain already broken takes 1
+	// off (§32 M-11): what it costs is the number of skills still on it.
+	const int   PLAY_LEAK_NORMAL = 1;
 	const int   PLAY_LEAK_ELITE = 2;
 	const int   PLAY_LEAK_OVERLORD = 3;
 	const int   PLAY_POINTS_NORMAL = 1;             // score per kill

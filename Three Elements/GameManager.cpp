@@ -3966,15 +3966,15 @@ void GameManager::RenderTip()
     case TIP_ELITE:
         title = "ELITE";
         lines[0] = "IT NEEDS 2 SPELLS, IN ORDER.";
-        lines[1] = "IF IT REACHES YOU: -2 LIVES.";
-        lines[2] = "BEAT IT FOR 3 POINTS AND 5 GOLD.";
+        lines[1] = "IF IT REACHES YOU: -1 LIFE PER";
+        lines[2] = "SPELL LEFT. BEAT IT: 3 POINTS, 5 GOLD.";
         lines[3] = "BEATING IT RAISES THE IMMORTAL %.";
         break;
     case TIP_OVERLORD:
         title = "OVERLORD";
         lines[0] = "IT NEEDS 3 SPELLS, IN ORDER.";
-        lines[1] = "IF IT REACHES YOU: -3 LIVES.";
-        lines[2] = "BEAT IT FOR A RUNE AND A NEW STAGE.";
+        lines[1] = "IF IT REACHES YOU: -1 LIFE PER";
+        lines[2] = "SPELL LEFT. BEAT IT: RUNE, NEW STAGE.";
         lines[3] = "BEATING IT RAISES THE IMMORTAL %.";
         break;
     case TIP_RUNE:
@@ -4171,7 +4171,7 @@ void GameManager::RenderGuide()
             pixeltext::DrawShadowed(m_screen, rows[i].note, columns[0], y + 20, 1, grey);
         }
         const char* notes[3] = {
-            "A WRONG SPELL NEVER HURTS YOU: TRY AGAIN. A CHAIN KEEPS ITS PROGRESS.",
+            "A WRONG SPELL NEVER HURTS YOU. EACH SPELL OF A CHAIN YOU BREAK SAVES 1 LIFE.",
             "GOLD: FROM ELITES, OVERLORDS, IMMORTALS AND THE BOUNTY RUNE.",
             "IN SURVIVAL EVERY ENEMY IS A NORMAL ONE AND COSTS 1 LIFE.",
         };

@@ -5,7 +5,7 @@ Two small console programs, no test framework, no SDL, no game assets. Each prin
 | Program | Tests | Checks |
 |---|---|---|
 | `InvokerCoreTests` | the **Invoker Core** (`Three Elements/Core/Invoker.h/.cpp`): the Q/W/E → R → D/F mechanic | 243 |
-| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`, `Tutorial.*`, `Boss.*`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile, the tutorial script, the Immortal fights (the five Immortals and, as test definitions, the eight bosses of 1.2 - 1.8), PLAY with its schedule of elites and overlords, items, the Immortal chance and materials; also the touch layout geometry (`TouchLayout.*`) | 2711 |
+| `PracticeTests` | the **Practice layer** (`Three Elements/Practice/Practice.h/.cpp`, `Tutorial.*`, `Boss.*`) running on top of the Core: enemies, casts, HP, score, combo, accuracy, Game Over, restart, difficulty, the Tornado projectile, the tutorial script, the Immortal fights (the five Immortals and, as test definitions, the eight bosses of 1.2 - 1.8), PLAY with its schedule of elites and overlords, items, the Immortal chance and materials; also the touch layout geometry (`TouchLayout.*`) | 2728 |
 
 The SDL presentation (`GameManager`, `PixelText`, `MainPlayer::TranslateKey`) has no automated test; see "Not covered" at the end.
 

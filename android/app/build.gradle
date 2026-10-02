@@ -73,8 +73,8 @@ android {
         // Google Play requires a recent target (Android 15 = 35 from Aug 2025, Android 16 = 36 expected from Aug 2026).
         targetSdk 36
         // versionCode must grow with every upload to Play; versionName is what players see.
-        versionCode 27
-        versionName '1.9.4'
+        versionCode 28
+        versionName '1.9.5'
         // The built files carry the version (owner 2026-09-30), e.g. injoker-1.2.2-vc4-release.aab and
         // injoker-1.2.2-vc4-debug.apk, so builds of different versions are never mixed up.
         setProperty('archivesBaseName', "injoker-${versionName}-vc${versionCode}")

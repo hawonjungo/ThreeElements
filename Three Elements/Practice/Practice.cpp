@@ -650,6 +650,9 @@ namespace practice
 			m_enemy.active = false;              // the enemy disappears
 			int damage = m_mode != SessionMode::Play ? 1 : m_enemy.kind == EnemyKind::Overlord ? PLAY_LEAK_OVERLORD
 				: m_enemy.kind == EnemyKind::Elite ? PLAY_LEAK_ELITE : PLAY_LEAK_NORMAL;
+			damage -= m_enemy.chainStep;         // M-11: each skill of its chain already broken saves a life
+			if (damage < 1)
+				damage = 1;
 			if (m_bkbLeft > 0.0f)                // Black King Bar running: this leak costs nothing (§27 I-5)
 			{
 				damage = 0;

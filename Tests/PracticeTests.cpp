@@ -2644,6 +2644,42 @@ static void TestPlayLeakDamage()
 	CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_OVERLORD && leak.gameOver);
 	CHECK(s.GetStats().hp == 0 && s.State() == GameState::GameOver);
 
+	// §32 M-11: every skill of the chain already broken takes 1 off. An overlord with one skill broken costs 2
+	// lives, with two broken 1; a wrong cast changes nothing
+	for (int broken = 1; broken <= 2; ++broken)
+	{
+		PracticeSession p;
+		PlayToBoss(p, 31);
+		for (int k = 0; k < broken; ++k)
+			CHECK(PlayCast(p, p.Enemy().target) == CastOutcome::Correct);
+		CHECK(PlayCast(p, WrongSkillFor(p.Enemy().target)) == CastOutcome::Incorrect);
+		CHECK(p.Enemy().active && p.Enemy().chainStep == broken);
+		leak = {};
+		for (int i = 0; i < 3000 && !leak.leaked; ++i)
+			leak = p.Update(0.01f);
+		CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_OVERLORD - broken && !leak.gameOver);
+		CHECK(p.GetStats().hp == START_HP - (PLAY_LEAK_OVERLORD - broken) && p.GetStats().combo == 0);
+	}
+	// an elite: 2 lives untouched, 1 with its first skill broken
+	for (int broken = 0; broken <= 1; ++broken)
+	{
+		PracticeSession e;
+		e.SetMode(SessionMode::Play);
+		e.Start(33);
+		PlayWaitSpawn(e);
+		while (e.Enemy().kind == EnemyKind::Normal)
+		{
+			PlayKill(e);
+			PlayWaitSpawn(e);
+		}
+		CHECK(e.Enemy().kind == EnemyKind::Elite && e.GetStats().hp == START_HP);
+		if (broken == 1)
+			CHECK(PlayCast(e, e.Enemy().target) == CastOutcome::Correct);
+		leak = RunUntilLeak(e);
+		CHECK(leak.leaked && leak.leakDamage == PLAY_LEAK_ELITE - broken && e.GetStats().hp == START_HP - (PLAY_LEAK_ELITE - broken));
+	}
+	CHECK(PLAY_LEAK_NORMAL == 1 && PLAY_LEAK_ELITE == 2 && PLAY_LEAK_OVERLORD == 3);
+
 	// a Shield takes the leak instead
 	PracticeSession h;
 	PlayToBoss(h, 31);
