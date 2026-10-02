@@ -122,7 +122,8 @@ const int ICE_WALL_FRAME = 256;
 const int ICE_WALL_FRAMES = 16;
 const int ICE_WALL_DRAW = 190;          // px on screen
 const int ICE_WALL_AHEAD = 150;         // px in front of the player's centre
-const int ICE_WALL_SINK = 16;           // px of the drawn frame below the ground line (the empty rows under the wall)
+const int ICE_WALL_SINK = 46;           // px of the drawn frame below the ground line: the wall is seen at an angle (its base
+                                        // climbs 66 px from front to back), so the middle of its base is put on the ground
 const float ICE_WALL_GROW_TIME = 0.7f;  // s for the 16 frames, once; then the later ones go back and forth (the glints)
 // The frames are drawn exactly as the owner made them: never stretched or squeezed (1.9.7 drew the wall rising
 // and sinking by squeezing the picture; the owner had that removed, it distorted the art). A rise or a break-up
