@@ -467,6 +467,8 @@ bool GameManager::RunFrame()
         RenderShop();
     if (m_showGuide)
         RenderGuide();
+    if (m_showCredits)
+        RenderCredits();
     RenderRuneChoice();
     RenderPause();
     RenderTip();
@@ -502,9 +504,9 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         HandleGuideKey(sym);
         return;
     }
-    if (m_showRecipes || m_showLeaderboard)  // an overlay is open: any key just closes it
+    if (m_showRecipes || m_showLeaderboard || m_showCredits)  // an overlay is open: any key just closes it
     {
-        m_showRecipes = m_showLeaderboard = false;
+        m_showRecipes = m_showLeaderboard = m_showCredits = false;
         return;
     }
     if (m_showLayout)  // the layout editor: any of these closes it (the layout is saved as it is)
@@ -692,9 +694,9 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         OpenGlobalBoards();  // the list stays open underneath
         return;
     }
-    if (m_showRecipes || m_showLeaderboard)  // an overlay is open: a tap anywhere closes it
+    if (m_showRecipes || m_showLeaderboard || m_showCredits)  // an overlay is open: a tap anywhere closes it
     {
-        m_showRecipes = m_showLeaderboard = false;
+        m_showRecipes = m_showLeaderboard = m_showCredits = false;
         return;
     }
     if (m_showLayout)
@@ -1712,9 +1714,11 @@ SDL_Rect GameManager::MenuItemRect(int index) const
         SDL_Rect r = { (SCREEN_WIDTH - MENU_MAIN_W) / 2, MENU_MAIN_Y + index * MENU_MAIN_STEP, MENU_MAIN_W, MENU_MAIN_H };
         return r;
     }
-    int small = MenuItemCount() - MENU_MAIN_COUNT;  // the rest: one centred row of small buttons
+    if (index == MENU_SHOP)  // its own button in the right column, under the top 3
+        return MENU_SHOP_RECT;
+    int small = MenuItemCount() - MENU_SMALL_FIRST;  // the rest: one centred row of small buttons
     int width = small * MENU_SMALL_W + (small - 1) * MENU_SMALL_GAP;
-    int j = index - MENU_MAIN_COUNT;
+    int j = index - MENU_SMALL_FIRST;
     SDL_Rect r = { (SCREEN_WIDTH - width) / 2 + j * (MENU_SMALL_W + MENU_SMALL_GAP), MENU_SMALL_Y, MENU_SMALL_W, MENU_SMALL_H };
     return r;
 }
@@ -1732,6 +1736,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_LEADERBOARD: m_showLeaderboard = true; break;
     case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
     case MENU_SHOP:        m_showShop = true; break;
+    case MENU_CREDITS:     m_showCredits = true; break;
     case MENU_QUIT:        PressEscapeAction(quit); break;
     }
 }
@@ -1762,7 +1767,27 @@ void GameManager::RenderMenu()
         case MENU_LEADERBOARD: label = "LEADERBOARD"; key = "L"; break;
         case MENU_SETTINGS:    label = "SETTINGS";    key = ""; break;
         case MENU_SHOP:        label = "SHOP";        key = "P"; break;
+        case MENU_CREDITS:     label = "CREDITS";     key = ""; break;
         case MENU_QUIT:        label = "QUIT";        key = "ESC"; break;
+        }
+        if (item == MENU_SHOP)  // the right column: a big button, the bag on its left, the label in gold
+        {
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(m_screen, 40, 30, 14, selected ? 245 : 215);
+            SDL_RenderFillRect(m_screen, &r);
+            SDL_SetRenderDrawColor(m_screen, selected ? 255 : 200, selected ? 210 : 160, selected ? 90 : 70, 235);
+            for (int k = 0; k < (selected ? 2 : 1); ++k)
+            {
+                SDL_Rect frame = { r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k };
+                SDL_RenderDrawRect(m_screen, &frame);
+            }
+            SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+            DrawBagIcon(r.x + 18, r.y + (r.h - 36) / 2, 3);
+            int textX = r.x + 18 + 36 + (r.w - 18 - 36 - pixeltext::Width(label, 3)) / 2;
+            pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - 21) / 2, 3, gold);
+            if (!m_showTouchControls)
+                pixeltext::DrawShadowed(m_screen, key, r.x + r.w - pixeltext::Width(key, 1) - 10, r.y + r.h - 12, 1, grey);
+            continue;
         }
         // the modes stand out: brighter, larger, PLAY framed in gold; the rest is small and quiet
         bool accent = item == MENU_PLAY;
@@ -1785,8 +1810,7 @@ void GameManager::RenderMenu()
         int scale = main ? 3 : 2;
         int textH = 7 * scale;
         int textX = r.x + (r.w - pixeltext::Width(label, scale)) / 2;
-        bool shop = item == MENU_SHOP;  // the shop's label is gold: the place the gold goes
-        pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - textH) / 2, scale, selected || accent || shop ? gold : (main ? white : grey));
+        pixeltext::DrawShadowed(m_screen, label, textX, r.y + (r.h - textH) / 2, scale, selected || accent ? gold : (main ? white : grey));
         if (main && selected)
             pixeltext::DrawShadowed(m_screen, ">", r.x + 14, r.y + (r.h - textH) / 2, scale, gold);
         if (main && !m_showTouchControls && key[0] != '\0')  // keyboard hints mean nothing on a touch screen
@@ -1794,6 +1818,85 @@ void GameManager::RenderMenu()
         if (item == MENU_TUTORIAL && !m_tutorialDone)
             RenderHighlight(r);
     }
+}
+
+// The shop's bag: a sack of gold-brown cloth tied at the neck, drawn in blocks so it matches the pixel font.
+void GameManager::DrawBagIcon(int x, int y, int px)
+{
+    static const char* rows[12] = {
+        "....oooo....",
+        "...o####o...",
+        "....oyyo....",
+        "...oooooo...",
+        "..o######o..",
+        ".o###yy###o.",
+        "o###y##y###o",
+        "o####yy####o",
+        "o###y##y###o",
+        "o####yy####o",
+        ".o########o.",
+        "..oooooooo..",
+    };
+    for (int r = 0; r < 12; ++r)
+    {
+        for (int c = 0; c < 12; ++c)
+        {
+            char ch = rows[r][c];
+            if (ch == '.')
+                continue;
+            if (ch == 'o')
+                SDL_SetRenderDrawColor(m_screen, 40, 22, 10, 255);      // outline
+            else if (ch == 'y')
+                SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 255);    // the gold coin sign and the cord
+            else
+                SDL_SetRenderDrawColor(m_screen, 160, 100, 45, 255);    // cloth
+            SDL_Rect b = { x + c * px, y + r * px, px, px };
+            SDL_RenderFillRect(m_screen, &b);
+        }
+    }
+}
+
+// CREDITS (1.9.13, owner): who made the game and its pictures. The third-party packs are named with their authors
+// as their licences ask; the owner's own art says where it was made.
+void GameManager::RenderCredits()
+{
+    DimScreen(200);
+    const SDL_Rect& panel = CREDITS_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    pixeltext::DrawCentered(m_screen, "CREDITS", SCREEN_WIDTH, panel.y + 18, 3, gold);
+    struct Line { const char* text; int scale; int kind; };  // kind: 0 heading, 1 text, 2 small note
+    const Line lines[] = {
+        { "GAME DESIGN AND PROGRAMMING", 2, 0 },
+        { "JUNGO", 2, 1 },
+        { "", 1, 2 },
+        { "ART", 2, 0 },
+        { "PLAYER, IMMORTALS, SPELL EFFECTS AND SKILL ICONS: JUNGO", 2, 1 },
+        { "MADE WITH SCENARIO (SCENARIO.COM) AND AUTOSPRITE", 1, 2 },
+        { "MONSTERS: MONSTERS CREATURES FANTASY BY LUIZ MELO", 2, 1 },
+        { "LUIZMELO.ITCH.IO", 1, 2 },
+        { "FOREST: FREE PIXEL ART FOREST BY EDER MUNIZ", 2, 1 },
+        { "EDERMUNIZZ.ITCH.IO", 1, 2 },
+        { "", 1, 2 },
+        { "SOUND AND PIXEL FONT", 2, 0 },
+        { "MADE IN CODE", 2, 1 },
+    };
+    int y = panel.y + 66;
+    for (const Line& l : lines)
+    {
+        if (l.text[0] != '\0')
+            pixeltext::DrawCentered(m_screen, l.text, SCREEN_WIDTH, y, l.scale, l.kind == 0 ? gold : l.kind == 1 ? white : grey);
+        y += l.kind == 0 ? 26 : l.kind == 1 ? 30 : 24;
+    }
+    pixeltext::DrawCentered(m_screen, m_showTouchControls ? "TAP TO CLOSE" : "PRESS ANY KEY TO CLOSE", SCREEN_WIDTH,
+        panel.y + panel.h - 26, 2, grey);
 }
 
 // SETTINGS (owner 2026-10-01): sound and the recipe hint in one place; on a touch device also BUTTON LAYOUT (spec

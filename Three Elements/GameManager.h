@@ -221,7 +221,10 @@ const SDL_Rect HINT_BUTTON_RECT = { 16, 94, 88, 24 };
 // Home (the Ready screen, owner 2026-10-01): no logo picture; the four modes are big buttons in a column, the rest
 // (RECIPES, LEADERBOARD, SETTINGS, QUIT on desktop) small buttons in a row below. Arrows + Enter, hotkeys, or a tap.
 // PLAY = the main game (spec §26); SURVIVAL = the former Practice. SETTINGS holds sound and the recipe hint.
-enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_SHOP, MENU_RECIPES, MENU_GUIDE, MENU_LEADERBOARD, MENU_SETTINGS, MENU_QUIT };
+// The arrows go through them in this order. SHOP has its own button in the right column, under the top 3, since
+// 1.9.13 (owner): its place in the small row went to CREDITS.
+enum MenuItem { MENU_PLAY, MENU_SURVIVAL, MENU_BOSS, MENU_TUTORIAL, MENU_SHOP, MENU_RECIPES, MENU_GUIDE, MENU_LEADERBOARD, MENU_SETTINGS, MENU_CREDITS, MENU_QUIT };
+const int MENU_SMALL_FIRST = MENU_RECIPES;  // the small buttons: from here to the end
 const int MENU_MAIN_COUNT = 4;           // the big buttons: the modes
 const int MENU_MAIN_W = 300;
 const int MENU_MAIN_H = 50;
@@ -284,6 +287,9 @@ const SDL_Rect RUNE_CHOICE_RECT = { 234, 150, 460, 250 };
 const float ANNOUNCE_TIME = 2.8f;  // s a PLAY announcement (boss defeated, rune) stays on screen
 // Top 3 of the leaderboard beside the menu; a tap opens the top 10.
 const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
+const SDL_Rect MENU_SHOP_RECT = { 640, 296, 264, 50 };  // in line with the TUTORIAL button, a bag drawn on its left
+// CREDITS (1.9.13): who made what, from the menu's small row
+const SDL_Rect CREDITS_PANEL_RECT = { 104, 40, 720, 464 };
 const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 470, 464, 244, 34 };
 // On the LEADERBOARD screen, only where online boards exist (Android with Google Play Games, spec §29): opens
 // Google's leaderboard screen (names, avatars, this week / all time).
@@ -462,6 +468,7 @@ protected:
 	bool m_showTouchControls = false;
 	bool m_audioReady = false;            // an audio device was opened
 	bool m_recipeHint = false;            // show the target's recipe above its icon (saved with the settings)
+	bool m_showCredits = false;            // the credits are open (menu)
 	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over, and the tutorial run)
 	practice::TutorialSession m_tutorial; // spec §24; only meaningful while m_tutorialActive
 	bool m_tutorialActive = false;        // the tutorial is on screen (the Practice session waits in Ready)
@@ -724,6 +731,8 @@ private:
 	}
 	SDL_Rect TargetHintArea(invoker::SkillId target, int& textX) const;  // where RenderTargetHint draws
 	void RenderRecipes();
+	void RenderCredits();
+	void DrawBagIcon(int x, int y, int px);  // the shop's bag, 12 x 12 blocks of px pixels
 	void RenderSmallOrb(invoker::Orb orb, int centerX, int centerY);
 	void DimScreen(Uint8 alpha);
 };

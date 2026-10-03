@@ -2,8 +2,8 @@
 # Builds the web version (Emscripten) and optionally publishes it to GitHub Pages.
 #
 #   web/build.sh             build into $WEB_BUILD_DIR
-#   web/build.sh --deploy    build, then commit the output to the gh-pages branch, push it,
-#                            and wait until GitHub Pages has published it
+#   web/build.sh --deploy    build, then commit the output to the gh-pages branch of the site repository
+#                            (web/deploy.conf), push it, and wait until GitHub Pages has published it
 #
 # Run from Git Bash (Windows) or any bash. Settings (environment variables, defaults in brackets):
 #   EMSDK_DIR      Emscripten SDK folder           [/d/Dev/tools/emsdk]
@@ -14,9 +14,14 @@ set -euo pipefail
 EMSDK_DIR="${EMSDK_DIR:-/d/Dev/tools/emsdk}"
 WEB_BUILD_DIR="${WEB_BUILD_DIR:-/d/Dev/web-build}"
 SITE_URL="${SITE_URL:-https://injoker.relifes.net}"
-REPO_API="https://api.github.com/repos/hawonjungo/ThreeElements"
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Where the site is published (owner 2026-10-03, choice B): a public repository that holds only the built game, so
+# the source repository, with the original art files, can be private. web/deploy.conf sets PAGES_REPO (owner/name).
+PAGES_REPO="hawonjungo/ThreeElements"
+PAGES_BRANCH="gh-pages"
+# shellcheck disable=SC1091
+[ -f "$REPO_ROOT/web/deploy.conf" ] && source "$REPO_ROOT/web/deploy.conf"
+REPO_API="https://api.github.com/repos/$PAGES_REPO"
 SRC_DIR="$REPO_ROOT/Three Elements"
 
 # ---------------------------------------------------------------- build
@@ -51,14 +56,22 @@ echo "Build OK: $(ls "$WEB_BUILD_DIR" | tr '\n' ' ')"
 [ "${1:-}" = "--deploy" ] || exit 0
 
 # ---------------------------------------------------------------- deploy
-# gh-pages holds only the published files (plus CNAME, .nojekyll, README.md, which are kept as they are).
-# A temporary worktree is used so the current branch and working tree are never touched.
-cd "$REPO_ROOT"
-WT="$(mktemp -d)/gh-pages"
-git fetch -q origin gh-pages
-git worktree add -q "$WT" gh-pages
-trap 'git -C "$REPO_ROOT" worktree remove --force "$WT" 2> /dev/null || true' EXIT
-git -C "$WT" merge -q --ff-only origin/gh-pages
+# The site branch holds only the published files (plus CNAME, .nojekyll, README.md, which are kept as they are).
+# It is cloned into a temporary folder, so the source repository's branches and working tree are never touched.
+TMP="$(mktemp -d)"
+WT="$TMP/site"
+trap 'rm -rf "$TMP"' EXIT
+SITE_GIT="https://github.com/$PAGES_REPO.git"
+if git clone -q --depth 1 --branch "$PAGES_BRANCH" "$SITE_GIT" "$WT" 2> /dev/null; then
+	:
+else
+	# a new, empty site repository: start its branch with the custom domain and no Jekyll
+	git clone -q "$SITE_GIT" "$WT"
+	git -C "$WT" checkout -q --orphan "$PAGES_BRANCH"
+	echo "${SITE_URL#https://}" > "$WT/CNAME"
+	touch "$WT/.nojekyll"
+	echo "Injoker - the published web build (https://injoker.relifes.net). The source is private." > "$WT/README.md"
+fi
 
 cp "$WEB_BUILD_DIR"/{index.html,index.js,index.wasm,index.data,manifest.webmanifest,privacy.html} "$WT/"
 mkdir -p "$WT/icons"
@@ -76,12 +89,12 @@ else
 	git -C "$WT" commit -q -m "Rebuild from $SRC_SHA"
 fi
 DEPLOY_SHA="$(git -C "$WT" rev-parse HEAD)"
-git -C "$WT" push -q origin gh-pages
-echo "Pushed gh-pages ${DEPLOY_SHA:0:7}; waiting for GitHub Pages ..."
+git -C "$WT" push -q origin "$PAGES_BRANCH"
+echo "Pushed $PAGES_REPO $PAGES_BRANCH ${DEPLOY_SHA:0:7}; waiting for GitHub Pages ..."
 
 # GitHub sometimes creates no Pages run for a push; wait for the run of exactly this commit.
 for _ in $(seq 1 30); do
-	STATE="$(curl -sS "$REPO_API/actions/runs?per_page=5&branch=gh-pages" | python -c "
+	STATE="$(curl -sS "$REPO_API/actions/runs?per_page=5&branch=$PAGES_BRANCH" | python -c "
 import json, sys
 runs = json.load(sys.stdin).get('workflow_runs', [])
 run = next((r for r in runs if r['head_sha'] == '$DEPLOY_SHA'), None)
