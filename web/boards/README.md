@@ -23,7 +23,13 @@ replaying the run from its seed and keys) can be added later without changing th
     BOARDS_URL=http://localhost:8787 WEB_BUILD_DIR=<a temporary folder> bash web/build.sh
     cd <that folder> && python -m http.server 8000      # open http://localhost:8000
 
-## Put it online (once)
+## Online
+
+Live since 2026-10-03: `https://injoker-boards.injoker.workers.dev` on the owner's Cloudflare account (D1 database
+`injoker-boards`, the SALT secret set, workers.dev subdomain `injoker`). After changing `worker.js` or `rules.js`:
+`cd web/boards && npx wrangler deploy`.
+
+## Put it online (once; done)
 
 1. Create a free Cloudflare account (the owner).
 2. `cd web/boards && npx wrangler login` - a browser page asks to allow access: the owner clicks Allow.
