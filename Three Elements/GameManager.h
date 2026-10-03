@@ -294,6 +294,14 @@ const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 470, 464, 244, 34 };
 // On the LEADERBOARD screen, only where online boards exist (Android with Google Play Games, spec §29): opens
 // Google's leaderboard screen (names, avatars, this week / all time).
 const SDL_Rect GLOBAL_BOARDS_BUTTON_RECT = { 264, 398, 400, 38 };
+// WORLD RANKING of the web version (spec §33): the same button opens it; tabs for the board and the period, the
+// player's name with a button to change it.
+const SDL_Rect WORLD_PANEL_RECT = { 110, 30, SCREEN_WIDTH - 220, SCREEN_HEIGHT - 60 };
+const SDL_Rect WORLD_TAB_PLAY_RECT = { 150, 80, 150, 32 };
+const SDL_Rect WORLD_TAB_SURVIVAL_RECT = { 308, 80, 150, 32 };
+const SDL_Rect WORLD_TAB_WEEK_RECT = { 470, 80, 150, 32 };
+const SDL_Rect WORLD_TAB_ALL_RECT = { 628, 80, 150, 32 };
+const SDL_Rect WORLD_NAME_RECT = { 524, 432, 240, 32 };
 // Tutorial (spec §24): its button on the Ready screen (T), the card panel at the top of the screen (the stats HUD
 // is hidden in the tutorial), the NEXT button on cards and the two choices on the end card.
 const SDL_Rect TUTORIAL_PANEL_RECT          = { 120, 8, 540, 128 };
@@ -469,6 +477,9 @@ protected:
 	bool m_audioReady = false;            // an audio device was opened
 	bool m_recipeHint = false;            // show the target's recipe above its icon (saved with the settings)
 	bool m_showCredits = false;            // the credits are open (menu)
+	bool m_showWorld = false;              // the web's WORLD RANKING is open (spec §33)
+	bool m_worldSurvival = false;          // its board: PLAY or SURVIVAL
+	bool m_worldAllTime = false;           // its period: this week or all time
 	bool m_showRecipes = false;           // the recipe reference is open (Ready / Game Over, and the tutorial run)
 	practice::TutorialSession m_tutorial; // spec §24; only meaningful while m_tutorialActive
 	bool m_tutorialActive = false;        // the tutorial is on screen (the Practice session waits in Ready)
@@ -732,6 +743,11 @@ private:
 	SDL_Rect TargetHintArea(invoker::SkillId target, int& textX) const;  // where RenderTargetHint draws
 	void RenderRecipes();
 	void RenderCredits();
+	void OpenWorldBoards();                 // asks for a name the first time, sends this device's bests, opens it
+	void RequestWorldBoard();
+	void RenderWorldBoards();
+	void HandleWorldKey(SDL_Keycode sym);
+	void HandleWorldPointer(int x, int y);
 	void DrawBagIcon(int x, int y, int px);  // the shop's bag, 12 x 12 blocks of px pixels
 	void RenderSmallOrb(invoker::Orb orb, int centerX, int centerY);
 	void DimScreen(Uint8 alpha);

@@ -90,3 +90,6 @@ Three Elements/items.txt
 
 # Python bytecode (art/ scripts)
 __pycache__/
+# the web leaderboards: Wrangler's local state and packages
+web/boards/.wrangler/
+web/boards/node_modules/

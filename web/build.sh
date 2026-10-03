@@ -21,7 +21,8 @@ PAGES_REPO="hawonjungo/ThreeElements"
 PAGES_BRANCH="gh-pages"
 # shellcheck disable=SC1091
 [ -f "$REPO_ROOT/web/deploy.conf" ] && source "$REPO_ROOT/web/deploy.conf"
-PAGES_REPO="${PAGES_REPO%$'\r'}"; PAGES_BRANCH="${PAGES_BRANCH%$'\r'}"  # a checkout with Windows line ends
+BOARDS_URL="${BOARDS_URL:-}"
+PAGES_REPO="${PAGES_REPO%$'\r'}"; PAGES_BRANCH="${PAGES_BRANCH%$'\r'}"; BOARDS_URL="${BOARDS_URL%$'\r'}"  # Windows line ends
 REPO_API="https://api.github.com/repos/$PAGES_REPO"
 SRC_DIR="$REPO_ROOT/Three Elements"
 
@@ -33,6 +34,9 @@ fi
 mkdir -p "$WEB_BUILD_DIR"
 
 echo "Building into $WEB_BUILD_DIR ..."
+# the page gets the address of the web leaderboards (spec §33; empty = no world ranking in this build)
+SHELL_FILE="$(mktemp -d)/shell.html"
+sed "s|%INJOKER_BOARDS_URL%|${BOARDS_URL}|" "$REPO_ROOT/web/shell.html" > "$SHELL_FILE"
 cd "$SRC_DIR"
 # The browser drives the frame loop (emscripten_set_main_loop_arg in GameManager::LoopGame), so no ASYNCIFY.
 # Assets are preloaded into index.data; paths stay the same relative "assets/..." as on desktop.
@@ -40,9 +44,9 @@ em++ -O2 -std=c++14 \
 	-sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sSDL2_IMAGE_FORMATS='["png","bmp"]' \
 	-sALLOW_MEMORY_GROWTH=1 \
 	--preload-file assets \
-	--shell-file "$REPO_ROOT/web/shell.html" \
+	--shell-file "$SHELL_FILE" \
 	main.cpp GameManager.cpp MainPlayer.cpp BaseObject.cpp Enemy.cpp Keyboard.cpp Skill.cpp PixelText.cpp \
-	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Online.cpp TouchLayout.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp Practice/Boss.cpp Practice/Items.cpp \
+	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Online.cpp WebBoards.cpp TouchLayout.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp Practice/Boss.cpp Practice/Items.cpp \
 	-o "$WEB_BUILD_DIR/index.html"
 cp "$REPO_ROOT/web/manifest.webmanifest" "$REPO_ROOT/web/privacy.html" "$WEB_BUILD_DIR/"
 mkdir -p "$WEB_BUILD_DIR/icons"

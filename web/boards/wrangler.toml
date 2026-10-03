@@ -1,0 +1,14 @@
+# Cloudflare Worker of the web leaderboards. See README.md in this folder for the one-time setup.
+name = "injoker-boards"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# the pages allowed to send scores (the published site, and a local test server)
+ALLOWED_ORIGINS = "https://injoker.relifes.net,http://localhost:8000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "injoker-boards"
+# filled in once: `npx wrangler d1 create injoker-boards` prints it
+database_id = "REPLACE_WITH_THE_ID"

@@ -75,6 +75,9 @@
     <ClCompile Include="Online.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="WebBoards.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TouchLayout.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -126,6 +129,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Online.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WebBoards.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TouchLayout.h">

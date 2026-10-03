@@ -129,6 +129,8 @@
     then open the game from the home-screen icon.<br><br>(Chạm để đóng &middot; Tap to close)
   </div>
   <script type="text/javascript">
+    // the web leaderboards' address (spec §33), written in by web/build.sh from web/deploy.conf; empty = none
+    window.INJOKER_BOARDS_URL = '%INJOKER_BOARDS_URL%';
     var statusElement = document.getElementById('status');
     var progressElement = document.getElementById('progress');
     var spinnerElement = document.getElementById('spinner');

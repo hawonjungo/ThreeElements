@@ -10,6 +10,7 @@
 #include "Draw.h"
 #include "Audio.h"
 #include "Online.h"
+#include "WebBoards.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -469,6 +470,8 @@ bool GameManager::RunFrame()
         RenderGuide();
     if (m_showCredits)
         RenderCredits();
+    if (m_showWorld)
+        RenderWorldBoards();
     RenderRuneChoice();
     RenderPause();
     RenderTip();
@@ -502,6 +505,16 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     if (m_showGuide)
     {
         HandleGuideKey(sym);
+        return;
+    }
+    if (m_showWorld)
+    {
+        HandleWorldKey(sym);
+        return;
+    }
+    if (m_showLeaderboard && webboards::Available() && (sym == SDLK_RETURN || sym == SDLK_KP_ENTER))
+    {
+        OpenWorldBoards();  // Enter: the world ranking (any other key closes the list)
         return;
     }
     if (m_showRecipes || m_showLeaderboard || m_showCredits)  // an overlay is open: any key just closes it
@@ -687,6 +700,16 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (m_showGuide)
     {
         HandleGuidePointer(x, y);
+        return;
+    }
+    if (m_showWorld)
+    {
+        HandleWorldPointer(x, y);
+        return;
+    }
+    if (m_showLeaderboard && webboards::Available() && hit(GLOBAL_BOARDS_BUTTON_RECT))
+    {
+        OpenWorldBoards();
         return;
     }
     if (m_showLeaderboard && online::Available() && hit(GLOBAL_BOARDS_BUTTON_RECT))
@@ -1089,6 +1112,11 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
             online::Submit(online::Board::Play, st.score);
         else
             online::Submit(online::Board::Survival, static_cast<long long>(st.survivalTime * 1000.0f));
+        // the web's world ranking (spec §33), once the player has typed a name
+        if (m_session.Mode() == practice::SessionMode::Play)
+            webboards::Submit(webboards::Board::Play, st.score, st.survivalTime);
+        else
+            webboards::Submit(webboards::Board::Survival, static_cast<long long>(st.survivalTime * 1000.0f), st.survivalTime);
     }
 }
 
@@ -2258,10 +2286,144 @@ void GameManager::RenderLeaderboard()
     }
     if (online::Available())  // spec §29: the global boards are Google's screen, one tap away
         RenderButton(GLOBAL_BOARDS_BUTTON_RECT, online::SignedIn() ? "GLOBAL RANKING" : "SIGN IN FOR GLOBAL RANKING", true);
+    else if (webboards::Available())  // spec §33: the web's own world ranking
+        RenderButton(GLOBAL_BOARDS_BUTTON_RECT, m_showTouchControls ? "WORLD RANKING" : "ENTER  WORLD RANKING", true);
     snprintf(buf, sizeof(buf), "GOLD BANK %d", m_goldBank);
     pixeltext::DrawCentered(m_screen, buf, SCREEN_WIDTH, panel.y + panel.h - 54, 2, gold);
-    pixeltext::DrawCentered(m_screen, online::Available() ? "TAP OUTSIDE THE BUTTON TO CLOSE" : "PRESS ANY KEY OR TAP TO CLOSE",
+    bool button = online::Available() || webboards::Available();
+    pixeltext::DrawCentered(m_screen, button ? (m_showTouchControls ? "TAP OUTSIDE THE BUTTON TO CLOSE" : "ESC: CLOSE") : "PRESS ANY KEY OR TAP TO CLOSE",
         SCREEN_WIDTH, panel.y + panel.h - 28, 2, grey);
+}
+
+// ------------------------------------------------------------------ WORLD RANKING of the web version (spec §33)
+
+void GameManager::OpenWorldBoards()
+{
+    if (webboards::Name()[0] == '\0' && webboards::AskName())
+    {
+        // a new name: this device's best runs go to the boards at once (a lower one never replaces a higher one)
+        if (m_playRuns[0].score > 0)
+            webboards::Submit(webboards::Board::Play, m_playRuns[0].score, m_playRuns[0].time);
+        if (m_topRuns[0].survivalTime > 0.0f)
+            webboards::Submit(webboards::Board::Survival, static_cast<long long>(m_topRuns[0].survivalTime * 1000.0f),
+                m_topRuns[0].survivalTime);
+    }
+    m_showWorld = true;
+    RequestWorldBoard();
+}
+
+void GameManager::RequestWorldBoard()
+{
+    webboards::Request(m_worldSurvival ? webboards::Board::Survival : webboards::Board::Play,
+        m_worldAllTime ? webboards::Period::All : webboards::Period::Week);
+}
+
+void GameManager::HandleWorldKey(SDL_Keycode sym)
+{
+    if (sym == SDLK_LEFT || sym == SDLK_RIGHT)
+    {
+        m_worldSurvival = !m_worldSurvival;
+        RequestWorldBoard();
+    }
+    else if (sym == SDLK_UP || sym == SDLK_DOWN)
+    {
+        m_worldAllTime = !m_worldAllTime;
+        RequestWorldBoard();
+    }
+    else if (sym == SDLK_n)
+    {
+        webboards::AskName();
+        RequestWorldBoard();
+    }
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK || sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+        m_showWorld = false;
+}
+
+void GameManager::HandleWorldPointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    if (hit(WORLD_TAB_PLAY_RECT) || hit(WORLD_TAB_SURVIVAL_RECT))
+    {
+        m_worldSurvival = hit(WORLD_TAB_SURVIVAL_RECT);
+        RequestWorldBoard();
+    }
+    else if (hit(WORLD_TAB_WEEK_RECT) || hit(WORLD_TAB_ALL_RECT))
+    {
+        m_worldAllTime = hit(WORLD_TAB_ALL_RECT);
+        RequestWorldBoard();
+    }
+    else if (hit(WORLD_NAME_RECT))
+    {
+        if (webboards::AskName())
+            OpenWorldBoards();
+    }
+    else if (!hit(WORLD_PANEL_RECT))
+        m_showWorld = false;
+}
+
+// The ten best names of the board and period chosen; the player's own name in gold.
+void GameManager::RenderWorldBoards()
+{
+    DimScreen(200);
+    const SDL_Rect& panel = WORLD_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 200);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    pixeltext::DrawCentered(m_screen, "WORLD RANKING", SCREEN_WIDTH, panel.y + 14, 3, gold);
+    auto tab = [this](const SDL_Rect& r, const char* label, bool on)
+    {
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, on ? 70 : 28, on ? 44 : 30, on ? 16 : 46, 240);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, on ? 255 : 110, on ? 210 : 115, on ? 90 : 135, 230);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        const SDL_Color gold = { 255, 210, 90, 255 }, white = { 235, 235, 240, 255 };
+        pixeltext::DrawShadowed(m_screen, label, r.x + (r.w - pixeltext::Width(label, 2)) / 2, r.y + 9, 2, on ? gold : white);
+    };
+    tab(WORLD_TAB_PLAY_RECT, "PLAY", !m_worldSurvival);
+    tab(WORLD_TAB_SURVIVAL_RECT, "SURVIVAL", m_worldSurvival);
+    tab(WORLD_TAB_WEEK_RECT, "THIS WEEK", !m_worldAllTime);
+    tab(WORLD_TAB_ALL_RECT, "ALL TIME", m_worldAllTime);
+
+    const char* me = webboards::Name();
+    webboards::Status status = webboards::GetStatus();
+    char buf[64], value[16];
+    int top = WORLD_TAB_PLAY_RECT.y + 50;
+    if (status == webboards::Status::Loading || status == webboards::Status::Idle)
+        pixeltext::DrawCentered(m_screen, "LOADING...", SCREEN_WIDTH, top + 100, 2, grey);
+    else if (status == webboards::Status::Failed)
+        pixeltext::DrawCentered(m_screen, "NO CONNECTION - TRY AGAIN LATER", SCREEN_WIDTH, top + 100, 2, grey);
+    else if (webboards::Count() == 0)
+        pixeltext::DrawCentered(m_screen, m_worldAllTime ? "NO RUNS YET" : "NO RUNS YET THIS WEEK", SCREEN_WIDTH, top + 100, 2, grey);
+    for (int i = 0; status == webboards::Status::Ready && i < webboards::Count(); ++i)
+    {
+        webboards::Entry e = webboards::Get(i);
+        int y = top + i * 28;
+        bool mine = me[0] != '\0' && std::strcmp(me, e.name) == 0;
+        SDL_Color c = mine ? gold : (i < 3 ? white : grey);
+        snprintf(buf, sizeof(buf), "%2d. %s", i + 1, e.name);
+        pixeltext::DrawShadowed(m_screen, buf, panel.x + 120, y, 2, c);
+        if (m_worldSurvival)
+            FormatTime(value, sizeof(value), static_cast<float>(e.score) / 1000.0f);
+        else
+            snprintf(value, sizeof(value), "%lld", e.score);
+        pixeltext::DrawShadowed(m_screen, value, panel.x + panel.w - 120 - pixeltext::Width(value, 2), y, 2, c);
+    }
+    if (me[0] != '\0')
+        snprintf(buf, sizeof(buf), "YOU: %s", me);
+    else
+        snprintf(buf, sizeof(buf), "NO NAME YET: YOUR RUNS ARE NOT SENT");
+    pixeltext::DrawShadowed(m_screen, buf, panel.x + 40, WORLD_NAME_RECT.y + 9, 2, me[0] != '\0' ? gold : grey);
+    RenderButton(WORLD_NAME_RECT, me[0] != '\0' ? (m_showTouchControls ? "CHANGE NAME" : "N  CHANGE NAME") : (m_showTouchControls ? "SET NAME" : "N  SET NAME"), me[0] == '\0');
+    pixeltext::DrawCentered(m_screen, m_showTouchControls ? "TAP OUTSIDE TO CLOSE" : "ARROWS: BOARD / PERIOD   -   ESC: CLOSE",
+        SCREEN_WIDTH, panel.y + panel.h - 22, 1, grey);
 }
 
 // A player who played as a guest (or offline) and signs in later still gets this device's best results on the
