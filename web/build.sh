@@ -21,6 +21,7 @@ PAGES_REPO="hawonjungo/ThreeElements"
 PAGES_BRANCH="gh-pages"
 # shellcheck disable=SC1091
 [ -f "$REPO_ROOT/web/deploy.conf" ] && source "$REPO_ROOT/web/deploy.conf"
+PAGES_REPO="${PAGES_REPO%$''}"; PAGES_BRANCH="${PAGES_BRANCH%$''}"  # a checkout with Windows line ends
 REPO_API="https://api.github.com/repos/$PAGES_REPO"
 SRC_DIR="$REPO_ROOT/Three Elements"
 

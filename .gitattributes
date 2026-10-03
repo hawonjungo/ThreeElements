@@ -2,3 +2,5 @@
 *.sh text eol=lf
 gradlew text eol=lf
 *.bat text eol=crlf
+web/deploy.conf text eol=lf
+*.sh text eol=lf
