@@ -47,8 +47,9 @@ EM_JS(void, js_boards_submit, (int board, double score, double seconds), {
 	  .catch(function () { console.log('[boards] could not send the run'); });
 });
 
-EM_JS(void, js_boards_request, (int board, int period), {
-	var state = Module.injokerBoards = Module.injokerBoards || { id: 0 };
+EM_JS(void, js_boards_request, (int board, int period, int slot), {
+	var all = Module.injokerBoards = Module.injokerBoards || [];
+	var state = all[slot] = all[slot] || { id: 0 };
 	var id = ++state.id;
 	state.status = 1;
 	state.entries = [];
@@ -58,16 +59,18 @@ EM_JS(void, js_boards_request, (int board, int period), {
 		.catch(function () { if (state.id === id) state.status = 3; });
 });
 
-EM_JS(int, js_boards_status, (), {
-	return Module.injokerBoards ? Module.injokerBoards.status : 0;
+EM_JS(int, js_boards_status, (int slot), {
+	var s = Module.injokerBoards && Module.injokerBoards[slot];
+	return s ? s.status : 0;
 });
 
-EM_JS(int, js_boards_count, (), {
-	return Module.injokerBoards && Module.injokerBoards.entries ? Math.min(Module.injokerBoards.entries.length, 10) : 0;
+EM_JS(int, js_boards_count, (int slot), {
+	var s = Module.injokerBoards && Module.injokerBoards[slot];
+	return s && s.entries ? Math.min(s.entries.length, 10) : 0;
 });
 
-EM_JS(double, js_boards_entry, (int i, char* name, int size), {
-	var e = Module.injokerBoards.entries[i];
+EM_JS(double, js_boards_entry, (int i, char* name, int size, int slot), {
+	var e = Module.injokerBoards[slot].entries[i];
 	stringToUTF8(String(e.name), name, size);
 	return Number(e.score) || 0;
 });
@@ -97,20 +100,20 @@ namespace webboards
 			js_boards_submit(board == Board::Play ? 0 : 1, static_cast<double>(score), static_cast<double>(seconds));
 	}
 
-	void Request(Board board, Period period)
+	void Request(Board board, Period period, int slot)
 	{
 		if (Available())
-			js_boards_request(board == Board::Play ? 0 : 1, period == Period::Week ? 0 : 1);
+			js_boards_request(board == Board::Play ? 0 : 1, period == Period::Week ? 0 : 1, slot);
 	}
 
-	Status GetStatus() { return static_cast<Status>(js_boards_status()); }
-	int Count() { return js_boards_count(); }
+	Status GetStatus(int slot) { return static_cast<Status>(js_boards_status(slot)); }
+	int Count(int slot) { return js_boards_count(slot); }
 
-	Entry Get(int i)
+	Entry Get(int i, int slot)
 	{
 		Entry e = {};
-		if (i >= 0 && i < Count())
-			e.score = static_cast<long long>(js_boards_entry(i, e.name, sizeof(e.name)));
+		if (i >= 0 && i < Count(slot))
+			e.score = static_cast<long long>(js_boards_entry(i, e.name, sizeof(e.name), slot));
 		return e;
 	}
 #else
@@ -118,9 +121,9 @@ namespace webboards
 	const char* Name() { return ""; }
 	bool AskName() { return false; }
 	void Submit(Board, long long, float) {}
-	void Request(Board, Period) {}
-	Status GetStatus() { return Status::Idle; }
-	int Count() { return 0; }
-	Entry Get(int) { return Entry{}; }
+	void Request(Board, Period, int) {}
+	Status GetStatus(int) { return Status::Idle; }
+	int Count(int) { return 0; }
+	Entry Get(int, int) { return Entry{}; }
 #endif
 }

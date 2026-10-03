@@ -16,6 +16,7 @@
 #include "Practice/Tutorial.h"
 #include "Practice/Boss.h"
 #include "TouchLayout.h"
+#include "WebBoards.h"
 #include <vector>
 using namespace std;
 //Screen dimension constants
@@ -744,6 +745,10 @@ private:
 	void RenderRecipes();
 	void RenderCredits();
 	void OpenWorldBoards();                 // asks for a name the first time, sends this device's bests, opens it
+	// LEADERBOARD (menu, key L, Game Over, the top 3): the world ranking on the web (owner 2026-10-03: one board is
+	// enough), this device's top 10 everywhere else
+	void OpenLeaderboard() { if (webboards::Available()) OpenWorldBoards(); else m_showLeaderboard = true; }
+	Uint32 m_previewAt = 0;                 // SDL ticks of the menu's last world top 3 request (0 = never)
 	void RequestWorldBoard();
 	void RenderWorldBoards();
 	void HandleWorldKey(SDL_Keycode sym);

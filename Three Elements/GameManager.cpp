@@ -596,7 +596,7 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         return;
     }
     if (sym == SDLK_h && m_session.State() != practice::GameState::Playing) { m_showRecipes = true; return; }
-    if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { m_showLeaderboard = true; return; }
+    if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { OpenLeaderboard(); return; }
     if (sym == SDLK_t && menu) { StartTutorial(); return; }
     if (sym == SDLK_b && menu) { m_showBossSelect = true; return; }
     if (sym == SDLK_s && menu) { StartMode(practice::SessionMode::Survival); return; }
@@ -782,7 +782,7 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     }
     if (m_session.State() == practice::GameState::GameOver && hit(LEADERBOARD_BUTTON_GAMEOVER_RECT))
     {
-        m_showLeaderboard = true;
+        OpenLeaderboard();
         return;
     }
 
@@ -799,7 +799,7 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
             }
         }
         if (hit(TOP3_PANEL_RECT))
-            m_showLeaderboard = true;
+            OpenLeaderboard();
         break;
 
     case practice::GameState::GameOver:
@@ -1112,6 +1112,7 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
             online::Submit(online::Board::Play, st.score);
         else
             online::Submit(online::Board::Survival, static_cast<long long>(st.survivalTime * 1000.0f));
+        m_previewAt = SDL_GetTicks() - 57000;  // the menu's world top 3 again in about 3 s, after this run is in
         // the web's world ranking (spec §33), once the player has typed a name
         if (m_session.Mode() == practice::SessionMode::Play)
             webboards::Submit(webboards::Board::Play, st.score, st.survivalTime);
@@ -1761,7 +1762,7 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
     case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_GUIDE:       m_showGuide = true; break;
-    case MENU_LEADERBOARD: m_showLeaderboard = true; break;
+    case MENU_LEADERBOARD: OpenLeaderboard(); break;
     case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
     case MENU_SHOP:        m_showShop = true; break;
     case MENU_CREDITS:     m_showCredits = true; break;
@@ -2224,8 +2225,37 @@ void GameManager::RenderTop3Panel()
     SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 160);
     SDL_RenderDrawRect(m_screen, &panel);
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-    pixeltext::DrawShadowed(m_screen, "TOP 3  PLAY", panel.x + 12, panel.y + 10, 2, gold);  // PLAY ranks by score (P3-5)
     char buf[48];
+    if (webboards::Available())  // the web (spec §33): the world's top 3 of PLAY this week, fetched now and then
+    {
+        Uint32 now = SDL_GetTicks();
+        if (m_previewAt == 0 || now - m_previewAt > 60000)
+        {
+            m_previewAt = now == 0 ? 1 : now;
+            webboards::Request(webboards::Board::Play, webboards::Period::Week, webboards::PREVIEW);
+        }
+        pixeltext::DrawShadowed(m_screen, "WORLD - THIS WEEK", panel.x + 12, panel.y + 10, 2, gold);  // PLAY's board
+        webboards::Status status = webboards::GetStatus(webboards::PREVIEW);
+        int n = status == webboards::Status::Ready ? webboards::Count(webboards::PREVIEW) : 0;
+        const char* me = webboards::Name();
+        if (n == 0)
+            pixeltext::DrawShadowed(m_screen, status == webboards::Status::Failed ? "OFFLINE" : status == webboards::Status::Ready
+                ? "NO RUNS YET" : "LOADING...", panel.x + 12, panel.y + 50, 2, grey);
+        for (int i = 0; i < 3 && i < n; ++i)
+        {
+            webboards::Entry e = webboards::Get(i, webboards::PREVIEW);
+            bool mine = me[0] != '\0' && std::strcmp(me, e.name) == 0;
+            snprintf(buf, sizeof(buf), "%d. %s", i + 1, e.name);
+            pixeltext::DrawShadowed(m_screen, buf, panel.x + 12, panel.y + 40 + i * 26, 2, mine || i == 0 ? gold : white);
+            snprintf(buf, sizeof(buf), "%lld", e.score);
+            pixeltext::DrawShadowed(m_screen, buf, panel.x + panel.w - pixeltext::Width(buf, 2) - 12, panel.y + 40 + i * 26, 2,
+                mine || i == 0 ? gold : white);
+        }
+        pixeltext::DrawShadowed(m_screen, m_showTouchControls ? "TAP: WORLD RANKING" : "L: WORLD RANKING",
+            panel.x + 12, panel.y + panel.h - 22, 2, grey);
+        return;
+    }
+    pixeltext::DrawShadowed(m_screen, "TOP 3  PLAY", panel.x + 12, panel.y + 10, 2, gold);  // PLAY ranks by score (P3-5)
     if (m_playRuns[0].score <= 0)
         pixeltext::DrawShadowed(m_screen, "NO RUNS YET", panel.x + 12, panel.y + 50, 2, grey);
     for (int i = 0; i < 3 && m_playRuns[i].score > 0; ++i)
@@ -3251,7 +3281,15 @@ void GameManager::RenderGameOverScreen()
     FormatTime(value, sizeof(value), st.survivalTime);
     ResultRow("TIME", value, m_lastBestUpdate.survivalTime ? "NEW BEST!" : NULL, m_lastBestUpdate.survivalTime ? 1 : 0);
     ResultSeparator();
-    if (m_lastRank > 0)
+    if (webboards::Available())  // the web has one board, the world ranking (spec §33)
+    {
+        const char* me = webboards::Name();
+        if (me[0] != '\0')
+            ResultRow("WORLD RANKING", "SENT AS", me, 2);
+        else
+            ResultRow("WORLD RANKING", "NO NAME - NOT SENT", NULL, 2);
+    }
+    else if (m_lastRank > 0)
     {
         snprintf(value, sizeof(value), "#%d", m_lastRank);
         ResultRow("RANK", value, "ON THIS DEVICE", 1);
@@ -3628,7 +3666,15 @@ void GameManager::RenderPlayGameOver()
         }
     }
     ResultSeparator();
-    if (m_lastRank > 0)
+    if (webboards::Available())  // the web has one board, the world ranking (spec §33)
+    {
+        const char* me = webboards::Name();
+        if (me[0] != '\0')
+            ResultRow("WORLD RANKING", "SENT AS", me, 2);
+        else
+            ResultRow("WORLD RANKING", "NO NAME - NOT SENT", NULL, 2);
+    }
+    else if (m_lastRank > 0)
     {
         snprintf(value, sizeof(value), "#%d", m_lastRank);
         ResultRow("RANK", value, "ON THIS DEVICE", 1);
