@@ -592,7 +592,10 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
 
     invoker::InputAction action;
     if (MainPlayer::TranslateKey(e, action))
+    {
+        PressTouchButtonFor(action);  // a hardware key lights its on-screen button too, when they are shown
         ProcessAction(action);
+    }
 }
 
 // Ready / Game Over -> new session (ignored while Playing, per PracticeSession::PressEnter itself).
@@ -795,6 +798,7 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
         {
             if (hit(TouchButtonRect(i)))
             {
+                PressTouchButton(i);
                 ProcessAction(kTouchActions[i]);
                 break;
             }
@@ -914,6 +918,11 @@ void GameManager::DrawTouchButtons()
     for (int i = 0; i < 6; ++i)
     {
         const SDL_Rect r = TouchButtonRect(i);
+        // the finger's answer (1.9.11): how far along the press is, and the button's own colour
+        float since = TOUCH_RIPPLE_TIME - m_touchPress[i];  // s since the press
+        bool pressed = m_touchPress[i] > 0.0f && since < TOUCH_PRESS_TIME;
+        SDL_Color tint = i < 3 ? kOrbColors[i] : i == 3 ? SDL_Color{ 255, 210, 90, 255 } : SDL_Color{ 235, 240, 255, 255 };
+        int sink = pressed ? TOUCH_PRESS_SINK : 0;
         if (i >= 4)  // D / F: the button is the slot itself - the skill's icon, tapped to cast it (spec §30 L-8)
         {
             int slot = i - 4;
@@ -928,8 +937,13 @@ void GameManager::DrawTouchButtons()
             SDL_RenderFillRect(m_screen, &r);
             if (spell != invoker::SkillId::None)
             {
-                m_skillIcons[static_cast<int>(spell)].RenderAt(m_screen, r.x + 2, r.y + 2, r.w - 4);
+                m_skillIcons[static_cast<int>(spell)].RenderAt(m_screen, r.x + 2, r.y + 2 + sink, r.w - 4);
                 SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+            }
+            if (pressed)  // a light over the icon while the finger is on it
+            {
+                SDL_SetRenderDrawColor(m_screen, tint.r, tint.g, tint.b, static_cast<Uint8>(90 * (1.0f - since / TOUCH_PRESS_TIME)));
+                SDL_RenderFillRect(m_screen, &r);
             }
             SDL_SetRenderDrawColor(m_screen, 255, 255, 255, spell != invoker::SkillId::None ? 150 : 70);
             SDL_RenderDrawRect(m_screen, &r);
@@ -956,11 +970,17 @@ void GameManager::DrawTouchButtons()
                     SDL_RenderDrawRect(m_screen, &glow);
                 }
             }
+            DrawTouchRipple(r, tint, since);
             SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
             continue;
         }
         SDL_SetRenderDrawColor(m_screen, 20, 22, 30, 150);
         SDL_RenderFillRect(m_screen, &r);
+        if (pressed)  // the button lights up in its colour
+        {
+            SDL_SetRenderDrawColor(m_screen, tint.r, tint.g, tint.b, static_cast<Uint8>(110 * (1.0f - since / TOUCH_PRESS_TIME)));
+            SDL_RenderFillRect(m_screen, &r);
+        }
         if (i < 3)  // Q/W/E: a band of their element colour along the bottom, matching the HUD orbs
         {
             SDL_Color c = kOrbColors[i];
@@ -974,13 +994,30 @@ void GameManager::DrawTouchButtons()
         SDL_Texture* tex = icons[i]->p_object_;
         if (tex != NULL)
         {
-            SDL_Rect src = { 0, 0, 32, 32 };  // the first (unpressed) frame of the 64x32, 2-frame sheet
+            SDL_Rect src = { pressed ? 32 : 0, 0, 32, 32 };  // the 64x32 sheet: unpressed frame, pressed frame
             const int pad = r.w / 9;
-            SDL_Rect dst = { r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2 };
+            SDL_Rect dst = { r.x + pad, r.y + pad + sink, r.w - pad * 2, r.h - pad * 2 };
             SDL_RenderCopy(m_screen, tex, &src, &dst);
         }
+        DrawTouchRipple(r, tint, since);
     }
     SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+}
+
+// A ring in the button's colour spreading out from it and fading, right after a press.
+void GameManager::DrawTouchRipple(const SDL_Rect& r, SDL_Color tint, float since)
+{
+    if (since < 0.0f || since >= TOUCH_RIPPLE_TIME)
+        return;
+    float f = since / TOUCH_RIPPLE_TIME;              // 0 at the press, 1 when it is gone
+    int grow = static_cast<int>(TOUCH_RIPPLE_GROW * (1.0f - (1.0f - f) * (1.0f - f)));
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, tint.r, tint.g, tint.b, static_cast<Uint8>(220 * (1.0f - f)));
+    for (int k = 0; k < 2; ++k)
+    {
+        SDL_Rect ring = { r.x - grow - k, r.y - grow - k, r.w + 2 * (grow + k), r.h + 2 * (grow + k) };
+        SDL_RenderDrawRect(m_screen, &ring);
+    }
 }
 
 // One log line per judged cast; shared by casts that are judged at once and by Tornado hits.
@@ -1261,6 +1298,8 @@ void GameManager::UpdateFeedback(float dt)
         m_itemFlash[i] -= dt;
     m_slotFlash[0] -= dt;
     m_slotFlash[1] -= dt;
+    for (float& press : m_touchPress)
+        press -= dt;
     for (int i = 0; i < FEEDBACK_MAX_BURSTS; ++i)
         m_bursts[i].left -= dt;
     for (int i = 0; i < DROP_MAX; ++i)
@@ -2211,7 +2250,10 @@ void GameManager::HandleTutorialKey(SDL_Keycode sym, const SDL_Event& e)
     }
     invoker::InputAction action;
     if (MainPlayer::TranslateKey(e, action))
+    {
+        PressTouchButtonFor(action);  // a hardware key lights its on-screen button too, when they are shown
         ProcessTutorialAction(action);
+    }
 }
 
 bool GameManager::HandleTutorialPointer(int x, int y)
@@ -2239,6 +2281,7 @@ bool GameManager::HandleTutorialPointer(int x, int y)
     {
         if (hit(TouchButtonRect(i)))
         {
+            PressTouchButton(i);
             ProcessTutorialAction(kTouchActions[i]);
             return true;
         }
@@ -4438,7 +4481,10 @@ void GameManager::HandleBossKey(SDL_Keycode sym, const SDL_Event& e)
     }
     invoker::InputAction action;
     if (MainPlayer::TranslateKey(e, action))
+    {
+        PressTouchButtonFor(action);  // a hardware key lights its on-screen button too, when they are shown
         ProcessBossAction(action);
+    }
 }
 
 bool GameManager::HandleBossPointer(int x, int y)
@@ -4459,6 +4505,7 @@ bool GameManager::HandleBossPointer(int x, int y)
     {
         if (hit(TouchButtonRect(i)))
         {
+            PressTouchButton(i);
             ProcessBossAction(kTouchActions[i]);
             return true;
         }

@@ -525,6 +525,8 @@ A spell "lands" on the boss when its impact happens within its radius of the bos
 - **L-8 [owner 2026-10-01, update 1.7.2]** **On a touch screen the D and F buttons are the skill slots.** Each shows the icon of the skill it holds and is tapped to cast it; the key's letter stays small in a corner. An empty slot is an empty tile with the letter. The two slots that used to sit under the orb row are not drawn on a touch screen (they said the same thing twice); the three orbs stay. A button glows for a moment when a new skill enters it. With a keyboard nothing changes: there are no touch buttons, so the slots stay under the orbs. In the Tutorial, what points at a slot points at its button.
 - **L-7** **Architecture:** the geometry is `TouchLayout.h/.cpp` (no SDL, tested with the Practice tests); `GameManager` draws, drags and saves. `--touch` (development only) shows the touch buttons on a PC.
 
+- **L-9** **The buttons answer the finger (1.9.11, owner).** A pressed button lights up in its colour (Q / W / E their element's, R gold, D / F white) for 0.16 s, its key shows the pressed frame of its icon and sinks 2 px, and a ring in the same colour spreads 12 px around it and fades in 0.3 s. A hardware key lights its on-screen button the same way when the buttons are shown. Presentation only.
+
 ## 31. Guide and first-time tips (update 1.8)
 
 **Status: CONFIRMED by the owner 2026-10-01 (both layers; GUIDE as its own button; the list of tips as proposed).** The Tutorial (§24) teaches orbs, invoke and cast; everything PLAY adds is taught here. Presentation only.

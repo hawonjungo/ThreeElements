@@ -264,6 +264,12 @@ const SDL_Rect TIP_PANEL_RECT = { 204, 148, 520, 236 };
 const SDL_Rect TIP_BUTTON_RECT = { 364, 336, 200, 36 };
 const int TIP_MISS_STREAK = 3;           // wrong casts in a row before the recipe hint is suggested
 const float SLOT_FLASH_TIME = 0.45f;     // s a D / F button glows after a new skill went into it
+// A touch button answers the finger (1.9.11): it lights up in its colour (Q / W / E their element, R gold, D / F
+// white), its key shows the pressed frame of its icon and sinks 2 px, and a ring spreads from it and fades.
+const float TOUCH_PRESS_TIME = 0.16f;   // s it stays pressed
+const float TOUCH_RIPPLE_TIME = 0.3f;   // s of the spreading ring
+const int TOUCH_RIPPLE_GROW = 12;       // px the ring grows around the button
+const int TOUCH_PRESS_SINK = 2;         // px the key's picture goes down while pressed
 const SDL_Rect LAYOUT_SPLIT_RECT = { 24, 20, 230, 40 };
 const SDL_Rect LAYOUT_SIZE_RECT = { 266, 20, 230, 40 };
 const SDL_Rect LAYOUT_RESET_RECT = { 508, 20, 180, 40 };
@@ -405,6 +411,15 @@ protected:
 	// touch screens: the D / F buttons are the skill slots (spec §30 L-8); a slot glows when a new skill enters it
 	invoker::SkillId m_slotShown[2] = { invoker::SkillId::None, invoker::SkillId::None };
 	float m_slotFlash[2] = {};
+	float m_touchPress[touchlayout::BUTTON_COUNT] = {};  // s since each touch button was pressed (counts down)
+	void PressTouchButton(int i) { m_touchPress[i] = TOUCH_RIPPLE_TIME; }
+	void PressTouchButtonFor(invoker::InputAction action)
+	{
+		for (int i = 0; i < touchlayout::BUTTON_COUNT && m_showTouchControls; ++i)
+			if (kTouchActions[i] == action)
+				PressTouchButton(i);
+	}
+	void DrawTouchRipple(const SDL_Rect& r, SDL_Color tint, float since);
 	bool m_showGuide = false;            // the GUIDE is open (Home)
 	int m_guideTab = 0;
 	int m_tipsSeen = 0;                  // bit per TipId: shown already (saved with the settings)
