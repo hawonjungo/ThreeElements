@@ -358,6 +358,8 @@ bool GameManager::RunFrame()
     {
         EndSession();
         audio::Play(audio::Sfx::GameOver);
+        if (m_showTouchControls)  // spec §31 G-6: after the first run on a touch screen, the buttons can be moved
+            QueueTip(TIP_LAYOUT);
     }
     if (m_tutorialActive && !m_showRecipes)  // the recipe list pauses the tutorial run
     {
@@ -485,7 +487,13 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     SDL_Keycode sym = e.key.keysym.sym;
     if (TipShown())  // only these close a tip, so a player hammering Q / W / E does not skip it unread
     {
-        if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE || sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
+        bool layout = m_tipQueue[0] == TIP_LAYOUT;
+        if (layout && (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE))
+        {
+            DismissTip();
+            OpenLayoutEditor();  // its main button: CHANGE NOW
+        }
+        else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE || sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
             DismissTip();
         return;
     }
@@ -660,7 +668,17 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     bool menu = !m_tutorialActive && !m_bossActive && m_session.State() == practice::GameState::Ready;
     if (TipShown())  // only its button closes a tip
     {
-        if (hit(TIP_BUTTON_RECT))
+        if (m_tipQueue[0] == TIP_LAYOUT)
+        {
+            if (hit(TIP_LAYOUT_NOW_RECT))
+            {
+                DismissTip();
+                OpenLayoutEditor();
+            }
+            else if (hit(TIP_LAYOUT_LATER_RECT))
+                DismissTip();
+        }
+        else if (hit(TIP_BUTTON_RECT))
             DismissTip();
         return;
     }
@@ -1865,7 +1883,7 @@ void GameManager::RenderSettings()
     const SDL_Color off = { 220, 110, 110, 255 };
     pixeltext::DrawCentered(m_screen, "SETTINGS", SCREEN_WIDTH, panel.y + 18, 3, gold);
 
-    const char* names[4] = { "SOUND", "RECIPE HINT", "BUTTON LAYOUT", "TIPS" };
+    const char* names[4] = { "SOUND", "RECIPE HINT", "MOVE BUTTONS", "TIPS" };
     const char* keys[4] = { "M", "G", "", "" };
     int n = SettingsRowCount();
     for (int i = 0; i < n; ++i)
@@ -1881,7 +1899,13 @@ void GameManager::RenderSettings()
         SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 130, 220);
         SDL_RenderDrawRect(m_screen, &r);
         SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
-        pixeltext::DrawShadowed(m_screen, name, r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
+        if (kind == SETTING_LAYOUT)  // what it does, under its name (1.9.12: "BUTTON LAYOUT" alone said too little)
+        {
+            pixeltext::DrawShadowed(m_screen, name, r.x + 16, r.y + 9, 2, selected ? gold : white);
+            pixeltext::DrawShadowed(m_screen, "DRAG THEM - SPLIT IN TWO - 3 SIZES", r.x + 16, r.y + 32, 1, grey);
+        }
+        else
+            pixeltext::DrawShadowed(m_screen, name, r.x + 16, r.y + (r.h - 14) / 2, 2, selected ? gold : white);
         if (kind == SETTING_LAYOUT || kind == SETTING_TIPS)  // not a switch: it opens the editor / shows the tips again
         {
             const char* action = kind == SETTING_LAYOUT ? "EDIT" : (m_tipsSeen == 0 ? "ALL ON" : "SHOW AGAIN");
@@ -1896,8 +1920,16 @@ void GameManager::RenderSettings()
         if (!m_showTouchControls)
             pixeltext::DrawShadowed(m_screen, keys[kind], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
     }
-    pixeltext::DrawCentered(m_screen, "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST AN IMMORTAL.", SCREEN_WIDTH,
-        SettingsRowRect(n - 1).y + 62, 1, grey);
+    // one line about the row that is selected
+    const char* help = "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST AN IMMORTAL.";
+    switch (SettingsRowAt(m_settingsIndex < n ? m_settingsIndex : 0))
+    {
+    case SETTING_SOUND:  help = m_showTouchControls ? "THE GAME'S SOUND EFFECTS, ON OR OFF." : "THE GAME'S SOUND EFFECTS, ON OR OFF (KEY M ANYWHERE)."; break;
+    case SETTING_LAYOUT: help = "PUT THE ON-SCREEN BUTTONS WHERE YOUR THUMBS ARE, OR MAKE THEM BIGGER."; break;
+    case SETTING_TIPS:   help = "EVERY FIRST-TIME TIP WILL BE SHOWN ONCE MORE."; break;
+    default: break;
+    }
+    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, SettingsRowRect(n - 1).y + 62, 1, grey);
     RenderButton(SettingsCloseRect(), "CLOSE", false);
 }
 
@@ -3963,11 +3995,14 @@ void GameManager::RenderRuneChoice()
 
 // ------------------------------------------------------------------ first-time tips (spec §31)
 
-// Queues a tip unless it was shown before. Only inside a PLAY / SURVIVAL run: the Tutorial and Boss Fights explain
-// themselves. The run waits while a tip is on screen (RunFrame), and only GOT IT / Enter closes it.
+// Queues a tip unless it was shown before. Only inside a PLAY / SURVIVAL run (the Tutorial and Boss Fights explain
+// themselves), except TIP_LAYOUT, which waits for the first Game Over. The run waits while a tip is on screen
+// (RunFrame), and only GOT IT / Enter closes it.
 void GameManager::QueueTip(TipId tip)
 {
-    if (m_tutorialActive || m_bossActive || m_session.State() != practice::GameState::Playing)
+    practice::GameState state = m_session.State();
+    bool when = tip == TIP_LAYOUT ? state == practice::GameState::GameOver : state == practice::GameState::Playing;
+    if (m_tutorialActive || m_bossActive || !when)
         return;
     if ((m_tipsSeen & (1 << tip)) != 0 || m_tipQueued >= TIP_COUNT)
         return;
@@ -3994,10 +4029,15 @@ void GameManager::RenderTip()
 {
     if (!TipShown())
         return;
-    if (m_session.State() != practice::GameState::Playing)  // the run ended under it: nothing left to explain
+    if (m_session.State() != practice::GameState::Playing)  // the run ended under it: only TIP_LAYOUT is still of use
     {
-        m_tipQueued = 0;
-        return;
+        int kept = 0;
+        for (int i = 0; i < m_tipQueued; ++i)
+            if (m_tipQueue[i] == TIP_LAYOUT && m_session.State() == practice::GameState::GameOver)
+                m_tipQueue[kept++] = m_tipQueue[i];
+        m_tipQueued = kept;
+        if (kept == 0)
+            return;
     }
     const SDL_Color gold = { 255, 210, 90, 255 };
     const SDL_Color white = { 235, 235, 240, 255 };
@@ -4068,6 +4108,13 @@ void GameManager::RenderTip()
         lines[2] = "THE SHOP NEEDS ONE FOR AGHANIM'S";
         lines[3] = "SCEPTER AND FOR ITEM UPGRADES.";
         break;
+    case TIP_LAYOUT:
+        title = "YOUR BUTTONS";
+        lines[0] = "BUTTONS IN THE WAY OF YOUR THUMBS?";
+        lines[1] = "MOVE THEM, SPLIT THEM IN TWO";
+        lines[2] = "OR MAKE THEM BIGGER.";
+        lines[3] = "ALSO IN SETTINGS > MOVE BUTTONS.";
+        break;
     default:
         title = "NEED HELP?";
         lines[0] = "RECIPE HINT SHOWS THE KEYS OF THE";
@@ -4093,7 +4140,13 @@ void GameManager::RenderTip()
     pixeltext::DrawShadowed(m_screen, title, textX, panel.y + 20, 3, gold);
     for (int i = 0; i < 4; ++i)
         pixeltext::DrawShadowed(m_screen, lines[i], textX, panel.y + 58 + i * 24, 2, white);
-    RenderButton(TIP_BUTTON_RECT, touch ? "GOT IT" : "ENTER  GOT IT", true);
+    if (m_tipQueue[0] == TIP_LAYOUT)
+    {
+        RenderButton(TIP_LAYOUT_LATER_RECT, "GOT IT", false);
+        RenderButton(TIP_LAYOUT_NOW_RECT, "CHANGE NOW", true);
+    }
+    else
+        RenderButton(TIP_BUTTON_RECT, touch ? "GOT IT" : "ENTER  GOT IT", true);
 }
 
 // ------------------------------------------------------------------ GUIDE (spec §31)

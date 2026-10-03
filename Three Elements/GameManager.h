@@ -259,9 +259,13 @@ const SDL_Rect GUIDE_PANEL_RECT = { 24, 16, 880, 512 };
 const SDL_Rect GUIDE_CLOSE_RECT = { 748, 482, 136, 34 };
 const int GUIDE_TABS = 5;                // BASICS, ENEMIES, RUNES, ITEMS, BOSSES
 // First-time tips (spec §31): one small card the first time something new shows up in a run; the run waits.
-enum TipId { TIP_ELITE, TIP_OVERLORD, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_IMMORTAL, TIP_MATERIAL, TIP_HINT, TIP_COUNT };
+enum TipId { TIP_ELITE, TIP_OVERLORD, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_IMMORTAL, TIP_MATERIAL, TIP_HINT, TIP_LAYOUT, TIP_COUNT };
 const SDL_Rect TIP_PANEL_RECT = { 204, 148, 520, 236 };
 const SDL_Rect TIP_BUTTON_RECT = { 364, 336, 200, 36 };
+// TIP_LAYOUT (1.9.12, touch screens only, at the first Game Over): two buttons, "GOT IT" and "CHANGE NOW", which
+// opens the button layout editor at once
+const SDL_Rect TIP_LAYOUT_LATER_RECT = { 244, 336, 200, 36 };
+const SDL_Rect TIP_LAYOUT_NOW_RECT = { 484, 336, 200, 36 };
 const int TIP_MISS_STREAK = 3;           // wrong casts in a row before the recipe hint is suggested
 const float SLOT_FLASH_TIME = 0.45f;     // s a D / F button glows after a new skill went into it
 // A touch button answers the finger (1.9.11): it lights up in its colour (Q / W / E their element, R gold, D / F
