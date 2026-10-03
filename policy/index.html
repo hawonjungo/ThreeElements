@@ -38,6 +38,8 @@
     <li>Your progress stays <strong>on your own device</strong>.</li>
     <li>One optional feature of the Android app uses Google: the <strong>global leaderboards</strong>. Only if you
     sign in to Google Play Games are your results sent to Google, to rank you. See below.</li>
+    <li>The web version has an optional <strong>world ranking</strong>. Only if you type a name for it are your
+    results sent, with that name, to our leaderboard server. See below.</li>
   </ul>
 
   <h2>Android app</h2>
@@ -77,18 +79,33 @@
   <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub
   privacy statement</a> for GitHub Pages.</p>
 
+  <h2 id="world-ranking">World ranking (web version, optional)</h2>
+  <p>The LEADERBOARD screen of the web version has a WORLD RANKING button. The first time you open it, the game asks
+  for a name (2 to 12 letters, digits or spaces; it does not have to be your real name). Only after you have typed
+  one, the result of each run you finish is sent to our leaderboard server, together with: that name, the board
+  (PLAY or SURVIVAL), the score, the length of the run and the time it was sent. Your best results from this device
+  are sent once when you set the name.</p>
+  <p>The server also stores a one-way, salted hash of your IP address, only to limit how many results one player can
+  send in an hour; the address itself is not stored. No account, e-mail address, device identifier or location is
+  collected. The server runs on <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a> (Workers and D1),
+  which receives the technical details of each request as part of normal internet traffic.</p>
+  <p>The names and scores are public: anyone can see the ten best of each board. Results are kept until we remove
+  them; a name that is offensive or impersonates someone is removed.</p>
+
   <h2 id="deleting">Deleting your data</h2>
   <p>What the game stores is on your device, so you are always in control of it:</p>
   <ul>
     <li><strong>Android:</strong> uninstall the app, or open Settings &rarr; Apps &rarr; Injoker &rarr; Storage
     &rarr; Clear storage.</li>
     <li><strong>Web:</strong> clear the site data for injoker.relifes.net in your browser settings.</li>
+    <li><strong>World ranking (web):</strong> write to us (contact below) with the name you used, and we delete every
+    result sent under it.</li>
     <li><strong>Global leaderboards:</strong> your results there belong to your Google Play Games profile. In the
     Play Games app, open Settings to delete your data for a single game or your whole Play Games profile; you can
     also hide your game activity there. To stop sending results, sign out of Play Games for Injoker in the same
     place.</li>
   </ul>
-  <p>We hold no copy of your data on any server, so there is nothing for us to delete on our side.</p>
+  <p>Apart from the world ranking of the web version, we hold no copy of your data on any server.</p>
 
   <h2>Google Play</h2>
   <p>If you install Injoker from Google Play, Google processes information about your download and device under
@@ -99,7 +116,8 @@
   <p>Injoker is not directed at children under 13, and it does not knowingly collect information from anyone.</p>
 
   <h2>Changes</h2>
-  <p>1 October 2026: added the optional global leaderboards with Google Play Games (Android, from version 1.7.0).
+  <p>3 October 2026: added the optional world ranking of the web version (a name you type, your results).<br>
+  1 October 2026: added the optional global leaderboards with Google Play Games (Android, from version 1.7.0).
   If Injoker ever adds other features that handle personal data, this policy will be updated
   <strong>before</strong> those features are released, and the date above will change.</p>
 
