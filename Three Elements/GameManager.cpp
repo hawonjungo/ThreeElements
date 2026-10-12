@@ -11,6 +11,7 @@
 #include "Audio.h"
 #include "Online.h"
 #include "WebBoards.h"
+#include "Social.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -475,7 +476,10 @@ bool GameManager::RunFrame()
     RenderRuneChoice();
     RenderPause();
     RenderTip();
+    if (m_showWelcome)
+        RenderWelcome();
     RenderSoundButton();  // every state, above the Ready / Game Over dimming
+    RenderNote();
 
     //Update screen
     SDL_RenderPresent(m_screen);
@@ -500,6 +504,11 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
         }
         else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE || sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
             DismissTip();
+        return;
+    }
+    if (m_showWelcome)
+    {
+        HandleWelcomeKey(sym);
         return;
     }
     if (m_showGuide)
@@ -599,7 +608,8 @@ void GameManager::HandleKeyDown(const SDL_Event& e, bool& quit)
     if (sym == SDLK_l && m_session.State() != practice::GameState::Playing) { OpenLeaderboard(); return; }
     if (sym == SDLK_t && menu) { StartTutorial(); return; }
     if (sym == SDLK_b && menu) { m_showBossSelect = true; return; }
-    if (sym == SDLK_s && menu) { StartMode(practice::SessionMode::Survival); return; }
+    if (sym == SDLK_s && menu) { StartModeFromMenu(practice::SessionMode::Survival); return; }
+    if (sym == SDLK_s && m_session.State() == practice::GameState::GameOver) { ShareRun(); return; }
     // Enter / Esc only map to the session control calls; the rules are in PracticeSession.
     if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)  // AC_BACK: Android Back
     {
@@ -697,6 +707,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
             DismissTip();
         return;
     }
+    if (m_showWelcome)
+    {
+        HandleWelcomePointer(x, y);
+        return;
+    }
     if (m_showGuide)
     {
         HandleGuidePointer(x, y);
@@ -783,6 +798,11 @@ void GameManager::HandlePointerDown(int x, int y, bool& quit)
     if (m_session.State() == practice::GameState::GameOver && hit(LEADERBOARD_BUTTON_GAMEOVER_RECT))
     {
         OpenLeaderboard();
+        return;
+    }
+    if (m_session.State() == practice::GameState::GameOver && hit(SHARE_BUTTON_GAMEOVER_RECT))
+    {
+        ShareRun();
         return;
     }
 
@@ -1107,6 +1127,7 @@ void GameManager::LogUpdate(const practice::UpdateResult& result)
         m_lastRank = SubmitRun(st);
         if (m_lastRank > 0)
             printf("[practice] rank %d on this device\n", m_lastRank);
+        MaybeAskReview();
         // the global boards (Android with Play Games, spec §29): PLAY by score, SURVIVAL by time in milliseconds
         if (m_session.Mode() == practice::SessionMode::Play)
             online::Submit(online::Board::Play, st.score);
@@ -1341,6 +1362,7 @@ void GameManager::OnLeak(int lostHeartIndex)
 
 void GameManager::UpdateFeedback(float dt)
 {
+    m_noteLeft -= dt;
     for (int i = 0; i < FEEDBACK_MAX_TEXTS; ++i)
         m_floatTexts[i].left -= dt;
     for (int i = 0; i < practice::ITEM_SLOTS; ++i)
@@ -1756,14 +1778,14 @@ void GameManager::ActivateMenuItem(MenuItem item, bool& quit)
 {
     switch (item)
     {
-    case MENU_PLAY:        StartMode(practice::SessionMode::Play); break;
-    case MENU_SURVIVAL:    StartMode(practice::SessionMode::Survival); break;
+    case MENU_PLAY:        StartModeFromMenu(practice::SessionMode::Play); break;
+    case MENU_SURVIVAL:    StartModeFromMenu(practice::SessionMode::Survival); break;
     case MENU_TUTORIAL:    StartTutorial(); break;
     case MENU_BOSS:        m_showBossSelect = true; break;
     case MENU_RECIPES:     m_showRecipes = true; break;
     case MENU_GUIDE:       m_showGuide = true; break;
     case MENU_LEADERBOARD: OpenLeaderboard(); break;
-    case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; break;
+    case MENU_SETTINGS:    m_showSettings = true; m_settingsIndex = 0; m_settingsLink = 0; break;
     case MENU_SHOP:        m_showShop = true; break;
     case MENU_CREDITS:     m_showCredits = true; break;
     case MENU_QUIT:        PressEscapeAction(quit); break;
@@ -1932,7 +1954,7 @@ void GameManager::RenderCredits()
 // §30). A row per setting, tap or Enter to switch it (or to open the layout editor).
 SDL_Rect GameManager::SettingsPanelRect() const
 {
-    int h = 160 + SettingsRowCount() * 70;
+    int h = 160 + (SettingsRowCount() + 1) * 70;  // + the row of links
     SDL_Rect r = { SETTINGS_PANEL_X, (SCREEN_HEIGHT - h) / 2 - 12, SETTINGS_PANEL_W, h };
     return r;
 }
@@ -1953,6 +1975,11 @@ SDL_Rect GameManager::SettingsCloseRect() const
 
 void GameManager::ActivateSettingsRow(int row)
 {
+    if (row >= SettingsRowCount())
+    {
+        ActivateSettingsLink(m_settingsLink);
+        return;
+    }
     switch (SettingsRowAt(row))
     {
     case SETTING_SOUND:  ToggleMute(); break;
@@ -1968,9 +1995,14 @@ void GameManager::ActivateSettingsRow(int row)
 
 void GameManager::HandleSettingsKey(SDL_Keycode sym)
 {
-    int n = SettingsRowCount();
+    int n = SettingsRowCount() + 1;  // the settings and the row of links
     if (sym == SDLK_UP || sym == SDLK_DOWN)
         m_settingsIndex = (m_settingsIndex + (sym == SDLK_UP ? n - 1 : 1)) % n;
+    else if ((sym == SDLK_LEFT || sym == SDLK_RIGHT) && m_settingsIndex == n - 1)
+    {
+        int links = SettingsLinkCount();
+        m_settingsLink = (m_settingsLink + (sym == SDLK_LEFT ? links - 1 : 1)) % links;
+    }
     else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
         ActivateSettingsRow(m_settingsIndex);
     else if (sym == SDLK_m)
@@ -1990,6 +2022,16 @@ void GameManager::HandleSettingsPointer(int x, int y)
         {
             m_settingsIndex = row;
             ActivateSettingsRow(row);
+            return;
+        }
+    }
+    for (int i = 0; i < SettingsLinkCount(); ++i)
+    {
+        if (hit(SettingsLinkRect(i)))
+        {
+            m_settingsIndex = SettingsRowCount();
+            m_settingsLink = i;
+            ActivateSettingsLink(i);
             return;
         }
     }
@@ -2052,17 +2094,215 @@ void GameManager::RenderSettings()
         if (!m_showTouchControls)
             pixeltext::DrawShadowed(m_screen, keys[kind], valueX - 30, r.y + (r.h - 7) / 2, 1, grey);
     }
+    // the row of links: RATE / SHARE / FEEDBACK side by side
+    bool onLinks = m_settingsIndex >= n;
+    for (int i = 0; i < SettingsLinkCount(); ++i)
+    {
+        static const char* const linkNames[3] = { "RATE", "SHARE", "FEEDBACK" };
+        SDL_Rect r = SettingsLinkRect(i);
+        bool selected = onLinks && i == m_settingsLink;
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(m_screen, 28, 30, 46, selected ? 240 : 190);
+        SDL_RenderFillRect(m_screen, &r);
+        SDL_SetRenderDrawColor(m_screen, selected ? 255 : 110, selected ? 210 : 115, selected ? 90 : 130, 220);
+        SDL_RenderDrawRect(m_screen, &r);
+        SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+        const char* name = linkNames[SettingsLinkAt(i)];
+        pixeltext::DrawShadowed(m_screen, name, r.x + (r.w - pixeltext::Width(name, 2)) / 2, r.y + (r.h - 14) / 2, 2,
+            selected ? gold : white);
+    }
     // one line about the row that is selected
     const char* help = "HINT SHOWS THE KEYS OF EACH SPELL, AND WHEN TO CAST AGAINST AN IMMORTAL.";
-    switch (SettingsRowAt(m_settingsIndex < n ? m_settingsIndex : 0))
+    if (onLinks)
+    {
+        switch (SettingsLinkAt(m_settingsLink < SettingsLinkCount() ? m_settingsLink : 0))
+        {
+        case LINK_RATE:  help = "RATE INJOKER ON GOOGLE PLAY - IT HELPS OTHER PLAYERS FIND IT."; break;
+        case LINK_SHARE: help = social::CanRate() ? "SEND THE GAME TO A FRIEND." : "SEND THE GAME TO A FRIEND (ITS LINKS GO TO THE CLIPBOARD HERE)."; break;
+        default:         help = "A BUG OR AN IDEA? THE SUPPORT PAGE HAS THE EMAIL ADDRESS."; break;
+        }
+    }
+    else switch (SettingsRowAt(m_settingsIndex))
     {
     case SETTING_SOUND:  help = m_showTouchControls ? "THE GAME'S SOUND EFFECTS, ON OR OFF." : "THE GAME'S SOUND EFFECTS, ON OR OFF (KEY M ANYWHERE)."; break;
     case SETTING_LAYOUT: help = "PUT THE ON-SCREEN BUTTONS WHERE YOUR THUMBS ARE, OR MAKE THEM BIGGER."; break;
     case SETTING_TIPS:   help = "EVERY FIRST-TIME TIP WILL BE SHOWN ONCE MORE."; break;
     default: break;
     }
-    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, SettingsRowRect(n - 1).y + 62, 1, grey);
+    pixeltext::DrawCentered(m_screen, help, SCREEN_WIDTH, SettingsRowRect(n).y + 62, 1, grey);
     RenderButton(SettingsCloseRect(), "CLOSE", false);
+}
+
+int GameManager::SettingsLinkCount() const
+{
+    return social::CanRate() ? 3 : 2;
+}
+
+GameManager::SettingsLink GameManager::SettingsLinkAt(int i) const
+{
+    if (!social::CanRate())
+        ++i;  // no Play page to rate on: SHARE, FEEDBACK
+    return i == 0 ? LINK_RATE : i == 1 ? LINK_SHARE : LINK_FEEDBACK;
+}
+
+// the row under the settings, split into equal buttons
+SDL_Rect GameManager::SettingsLinkRect(int i) const
+{
+    SDL_Rect row = SettingsRowRect(SettingsRowCount());
+    const int gap = 12;
+    int count = SettingsLinkCount();
+    int w = (row.w - gap * (count - 1)) / count;
+    SDL_Rect r = { row.x + i * (w + gap), row.y, w, row.h };
+    return r;
+}
+
+void GameManager::ActivateSettingsLink(int i)
+{
+    switch (SettingsLinkAt(i))
+    {
+    case LINK_RATE:     social::OpenStorePage(); break;
+    case LINK_SHARE:    ShareGame(); break;
+    case LINK_FEEDBACK: social::OpenFeedback(); break;
+    }
+    audio::Play(audio::Sfx::Cast);
+}
+
+// ------------------------------------------------------------------ rate, share, feedback (1.9.16)
+
+void GameManager::ShareGame()
+{
+    char text[320];
+    snprintf(text, sizeof(text), "Injoker - mix ice, lightning and fire into 10 spells and cast the right one before "
+        "the enemies reach you. Android: %s - In your browser: %s", PLAY_STORE_URL, WEB_URL);
+    ShareText(text);
+}
+
+void GameManager::ShareRun()
+{
+    const practice::Stats& st = m_session.GetStats();
+    char time[32], text[320];
+    FormatTime(time, sizeof(time), st.survivalTime);
+    if (m_session.Mode() == practice::SessionMode::Play)
+        snprintf(text, sizeof(text), "I scored %d in Injoker (stage %d, %d enemies). Can you beat it? Android: %s - "
+            "In your browser: %s", st.score, st.bossesDefeated + 1, st.kills, PLAY_STORE_URL, WEB_URL);
+    else
+        snprintf(text, sizeof(text), "I survived %s in Injoker's SURVIVAL mode (score %d). Can you beat it? "
+            "Android: %s - In your browser: %s", time, st.score, PLAY_STORE_URL, WEB_URL);
+    ShareText(text);
+}
+
+void GameManager::ShareText(const char* text)
+{
+    social::ShareResult r = social::Share(text);
+    if (r == social::ShareResult::Copied)
+        ShowNote("LINKS COPIED - PASTE THEM TO A FRIEND");
+    else if (r == social::ShareResult::Failed)
+        ShowNote("COULD NOT SHARE ON THIS DEVICE");
+    printf("[social] share: %s\n", r == social::ShareResult::Opened ? "share sheet" : r == social::ShareResult::Copied ? "clipboard" : "failed");
+}
+
+// Google's review card (Android), at a good moment: a run that just became this device's best, after at least
+// three runs of that mode, once per launch. Never in the middle of a run; Google decides whether it shows at all.
+void GameManager::MaybeAskReview()
+{
+    if (m_reviewAsked || !social::CanRate() || m_lastRank != 1)
+        return;
+    bool enoughRuns = m_session.Mode() == practice::SessionMode::Play ? m_playRuns[2].score > 0
+        : m_topRuns[2].survivalTime > 0.0f;
+    if (!enoughRuns)
+        return;
+    m_reviewAsked = true;
+    social::AskReview();
+    printf("[social] review card asked for\n");
+}
+
+void GameManager::RenderNote()
+{
+    if (m_note == NULL || m_noteLeft <= 0.0f)
+        return;
+    const SDL_Color white = { 235, 235, 240, 255 };
+    int w = pixeltext::Width(m_note, 2) + 32;
+    SDL_Rect r = { (SCREEN_WIDTH - w) / 2, SCREEN_HEIGHT - 40, w, 30 };
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 235);
+    SDL_RenderFillRect(m_screen, &r);
+    SDL_SetRenderDrawColor(m_screen, 120, 230, 130, 220);
+    SDL_RenderDrawRect(m_screen, &r);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    pixeltext::DrawShadowed(m_screen, m_note, r.x + 16, r.y + 8, 2, white);
+}
+
+// ------------------------------------------------------------------ "NEW TO INJOKER?" (1.9.16)
+
+// The closed-test report found no tutorial: it is on the menu, but a new player goes straight for PLAY. So the
+// first PLAY / SURVIVAL, while the tutorial was never finished, asks once. Either answer counts as seen.
+void GameManager::StartModeFromMenu(practice::SessionMode mode)
+{
+    if (!m_tutorialDone && (m_tipsSeen & (1 << TIP_WELCOME)) == 0)
+    {
+        m_showWelcome = true;
+        m_welcomeMode = mode;
+        m_welcomeIndex = 1;
+        return;
+    }
+    StartMode(mode);
+}
+
+void GameManager::ChooseWelcome(bool tutorial)
+{
+    m_showWelcome = false;
+    m_tipsSeen |= 1 << TIP_WELCOME;
+    SaveSettings();
+    if (tutorial)
+        StartTutorial();
+    else
+        StartMode(m_welcomeMode);
+}
+
+void GameManager::HandleWelcomeKey(SDL_Keycode sym)
+{
+    if (sym == SDLK_LEFT || sym == SDLK_RIGHT || sym == SDLK_UP || sym == SDLK_DOWN || sym == SDLK_TAB)
+        m_welcomeIndex = 1 - m_welcomeIndex;
+    else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_SPACE)
+        ChooseWelcome(m_welcomeIndex == 1);
+    else if (sym == SDLK_t)
+        ChooseWelcome(true);
+    else if (sym == SDLK_ESCAPE || sym == SDLK_AC_BACK)
+        m_showWelcome = false;  // back to the menu, asked again next time
+}
+
+void GameManager::HandleWelcomePointer(int x, int y)
+{
+    auto hit = [x, y](const SDL_Rect& r) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; };
+    if (hit(TIP_LAYOUT_NOW_RECT))
+        ChooseWelcome(true);
+    else if (hit(TIP_LAYOUT_LATER_RECT))
+        ChooseWelcome(false);
+    else if (!hit(TIP_PANEL_RECT))
+        m_showWelcome = false;
+}
+
+void GameManager::RenderWelcome()
+{
+    const SDL_Color gold = { 255, 210, 90, 255 };
+    const SDL_Color white = { 235, 235, 240, 255 };
+    const SDL_Color grey = { 150, 155, 170, 255 };
+    DimScreen(150);
+    const SDL_Rect& panel = TIP_PANEL_RECT;
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_screen, 16, 18, 28, 245);
+    SDL_RenderFillRect(m_screen, &panel);
+    SDL_SetRenderDrawColor(m_screen, 255, 210, 90, 220);
+    SDL_RenderDrawRect(m_screen, &panel);
+    SDL_SetRenderDrawBlendMode(m_screen, SDL_BLENDMODE_NONE);
+    int textX = panel.x + 28;
+    pixeltext::DrawShadowed(m_screen, "NEW TO INJOKER?", textX, panel.y + 20, 3, gold);
+    pixeltext::DrawShadowed(m_screen, "THE TUTORIAL TEACHES THE ELEMENTS", textX, panel.y + 58, 2, white);
+    pixeltext::DrawShadowed(m_screen, "AND YOUR FIRST SPELL, KEY BY KEY.", textX, panel.y + 82, 2, white);
+    pixeltext::DrawShadowed(m_screen, "IT TAKES ABOUT TWO MINUTES.", textX, panel.y + 106, 2, white);
+    pixeltext::DrawShadowed(m_screen, "IT IS ALWAYS IN THE MENU TOO.", textX, panel.y + 136, 2, grey);
+    RenderButton(TIP_LAYOUT_LATER_RECT, "SKIP", m_welcomeIndex == 0);
+    RenderButton(TIP_LAYOUT_NOW_RECT, "TUTORIAL", m_welcomeIndex == 1);
 }
 
 // ------------------------------------------------------------------ BUTTON LAYOUT editor (spec §30)
@@ -4777,6 +5017,7 @@ void GameManager::ResultButtons(const char* again, const char* back, bool extras
     {
         RenderButton(RECIPES_BUTTON_GAMEOVER_RECT, touch ? "RECIPES" : "H  RECIPES", false);
         RenderButton(LEADERBOARD_BUTTON_GAMEOVER_RECT, touch ? "LEADERBOARD" : "L  LEADERBOARD", false);
+        RenderButton(SHARE_BUTTON_GAMEOVER_RECT, touch ? "SHARE" : "S  SHARE", false);
     }
 }
 

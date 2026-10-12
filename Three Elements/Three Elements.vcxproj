@@ -175,6 +175,7 @@
     <ClCompile Include="Audio.cpp" />
     <ClCompile Include="Online.cpp" />
     <ClCompile Include="WebBoards.cpp" />
+    <ClCompile Include="Social.cpp" />
     <ClCompile Include="TouchLayout.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -191,6 +192,7 @@
     <ClInclude Include="Practice\Tutorial.h" />
     <ClInclude Include="Online.h" />
     <ClInclude Include="WebBoards.h" />
+    <ClInclude Include="Social.h" />
     <ClInclude Include="TouchLayout.h" />
     <ClInclude Include="Practice\Boss.h" />
     <ClInclude Include="Practice\Field.h" />

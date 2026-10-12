@@ -263,7 +263,9 @@ const SDL_Rect GUIDE_PANEL_RECT = { 24, 16, 880, 512 };
 const SDL_Rect GUIDE_CLOSE_RECT = { 748, 482, 136, 34 };
 const int GUIDE_TABS = 5;                // BASICS, ENEMIES, RUNES, ITEMS, BOSSES
 // First-time tips (spec §31): one small card the first time something new shows up in a run; the run waits.
-enum TipId { TIP_ELITE, TIP_OVERLORD, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_IMMORTAL, TIP_MATERIAL, TIP_HINT, TIP_LAYOUT, TIP_COUNT };
+// TIP_WELCOME (1.9.16) is not a card of a run: it is the "NEW TO INJOKER?" question before the first PLAY / SURVIVAL
+// while the tutorial was never finished, kept in the same bits so that SETTINGS > TIPS brings it back too.
+enum TipId { TIP_ELITE, TIP_OVERLORD, TIP_RUNE, TIP_GOLD, TIP_ITEMS, TIP_IMMORTAL, TIP_MATERIAL, TIP_HINT, TIP_LAYOUT, TIP_WELCOME, TIP_COUNT };
 const SDL_Rect TIP_PANEL_RECT = { 204, 148, 520, 236 };
 const SDL_Rect TIP_BUTTON_RECT = { 364, 336, 200, 36 };
 // TIP_LAYOUT (1.9.12, touch screens only, at the first Game Over): two buttons, "GOT IT" and "CHANGE NOW", which
@@ -291,7 +293,13 @@ const SDL_Rect TOP3_PANEL_RECT = { 640, 116, 264, 150 };
 const SDL_Rect MENU_SHOP_RECT = { 640, 296, 264, 50 };  // in line with the TUTORIAL button, a bag drawn on its left
 // CREDITS (1.9.13): who made what, from the menu's small row
 const SDL_Rect CREDITS_PANEL_RECT = { 104, 40, 720, 464 };
-const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 470, 464, 244, 34 };
+const SDL_Rect LEADERBOARD_BUTTON_GAMEOVER_RECT = { 372, 464, 192, 34 };
+// SHARE (1.9.16): the run's result and the game's links, through the share sheet (or the clipboard)
+const SDL_Rect SHARE_BUTTON_GAMEOVER_RECT = { 572, 464, 142, 34 };
+// the game's two homes, in every shared text: the Play page and the web version
+const char* const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=net.relifes.injoker";
+const char* const WEB_URL = "https://injoker.relifes.net";
+const float NOTE_TIME = 2.2f;           // s a short note ("LINK COPIED") stays at the bottom of the screen
 // On the LEADERBOARD screen, only where online boards exist (Android with Google Play Games, spec §29): opens
 // Google's leaderboard screen (names, avatars, this week / all time).
 const SDL_Rect GLOBAL_BOARDS_BUTTON_RECT = { 264, 398, 400, 38 };
@@ -311,7 +319,7 @@ const SDL_Rect TUTORIAL_PLAY_RECT           = { 140, 8 + 128 - 40, 250, 32 };
 const SDL_Rect TUTORIAL_MENU_RECT           = { 120 + 540 - 172, 8 + 128 - 40, 160, 32 };
 const float TUTORIAL_WRONG_FLASH = 0.6f;    // s: the expected key flashes after a wrong one
 const float TUTORIAL_SPAWN_FLASH = 3.0f;    // s: a new run enemy and its target are highlighted
-const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 214, 464, 244, 34 };
+const SDL_Rect RECIPES_BUTTON_GAMEOVER_RECT = { 214, 464, 150, 34 };
 const SDL_Rect TOUCH_PLAYING_MENU_RECT   = { 780,  30, 132, 30 };  // "ESC  PAUSE" HUD reminder, top-right
 
 // Boss mode (spec §25): the boss list (menu line BOSS FIGHTS / key B), the fight's HUD, the result screen.
@@ -425,7 +433,14 @@ protected:
 	Drop m_drops[DROP_MAX] = {};
 	bool m_paused = false;               // Esc while playing: the run (or boss fight) waits
 	int m_resultY = 0;                   // the next row of the result panel being drawn
-	int m_settingsIndex = 0;             // 0 = sound, 1 = recipe hint, 2 = button layout (touch devices)
+	int m_settingsIndex = 0;             // a row of SettingsRowAt; SettingsRowCount() = the row of links
+	int m_settingsLink = 0;              // on the row of links: RATE (Android) / SHARE / FEEDBACK
+	bool m_showWelcome = false;          // "NEW TO INJOKER?" before the first run (TIP_WELCOME)
+	practice::SessionMode m_welcomeMode = practice::SessionMode::Play;  // the mode it was asked for
+	int m_welcomeIndex = 1;              // its selected button: 0 = SKIP, 1 = TUTORIAL
+	bool m_reviewAsked = false;          // Google's review card was asked for in this launch
+	const char* m_note = NULL;           // a short note at the bottom of the screen ("LINK COPIED")
+	float m_noteLeft = 0.0f;
 	touchlayout::Layout m_layout = touchlayout::Default(false, touchlayout::DEFAULT_SIZE);  // saved with the settings
 	// touch screens: the D / F buttons are the skill slots (spec §30 L-8); a slot glows when a new skill enters it
 	invoker::SkillId m_slotShown[2] = { invoker::SkillId::None, invoker::SkillId::None };
@@ -654,6 +669,25 @@ private:
 	void RenderRuneChoice();
 	SDL_Rect SettingsRowRect(int row) const;
 	SDL_Rect SettingsCloseRect() const;
+	// the row of links under the settings (1.9.16): RATE (only where there is a Play page), SHARE, FEEDBACK
+	enum SettingsLink { LINK_RATE, LINK_SHARE, LINK_FEEDBACK };
+	int SettingsLinkCount() const;
+	SettingsLink SettingsLinkAt(int i) const;
+	SDL_Rect SettingsLinkRect(int i) const;
+	void ActivateSettingsLink(int i);
+	// rate / share / feedback (Social.h)
+	void ShareGame();                 // from SETTINGS: the game and its links
+	void ShareRun();                  // from Game Over: this run's result and the links
+	void ShareText(const char* text);
+	void MaybeAskReview();            // after a run that set a personal best (Android: Google's review card)
+	void ShowNote(const char* text) { m_note = text; m_noteLeft = NOTE_TIME; }
+	void RenderNote();
+	// "NEW TO INJOKER?" (1.9.16): offered once before the first PLAY / SURVIVAL until the tutorial is done
+	void StartModeFromMenu(practice::SessionMode mode);
+	void ChooseWelcome(bool tutorial);
+	void HandleWelcomeKey(SDL_Keycode sym);
+	void HandleWelcomePointer(int x, int y);
+	void RenderWelcome();
 	void HandleSettingsKey(SDL_Keycode sym);
 	void HandleSettingsPointer(int x, int y);
 	void RenderPlayer();          // the running Injoker and its orbiting orbs

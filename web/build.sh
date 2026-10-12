@@ -46,7 +46,7 @@ em++ -O2 -std=c++14 \
 	--preload-file assets \
 	--shell-file "$SHELL_FILE" \
 	main.cpp GameManager.cpp MainPlayer.cpp BaseObject.cpp Enemy.cpp Keyboard.cpp Skill.cpp PixelText.cpp \
-	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Online.cpp WebBoards.cpp TouchLayout.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp Practice/Boss.cpp Practice/Items.cpp \
+	ImpTimer.cpp Draw.cpp SkillVfx.cpp Audio.cpp Online.cpp WebBoards.cpp Social.cpp TouchLayout.cpp Core/Invoker.cpp Practice/Practice.cpp Practice/Tutorial.cpp Practice/Boss.cpp Practice/Items.cpp \
 	-o "$WEB_BUILD_DIR/index.html"
 cp "$REPO_ROOT/web/manifest.webmanifest" "$REPO_ROOT/web/privacy.html" "$WEB_BUILD_DIR/"
 mkdir -p "$WEB_BUILD_DIR/icons"

@@ -8,19 +8,23 @@ Everything to paste into Play Console. Images are in this folder (`icon-512.png`
 **App name** (max 30): `Injoker: Invoke the Elements`
 
 **Short description** (max 80):
-`Mix 3 elements into 10 spells and cast the right one before enemies reach you.`
+`Reflex & memory trainer: mix 3 elements into 10 spells, cast the right one fast.`
+
+(1.9.16, after the closed-test report: the keywords people search for - reflex, memory, spell
+combo - are in the short description and the first lines; no Dota / Invoker branding, see the priorities.)
 
 **Full description** (max 4000):
 
 ```
 Quas, Wex, Exort. Ice, lightning, fire.
 
-Injoker is a fast pixel-art reflex game about one thing: invoking the right spell, right now.
+Injoker is a fast pixel-art spell combo game and reflex trainer. Mix three elements into ten spells and cast the right one before the enemy reaches you. Every run trains your reaction speed, your memory of the spell recipes and your fingers - and the longer you last, the faster it gets. If you love MOBA-style spell combos, this is your practice ground.
 
-Every enemy that walks toward you needs one particular spell. Load three elements, invoke, cast - before it reaches you. Get it right and the enemy is gone and your combo grows. Get it wrong and it keeps coming. The longer you survive, the faster they get.
-
-PLAY
-Normal enemies need one spell, elites a chain of two, and every tenth enemy is a boss that needs three in a row. Beat a boss for a rune - an extra life, frost, double score, bounty or a shield - and move on to the next stage. Collect gold from elites and bosses.
+WHY PLAY
+- Reaction training: every enemy needs one spell, right now.
+- Memory training: ten recipes to learn by heart, with an optional hint while you learn.
+- Combo practice: chains of spells in order, and timed combos of 4 to 8 spells against the Immortals.
+- Competition: beat your own records and climb the global leaderboards.
 
 HOW TO PLAY
 - Q, W, E load up to three element orbs (a fourth pushes out the oldest). The order does not matter, only the mix.
@@ -28,22 +32,28 @@ HOW TO PLAY
 - D and F hold your last two spells and cast them.
 - 10 spells, 10 recipes: Cold Snap, Ghost Walk, Ice Wall, Tornado, Deafening Blast, Forge Spirit, EMP, Alacrity, Chaos Meteor, Sun Strike.
 
+PLAY - THE MAIN MODE
+Normal enemies need one spell. Elites need a chain of two, from the 10th enemy on; every 20th, 30th, 40th... enemy is an overlord that needs three in a row. An enemy that reaches you costs one life for every spell still on its chain, so every spell you break counts. Beat an overlord for a rune - an extra life, frost, double score, bounty or a shield - and move on to the next stage. Elites and overlords give gold and raise the IMMORTAL chance shown on screen.
+
+IMMORTALS
+Five great foes with real combos of 4 to 8 spells: Rimefang, Cindermaw, Gravehorn, Voltara and The Hollow King. They come by chance in PLAY and only fall to a well-timed combo: lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down. PERFECT timing wipes them out in one combo. Only Immortals drop the materials for item upgrades. Practise each one from the menu.
+
+SURVIVAL
+The endless one-spell mode: 3 hearts, rising speed, score, combo, accuracy and survival time.
+
 FEATURES
-- A short guided tutorial that walks you through your first spell, key by key.
-- A recipe list to look up any spell between runs, and a GUIDE to enemies, runes, items and boss timing.
+- A short guided tutorial that walks you through your first spell, key by key - offered the first time you play.
+- A recipe list to look up any spell between runs, and a GUIDE to enemies, runes, items and Immortal timing.
 - First-time tips that explain each new thing when you meet it.
-- An optional recipe hint while you learn.
-- PLAY: elites, bosses, runes, stages and gold.
-- A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand. No real money - gold only comes from playing.
-- SURVIVAL: the endless one-spell mode - 3 hearts, rising speed, score, combo, accuracy and survival time.
-- IMMORTALS: five great foes with real Invoker combos of 4 to 8 spells - they come by chance in PLAY, the more elites and overlords you beat, and you can practise each one from the menu. They only fall to a real timed combo. Lift them with Tornado and land Sun Strike, Chaos Meteor, EMP and Deafening Blast as they come down - PERFECT timing wipes them out in one combo.
+- A shop for your gold: Blink Dagger, Refresher Orb, Black King Bar, Hand of Midas and more, each with an upgrade; six item slots for your right hand.
 - Global leaderboards with Google Play Games (optional sign-in): PLAY by score and SURVIVAL by time, this week and all time.
 - Your 10 best runs on the device, plus your personal records.
-- On-screen buttons laid out like a keyboard, made for playing with your thumbs - and you can move, split and resize them.
-- Chiptune sound effects, spell effects for all ten spells.
-- No ads. No account. Works offline.
+- On-screen buttons laid out like a keyboard, made for your thumbs - move them, split them in two and resize them.
+- Share your score with a friend straight from the Game Over screen.
+- Chiptune sound effects and spell effects for all ten spells.
+- No ads. No in-app purchases: gold only comes from playing. No account. Works offline.
 
-Train your fingers. Remember the recipes. Beat your best time.
+Train your fingers. Remember the recipes. Beat your best.
 
 Credits: game and art by JunGo (player, Immortals, spell effects and skill icons made with Scenario and AutoSprite). Monsters: Monsters Creatures Fantasy by Luiz Melo. Forest: Free Pixel Art Forest by Eder Muniz.
 ```
@@ -67,6 +77,12 @@ Credits: game and art by JunGo (player, Immortals, spell effects and skill icons
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.9.16, versionCode 39, max 500)
+
+```
+Share your score: the Game Over screen has a SHARE button, and SETTINGS now has RATE, SHARE and FEEDBACK. New players are offered the short tutorial the first time they press PLAY (one tap to skip). After a new personal best, Google Play may ask what you think of the game. Thank you to our testers for the feedback!
+```
 
 ## Release notes (1.9.15, versionCode 38, max 500)
 
