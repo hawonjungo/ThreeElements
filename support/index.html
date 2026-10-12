@@ -19,6 +19,20 @@
   table { border-collapse: collapse; }
   td { padding: 2px 16px 2px 0; }
   code { color: #f2c14e; }
+  form { display: grid; gap: 6px; max-width: 520px; }
+  form * { box-sizing: border-box; max-width: 100%; }
+  label { font-size: 14px; color: #e6ebf5; margin-top: 8px; }
+  input, textarea { font: inherit; color: #e6ebf5; background: #1a1f2b; border: 1px solid #39425a; border-radius: 6px;
+    padding: 8px 10px; }
+  input:focus, textarea:focus { outline: 2px solid #f2c14e; border-color: transparent; }
+  textarea { resize: vertical; }
+  button { justify-self: start; margin-top: 10px; font: inherit; font-weight: 600; color: #11141c; background: #f2c14e;
+    border: 0; border-radius: 6px; padding: 8px 22px; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  .trap { position: absolute; left: -9999px; }
+  .status { min-height: 1.6em; margin: 4px 0 0; }
+  .status.ok { color: #7fd88a; }
+  .status.bad { color: #ff8a80; }
 </style>
 </head>
 <body>
@@ -28,6 +42,24 @@
   <p>Found a bug, have an idea, or need help? Email
   <a href="mailto:hawon.jungo@gmail.com?subject=Injoker%20support">hawon.jungo@gmail.com</a>.
   Please say which device (Android phone model, or browser) you play on.</p>
+
+  <section id="feedback" hidden>
+    <h2>Send us a message</h2>
+    <form id="feedback-form" novalidate>
+      <label for="fb-name">Your name</label>
+      <input id="fb-name" name="name" type="text" maxlength="60" autocomplete="nickname" required>
+      <label for="fb-message">Message</label>
+      <textarea id="fb-message" name="message" rows="6" maxlength="3000" required
+        placeholder="A bug, an idea, a question... For a bug, say what you did and what happened."></textarea>
+      <!-- left empty by people; bots fill it in -->
+      <input class="trap" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button id="fb-send" type="submit">Send</button>
+      <p id="fb-status" class="status" role="status" aria-live="polite"></p>
+      <p class="muted">Your name, your message and your device type (browser or phone model, so we can reproduce a
+      bug) are sent to us by email through EmailJS. See <a href="/policy/#feedback">Feedback form</a> in the privacy
+      policy.</p>
+    </form>
+  </section>
 
   <h2>How to play</h2>
   <p>Every enemy needs one spell (shown as <strong>TARGET</strong>). Load three elements, invoke, cast before it
@@ -80,9 +112,63 @@
   <p>Press Esc (the Back button on a phone, or tap PAUSE at the top right). From the pause you can resume or go back
   to the menu.</p>
   <h3>How do I delete my data?</h3>
-  <p>See <a href="/policy/#deleting">Deleting your data</a> in the privacy policy. We keep no data on any server.</p>
+  <p>See <a href="/policy/#deleting">Deleting your data</a> in the privacy policy.</p>
 
   <p class="muted">Injoker is an independent fan-made practice game, not affiliated with Valve Corporation.</p>
 </main>
+<script>
+// The feedback form (1.9.16): sent straight from the browser through EmailJS (https://www.emailjs.com). The three
+// ids are filled in by web/build.sh from web/deploy.conf; the address the mail goes to is set in the EmailJS
+// template, not here. Without the ids the form stays hidden and the email address above is the way to write.
+(function () {
+  var SERVICE = '', TEMPLATE = '', KEY = '';
+  if (!SERVICE || !TEMPLATE || !KEY || (SERVICE + TEMPLATE + KEY).indexOf('%') >= 0)
+    return;
+  var section = document.getElementById('feedback');
+  var form = document.getElementById('feedback-form');
+  var button = document.getElementById('fb-send');
+  var status = document.getElementById('fb-status');
+  section.hidden = false;
+  if (location.hash === '#feedback')
+    section.scrollIntoView();
+
+  function say(text, ok) {
+    status.textContent = text;
+    status.className = 'status ' + (ok ? 'ok' : 'bad');
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = form.name.value.trim(), message = form.message.value.trim();
+    if (form.website.value)  // a bot: pretend it worked
+      return say('Thank you! Your message was sent.', true);
+    if (name.length < 1 || message.length < 5)
+      return say('Please write your name and a message.', false);
+    var last = 0;
+    try { last = Number(localStorage.getItem('injoker_feedbackAt')) || 0; } catch (err) {}
+    if (Date.now() - last < 60000)
+      return say('Please wait a minute before sending another message.', false);
+    button.disabled = true;
+    say('Sending...', true);
+    fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        service_id: SERVICE, template_id: TEMPLATE, user_id: KEY,
+        template_params: { name: name, message: message, device: navigator.userAgent, time: new Date().toISOString() }
+      })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('status ' + r.status);
+      try { localStorage.setItem('injoker_feedbackAt', String(Date.now())); } catch (err) {}
+      form.reset();
+      say('Thank you! Your message was sent.', true);
+    }).catch(function () {
+      say('Sorry, it could not be sent. Please try again later, or email us instead.', false);
+    }).then(function () {
+      button.disabled = false;
+    });
+  });
+})();
+</script>
 </body>
 </html>
