@@ -1,4 +1,5 @@
 #include "GameManager.h"
+#include <cstdlib>
 #include <cstring>
 
 
@@ -30,5 +31,12 @@ GameManager* g_GameMan = GameManager::getInstace();
      }
 
      g_GameMan->LoopGame();
+ #ifdef __ANDROID__
+     // Android keeps the process after the game ends (Back on the menu, or the system closing the activity), and the
+     // next launch runs main() again in it: the GameManager singleton and the other statics would come back with
+     // textures of the old, destroyed renderer (pale screen, wrong pictures on the buttons). Ending the process here
+     // makes every launch start clean.
+     exit(0);
+ #endif
      return 0;
  }
