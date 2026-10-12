@@ -22,6 +22,8 @@ PAGES_BRANCH="gh-pages"
 # shellcheck disable=SC1091
 [ -f "$REPO_ROOT/web/deploy.conf" ] && source "$REPO_ROOT/web/deploy.conf"
 BOARDS_URL="${BOARDS_URL:-}"
+EMAILJS_SERVICE="${EMAILJS_SERVICE:-}"; EMAILJS_TEMPLATE="${EMAILJS_TEMPLATE:-}"; EMAILJS_PUBLIC_KEY="${EMAILJS_PUBLIC_KEY:-}"
+EMAILJS_SERVICE="${EMAILJS_SERVICE%$'\r'}"; EMAILJS_TEMPLATE="${EMAILJS_TEMPLATE%$'\r'}"; EMAILJS_PUBLIC_KEY="${EMAILJS_PUBLIC_KEY%$'\r'}"
 PAGES_REPO="${PAGES_REPO%$'\r'}"; PAGES_BRANCH="${PAGES_BRANCH%$'\r'}"; BOARDS_URL="${BOARDS_URL%$'\r'}"  # Windows line ends
 REPO_API="https://api.github.com/repos/$PAGES_REPO"
 SRC_DIR="$REPO_ROOT/Three Elements"
@@ -56,6 +58,9 @@ for page in policy terms support; do
 	mkdir -p "$WEB_BUILD_DIR/$page"
 	cp "$REPO_ROOT/web/$page/index.html" "$WEB_BUILD_DIR/$page/"
 done
+# the support page's feedback form (EmailJS ids from web/deploy.conf; empty = the form stays hidden)
+sed -e "s|%EMAILJS_SERVICE%|${EMAILJS_SERVICE}|" -e "s|%EMAILJS_TEMPLATE%|${EMAILJS_TEMPLATE}|" \
+	-e "s|%EMAILJS_PUBLIC_KEY%|${EMAILJS_PUBLIC_KEY}|" "$REPO_ROOT/web/support/index.html" > "$WEB_BUILD_DIR/support/index.html"
 echo "Build OK: $(ls "$WEB_BUILD_DIR" | tr '\n' ' ')"
 
 [ "${1:-}" = "--deploy" ] || exit 0
