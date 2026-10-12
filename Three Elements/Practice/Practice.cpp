@@ -17,6 +17,8 @@ namespace practice
 			// to a player of about 106 px; those are drawn 2x or 3x, which brings every enemy to 66 - 102 px. (1.9.2
 			// made them 99 - 126 px; the owner took that back the same day: when every enemy is large, an overlord
 			// or an Immortal no longer stands out. Normal enemies stay smaller than the player.)
+			// Sources (art/enemies/SOURCES.md): Luiz Melo's CC0 packs, OcO's necromancer, CraftPix's kitsune. The knight
+			// is Luiz Melo's Hero Knight 2 since 1.9.17: the old knight's source could not be found.
 			// id  name        sprite                            frames left feet  w  top bottom  target                    speed size
 			{ 0, "goblin",   "assets/enemies/goblin_run.png",    8,  56, 100, 38, 63, 100, SkillId::Alacrity,       1.0f, 2.0f },
 			{ 1, "skeleton", "assets/enemies/skeleton.png",      4,  45, 100, 45, 50, 100, SkillId::ColdSnap,       1.0f, 2.0f },
@@ -27,7 +29,7 @@ namespace practice
 			{ 6, "necro",    "assets/enemies/nec_walk.png",     10,  45, 100, 51, 19,  99, SkillId::DeafeningBlast, 1.0f, 1.0f },
 			{ 7, "worm",     "assets/enemies/worm_run.png",      9,  35, 100, 88, 24,  96, SkillId::Tornado,        1.0f, 1.0f },
 			{ 8, "kitsune",  "assets/enemies/kitsune_run.png",   8,  54, 127, 57, 44, 127, SkillId::EMP,            1.0f, 1.0f },
-			{ 9, "knight",   "assets/enemies/knight_run.png",    8,  24,  43, 31, 14,  43, SkillId::IceWall,        1.0f, 3.0f }
+			{ 9, "knight",   "assets/enemies/hero_knight2_run.png", 8, 33, 82, 49, 44, 82, SkillId::IceWall,       1.0f, 2.0f }
 		};
 	}
 

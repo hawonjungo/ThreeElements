@@ -55,7 +55,7 @@ FEATURES
 
 Train your fingers. Remember the recipes. Beat your best.
 
-Credits: game and art by JunGo (player, Immortals, spell effects and skill icons made with Scenario and AutoSprite). Monsters: Monsters Creatures Fantasy by Luiz Melo. Forest: Free Pixel Art Forest by Eder Muniz.
+Credits: game and art by JunGo (player, Immortals, spell effects and skill icons made with Scenario and AutoSprite). Monsters: Monsters Creatures Fantasy, Evil Wizard 1 and 2, Fire Worm and Hero Knight 2 by Luiz Melo; the necromancer from Medieval Fantasy Character Pack 6 by OcO; the kitsune from Free Yokai Pixel Sprite Sheets by CraftPix.net. Forest: Free Pixel Art Forest by Eder Muniz.
 ```
 
 **App category:** Game → **Arcade**
@@ -77,6 +77,12 @@ Credits: game and art by JunGo (player, Immortals, spell effects and skill icons
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.9.17, versionCode 40, max 500)
+
+```
+A new knight: the sword-carrying enemy has new art. Every monster in the game is now credited to its artist in CREDITS (menu). Smaller download: unused pictures removed.
+```
 
 ## Release notes (1.9.16, versionCode 39, max 500)
 
