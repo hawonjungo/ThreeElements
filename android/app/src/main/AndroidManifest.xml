@@ -24,6 +24,11 @@
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
             android:value="@string/game_services_project_id" />
+        <!-- 1.9.18 (spec §29 OB-9): a player without a Play Games profile is not asked to create one at start-up;
+             Google's profile creation only opens when they ask for the global boards (OnlineBoards.show -> signIn) -->
+        <meta-data
+            android:name="com.google.android.gms.games.SUPPRESS_GAME_PROFILE_CREATION"
+            android:value="true" />
 
         <activity
             android:name=".ThreeElementsActivity"

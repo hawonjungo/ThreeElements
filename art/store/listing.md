@@ -78,6 +78,12 @@ Credits: game and art by JunGo (player, Immortals, spell effects and skill icons
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
 
+## Release notes (1.9.18, versionCode 41, max 500)
+
+```
+Straight into the game: players without a Google Play Games profile are no longer asked to create one when the game starts. The global ranking still offers sign-in when you open it.
+```
+
 ## Release notes (1.9.17, versionCode 40, max 500)
 
 ```
