@@ -82,8 +82,8 @@ bản (1.7.0), build, và thử đăng nhập trên máy ảo có tài khoản t
 
 - Bản có Play Games vẫn **không xin quyền nào** (kể cả quyền internet): thư viện nói chuyện qua Google Play services
   của máy. Đã kiểm tra trên APK build thử.
-- Thư viện: `com.google.android.gms:play-services-games-v2:21.0.0` (bản mới nhất còn hỗ trợ Android 5; bản 22 cần
-  Android 7 trở lên).
+- Thư viện: `com.google.android.gms:play-services-games-v2:21.0.0` (chọn khi game còn hỗ trợ Android 5; từ 1.9.18
+  minSdk là 24 — Android 7 — nên lên bản 22 được).
 - Máy ảo để thử phải là loại có Google Play và đã đăng nhập một tài khoản tester.
 - Đã thử trên máy ảo với tài khoản của chủ project (2026-10-01): tự đăng nhập lúc mở app, nút đổi thành GLOBAL
   RANKING, màn hình của Google hiện hai bảng, kết quả tốt nhất của máy đã lên bảng. Chưa thử: bản tải từ Play

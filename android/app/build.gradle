@@ -69,7 +69,8 @@ android {
         // Permanent once published on Google Play: the product is Injoker (owner 2026-09-30). The Java namespace
         // (net.relifes.threeelements, where ThreeElementsActivity lives) is internal and may stay as it is.
         applicationId 'net.relifes.injoker'
-        minSdk 21
+        // Android 7: Play's automatic protection refuses a bundle below 24 (1.9.18, 2026-10-17; was 21)
+        minSdk 24
         // Google Play requires a recent target (Android 15 = 35 from Aug 2025, Android 16 = 36 expected from Aug 2026).
         targetSdk 36
         // versionCode must grow with every upload to Play; versionName is what players see.
@@ -142,7 +143,7 @@ dependencies {
     // Google Play's in-app review card (Social.cpp, 1.9.16): no permission, works offline as a no-op
     implementation 'com.google.android.play:review:2.0.2'
     if (onlineBoards) {
-        // v2 21.0.0: the newest that still supports minSdk 21 (22.x needs 24)
+        // v2 21.0.0, chosen when minSdk was 21; 22.x is possible since minSdk 24
         implementation 'com.google.android.gms:play-services-games-v2:21.0.0'
     }
 }
