@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Injoker Leaderboard - World Ranking</title>
+<meta name="description" content="The best Injoker players on the web: PLAY by score and SURVIVAL by time, this week and all time.">
+<link rel="canonical" href="https://injoker.relifes.net/leaderboard/">
+<link rel="icon" type="image/png" sizes="32x32" href="/media/icon-32.png">
+<link rel="apple-touch-icon" href="/media/icon-180.png">
+<meta name="theme-color" content="#0b0d14">
+<meta property="og:title" content="Injoker Leaderboard">
+<meta property="og:description" content="The best Injoker players, this week and all time.">
+<meta property="og:image" content="https://injoker.relifes.net/media/og.jpg">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body data-page="leaderboard">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Injoker home"><img src="/media/icon-192.png" alt="" width="36" height="36"><span>INJOKER</span></a>
+    <nav class="site-nav" id="site-nav" aria-label="Main">
+      <a href="/" data-nav="home">Home</a>
+      <a href="/guide/" data-nav="guide">Guide</a>
+      <a href="/leaderboard/" data-nav="leaderboard">Leaderboard</a>
+      <a href="/support/" data-nav="support">Support</a>
+    </nav>
+    <div class="header-cta"><a class="btn btn-gold btn-sm" href="/play/">Play now</a></div>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><span></span></button>
+  </div>
+</header>
+<main id="main">
+  <section class="page-hero">
+    <div class="wrap">
+      <h1>Leaderboard</h1>
+      <p>The world ranking of the web version. To get on it, finish a run, open LEADERBOARD in the game and choose a
+      name. The Android app has its own global leaderboards on Google Play Games.</p>
+    </div>
+  </section>
+  <div class="wrap" style="padding-bottom:88px">
+    <div class="tabs">
+      <div class="tab-group" role="group" aria-label="Board">
+        <button type="button" data-board="play" aria-pressed="true">PLAY</button>
+        <button type="button" data-board="survival" aria-pressed="false">SURVIVAL</button>
+      </div>
+      <div class="tab-group" role="group" aria-label="Period">
+        <button type="button" data-period="week" aria-pressed="true">This week</button>
+        <button type="button" data-period="all" aria-pressed="false">All time</button>
+      </div>
+    </div>
+    <div class="board-card">
+      <table class="board" id="full-board" hidden>
+        <thead><tr><th>Rank</th><th>Player</th><th style="text-align:right" id="full-board-value">Score</th><th style="text-align:right">Date</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="board-empty" id="full-board-empty" hidden></p>
+    </div>
+    <p class="board-foot muted">PLAY is ranked by score, SURVIVAL by survival time. One line per name, with its best run.
+    The week starts on Monday, 00:00 UTC.</p>
+    <p class="board-foot"><a class="btn btn-gold" href="/play/">Play now</a></p>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="/"><img src="/media/icon-192.png" alt="" width="36" height="36"><span>INJOKER</span></a>
+        <p>A pixel-art spell combo game and reflex trainer. Free, no ads, no purchases.</p>
+      </div>
+      <div>
+        <h4>Game</h4>
+        <ul>
+          <li><a href="/play/">Play in browser</a></li>
+          <li><a href="/#android">Android (coming soon)</a></li>
+          <li><a href="/guide/">Guide</a></li>
+          <li><a href="/leaderboard/">Leaderboard</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Help</h4>
+        <ul>
+          <li><a href="/support/">Support</a></li>
+          <li><a href="/support/#feedback">Send feedback</a></li>
+          <li><a href="/policy/">Privacy</a></li>
+          <li><a href="/terms/">Terms</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Follow</h4>
+        <ul>
+          <li><a class="social" href="https://www.facebook.com/profile.php?id=61595470287137" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.8v3h2.6V21h3.1z"/></svg>Facebook</a></li>
+          <li><a class="social" href="https://youtu.be/kW-dQLGD_e0" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8a2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8s0-3.2-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>YouTube</a></li>
+          <li><a href="mailto:hawon.jungo@gmail.com">hawon.jungo@gmail.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 JunGo. Injoker is an independent fan-made practice game, not affiliated with Valve Corporation.</span>
+      <span>Monster art by Luiz Melo, OcO and CraftPix.net &middot; forest by Eder Muniz &middot; <a href="/support/#credits">all credits</a></span>
+    </div>
+  </div>
+</footer>
+<script src="/site.js" defer></script>
+</body>
+</html>
