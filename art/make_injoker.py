@@ -2,32 +2,36 @@
 
     python art/make_injoker.py
 
-Sources (transparent PNGs supplied by the owner):
+Sources (supplied by the owner):
   art/character/injoker_character.png  the character alone          -> in-game player sprite
-  art/character/Injoker.png            character, 3 orbs, magic ring -> title logo and every icon
+  art/character/Injoker.png            character, 3 orbs, magic ring -> title logo, old feature graphic
+  art/store/Gaming App Icon Character.png  the app icon (820 px, 2026-10-20) -> every icon. It comes with black
+                                       rounded corners and a 1 px white line on two edges: both are removed (the
+                                       corners filled with the colours around them) to get a clean full square.
 
 Outputs:
   Three Elements/assets/player/injoker.png        player sprite (drawn at PLAYER_DRAW_H px high, 2x for smoothing)
   Three Elements/assets/title/injoker_logo.png    Ready-screen logo
-  android/app/src/main/res/mipmap-*/ic_launcher.png  Android launcher icon (rounded dark tile)
-  web/icons/icon-192.png, icon-512.png, favicon-32.png  web / Add to Home Screen icons
-  art/store/icon-512.png                           Google Play store icon (full-bleed square, no rounding)
+  android/app/src/main/res/mipmap-*/ic_launcher.png  Android 7 launcher icon (rounded tile)
+  android/app/src/main/res/mipmap-*/ic_launcher_foreground.png, ic_launcher_background.png  Android 8+ adaptive icon
+  web/icons/icon-192.png, icon-512.png, favicon-32.png  web / Add to Home Screen icons (rounded)
+  art/store/icon-512.png                           Google Play store icon (full-bleed square, Play rounds it)
 
 Clean-up: specks left by the background remover (tiny separate blobs) are dropped; real parts of the picture,
 like the orbs and the magic ring, are much larger and kept. Requires Pillow.
 """
 from collections import deque
 import os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.join(ROOT, '..')
 CHARACTER = os.path.join(ROOT, 'character', 'injoker_character.png')
 LOGO = os.path.join(ROOT, 'character', 'Injoker.png')
+APP_ICON = os.path.join(ROOT, 'store', 'Gaming App Icon Character.png')
 
 PLAYER_DRAW_H = 120          # must match PLAYER_DRAW_H in GameManager.h
 LOGO_DRAW_H = 170            # must match TITLE_LOGO_H in GameManager.h
-TILE_COLOUR = (17, 20, 28, 255)
 MIN_BLOB_SHARE = 0.004       # blobs smaller than this share of all visible pixels are specks
 
 
@@ -82,19 +86,49 @@ def fit_height(img, height):
     return img.convert('RGBa').resize((w, height), Image.LANCZOS).convert('RGBA')
 
 
-def tile(art, size, rounded, fill=0.88):
-    """`art` centred on a dark square, scaled to fill `fill` of it."""
+def clean_icon(path):
+    """The owner's app icon as a clean full square: the 1 px white line on the bottom and right edges cut off, the
+    black rounded corners filled with the colours around them (a normalised blur of the rest of the picture)."""
+    img = Image.open(path).convert('RGB')
+    side = min(img.width, img.height) - 1
+    img = img.crop((0, 0, side, side))
+    # corner mask: the dark pixels connected to each corner, grown a little to take the anti-aliased edge too
+    mask = Image.new('L', img.size, 0)
+    px, mp = img.load(), mask.load()
+    for start in ((0, 0), (side - 1, 0), (0, side - 1), (side - 1, side - 1)):
+        todo = deque([start])
+        while todo:
+            x, y = todo.popleft()
+            if not (0 <= x < side and 0 <= y < side) or mp[x, y] or sum(px[x, y]) > 120:
+                continue
+            mp[x, y] = 255
+            todo.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    mask = mask.filter(ImageFilter.MaxFilter(7))
+    mp = mask.load()
+    keep = ImageChops.invert(mask)
+    # normalised convolution: blur(picture * keep) / blur(keep) fills the corners from their surroundings
+    radius = side // 12
+    weighted = Image.composite(img, Image.new('RGB', img.size), keep).filter(ImageFilter.GaussianBlur(radius))
+    weight = keep.filter(ImageFilter.GaussianBlur(radius))
+    wp, ww = weighted.load(), weight.load()
+    fill = Image.new('RGB', img.size)
+    fp = fill.load()
+    for y in range(side):
+        for x in range(side):
+            if mp[x, y]:
+                w = max(ww[x, y], 1) / 255
+                fp[x, y] = tuple(min(255, round(c / w)) for c in wp[x, y])
+    return Image.composite(fill, img, mask.filter(ImageFilter.GaussianBlur(2))).convert('RGBA')
+
+
+def rounded(square, size, radius_share=1 / 6):
+    """`square` scaled to `size` with transparent rounded corners (the web and Android 7 icons)."""
     base = 1024
-    canvas = Image.new('RGBA', (base, base), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-    if rounded:
-        draw.rounded_rectangle((0, 0, base - 1, base - 1), radius=base // 6, fill=TILE_COLOUR)
-    else:
-        draw.rectangle((0, 0, base - 1, base - 1), fill=TILE_COLOUR)
-    scale = fill * base / max(art.width, art.height)
-    a = art.convert('RGBa').resize((round(art.width * scale), round(art.height * scale)), Image.LANCZOS).convert('RGBA')
-    canvas.alpha_composite(a, ((base - a.width) // 2, (base - a.height) // 2))
-    return canvas.convert('RGBa').resize((size, size), Image.LANCZOS).convert('RGBA')
+    big = square.resize((base, base), Image.LANCZOS)
+    mask = Image.new('L', (base, base), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, base - 1, base - 1), radius=round(base * radius_share), fill=255)
+    big.putalpha(mask)
+    return big.convert('RGBa').resize((size, size), Image.LANCZOS).convert('RGBA')
 
 
 def save(img, *parts):
@@ -113,23 +147,25 @@ def main():
     save(fit_height(character, PLAYER_DRAW_H * 2), 'Three Elements', 'assets', 'player', 'injoker.png')
     save(fit_height(logo, LOGO_DRAW_H * 2), 'Three Elements', 'assets', 'title', 'injoker_logo.png')
 
+    # every icon from the owner's app icon (2026-10-20); the old tiles of Injoker.png are no longer used
+    icon = clean_icon(APP_ICON)
     for density, size in {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}.items():
-        save(tile(logo, size, True), 'android', 'app', 'src', 'main', 'res', 'mipmap-' + density, 'ic_launcher.png')
-    save(tile(logo, 192, True), 'web', 'icons', 'icon-192.png')
-    save(tile(logo, 512, True), 'web', 'icons', 'icon-512.png')
-    save(tile(logo, 32, True, 0.96), 'web', 'icons', 'favicon-32.png')
-    save(tile(logo, 512, False), 'art', 'store', 'icon-512.png')
+        save(rounded(icon, size), 'android', 'app', 'src', 'main', 'res', 'mipmap-' + density, 'ic_launcher.png')
+    save(rounded(icon, 192), 'web', 'icons', 'icon-192.png')
+    save(rounded(icon, 512), 'web', 'icons', 'icon-512.png')
+    save(rounded(icon, 32, 1 / 8), 'web', 'icons', 'favicon-32.png')
+    save(icon.resize((512, 512), Image.LANCZOS), 'art', 'store', 'icon-512.png')
 
-    # Adaptive launcher icon (Android 8+): the launcher masks a 108 dp layer to a circle / squircle; everything that
-    # must stay visible sits in the centre 66 dp. Background = TILE_COLOUR (res/values/ic_launcher_colors.xml).
+    # Adaptive launcher icon (Android 8+): both layers are 108 dp and the launcher shows the centre 72 dp through its
+    # mask (circle, squircle...). The picture fills exactly that centre 72 dp (foreground); the background layer is
+    # the same picture enlarged and blurred, seen only at the edges when the launcher moves or zooms the icon.
     for density, size in {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}.items():
+        inner = round(size * 72 / 108)
         fg = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        inner = round(size * 0.60)
-        a = logo.convert('RGBa')
-        scale = inner / max(a.width, a.height)
-        a = a.resize((round(a.width * scale), round(a.height * scale)), Image.LANCZOS).convert('RGBA')
-        fg.alpha_composite(a, ((size - a.width) // 2, (size - a.height) // 2))
+        fg.alpha_composite(icon.resize((inner, inner), Image.LANCZOS), ((size - inner) // 2, (size - inner) // 2))
         save(fg, 'android', 'app', 'src', 'main', 'res', 'mipmap-' + density, 'ic_launcher_foreground.png')
+        bg = icon.resize((size, size), Image.LANCZOS).filter(ImageFilter.GaussianBlur(size / 18)).convert('RGB')
+        save(bg, 'android', 'app', 'src', 'main', 'res', 'mipmap-' + density, 'ic_launcher_background.png')
 
     save(feature_graphic(logo), 'art', 'store', 'feature-graphic-1024x500.png')
 

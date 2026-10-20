@@ -1,7 +1,13 @@
 # Injoker — Google Play listing (English)
 
-Everything to paste into Play Console. Images are in this folder (`icon-512.png`, `feature-graphic-1024x500.png`,
-`screenshots/`), all made from the game (`art/make_injoker.py`, emulator screenshots at 1920×1080).
+Everything to paste into Play Console. Images are in this folder (since 2026-10-20, version 1.9.19):
+- **App icon:** `icon-512.png` (full square; Play rounds it), made by `art/make_injoker.py` from the owner's
+  `Gaming App Icon Character.png`.
+- **Feature graphic:** `Elemental Wizard Feature Banner 1024x500.png` (the owner's key art). The old
+  `feature-graphic-1024x500.png` is no longer used.
+- **Phone screenshots:** `screenshots/1_menu.png` … `8_guide.png`, 1920×1080 (16:9), taken from the web build in
+  touch mode (same game code as the app, on-screen buttons shown), so they show the current game. Upload them in
+  this order.
 
 ## Main store listing
 
@@ -77,6 +83,12 @@ Credits: game and art by JunGo (player, Immortals, spell effects and skill icons
 | Account deletion URL | **Not required**: the app has no accounts. (If Play still asks, use https://injoker.relifes.net/policy/#deleting) |
 | Data safety | **Changed with 1.7.0 (global leaderboards, spec §29): redo this form.** The game's own data stays on the device and the app requests no permission, but for a player signed in to Google Play Games the PLAY score and the SURVIVAL time are sent to Google Play Games and tied to the Play Games profile. Fill the form in from Google's current data-disclosure guidance for the Play Games Services SDK (do not rely on this note for the exact categories); purpose: app functionality; optional (only when signed in). Privacy policy section: https://injoker.relifes.net/policy/#leaderboards. (Was until 1.6.1: no data collected, no data shared.) (Update this before adding Google Play Games leaderboards.) |
 | Government / news / health / financial features | No |
+
+## Release notes (1.9.19, versionCode 42, max 500)
+
+```
+A new look: a brand-new app icon. Injoker also has a new home page at injoker.relifes.net with the trailer, a guide to every spell and enemy, and the world ranking.
+```
 
 ## Release notes (1.9.18, versionCode 41, max 500)
 

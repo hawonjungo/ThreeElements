@@ -4,7 +4,8 @@
 
 Sources:
   art/store/Elemental Wizard Feature Banner.png   key art (1024 x 512): the hero, and the link preview (og.jpg)
-  art/store/Gaming App Icon Character-512.png      the brand icon (header, favicons of the site pages)
+  web/icons/icon-512.png, art/store/icon-512.png   the app icon, rounded / full square (art/make_injoker.py makes
+                                                   both): header and favicons / the iPhone home-screen icon
   art/store/web-shots/*.png                        screenshots of the web build, taken at 2x in Chrome
                                                    (928 x 544 game canvas drawn at 1856 x 1088 inside a 2 px border)
   Three Elements/assets/skill/*.png                the ten skill icons
@@ -46,9 +47,12 @@ def main():
     left = (wide.width - 1200) // 2
     save_jpg(wide.crop((left, 0, left + 1200, 630)), 'og.jpg', 86)
 
-    icon = Image.open(os.path.join(STORE, 'Gaming App Icon Character-512.png')).convert('RGBA')
-    for size in (32, 180, 192):
+    # rounded for the page itself; iOS rounds the home-screen icon on its own and shows transparency as black
+    icon = Image.open(os.path.join(ROOT, 'web', 'icons', 'icon-512.png')).convert('RGBA')
+    for size in (32, 192):
         icon.resize((size, size), Image.LANCZOS).save(os.path.join(OUT, 'icon-%d.png' % size), optimize=True)
+    square = Image.open(os.path.join(STORE, 'icon-512.png')).convert('RGB')
+    square.resize((180, 180), Image.LANCZOS).save(os.path.join(OUT, 'icon-180.png'), optimize=True)
 
     for name in SHOTS:
         shot = Image.open(os.path.join(STORE, 'web-shots', name + '.png')).convert('RGB')
