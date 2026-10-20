@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Injoker Leaderboard - World Ranking</title>
+<meta name="description" content="The best Injoker players on the web: PLAY by score and SURVIVAL by time, this week and all time.">
+<link rel="canonical" href="https://injoker.relifes.net/leaderboard/">
+<link rel="icon" type="image/png" sizes="32x32" href="/media/icon-32.png">
+<link rel="apple-touch-icon" href="/media/icon-180.png">
+<meta name="theme-color" content="#0b0d14">
+<meta property="og:title" content="Injoker Leaderboard">
+<meta property="og:description" content="The best Injoker players, this week and all time.">
+<meta property="og:image" content="https://injoker.relifes.net/media/og.jpg">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body data-page="leaderboard">
+<!--#header-->
+<main id="main">
+  <section class="page-hero">
+    <div class="wrap">
+      <h1>Leaderboard</h1>
+      <p>The world ranking of the web version. To get on it, finish a run, open LEADERBOARD in the game and choose a
+      name. The Android app has its own global leaderboards on Google Play Games.</p>
+    </div>
+  </section>
+  <div class="wrap" style="padding-bottom:88px">
+    <div class="tabs">
+      <div class="tab-group" role="group" aria-label="Board">
+        <button type="button" data-board="play" aria-pressed="true">PLAY</button>
+        <button type="button" data-board="survival" aria-pressed="false">SURVIVAL</button>
+      </div>
+      <div class="tab-group" role="group" aria-label="Period">
+        <button type="button" data-period="week" aria-pressed="true">This week</button>
+        <button type="button" data-period="all" aria-pressed="false">All time</button>
+      </div>
+    </div>
+    <div class="board-card">
+      <table class="board" id="full-board" hidden>
+        <thead><tr><th>Rank</th><th>Player</th><th style="text-align:right" id="full-board-value">Score</th><th style="text-align:right">Date</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="board-empty" id="full-board-empty" hidden></p>
+    </div>
+    <p class="board-foot muted">PLAY is ranked by score, SURVIVAL by survival time. One line per name, with its best run.
+    The week starts on Monday, 00:00 UTC.</p>
+    <p class="board-foot"><a class="btn btn-gold" href="/play/">Play now</a></p>
+  </div>
+</main>
+<!--#footer-->
+</body>
+</html>

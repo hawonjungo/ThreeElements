@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://injoker.relifes.net/sitemap.xml

@@ -4,41 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Injoker - Support</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/media/icon-32.png">
+<link rel="apple-touch-icon" href="/media/icon-180.png">
+<meta name="theme-color" content="#0b0d14">
+<link rel="stylesheet" href="/site.css">
 <style>
-  :root { color-scheme: dark; }
-  body { margin: 0; background: #11141c; color: #cfd6e6; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
-  nav { font-size: 14px; margin-bottom: 24px; }
-  nav a { margin-right: 14px; }
-  h1 { color: #f2c14e; font-size: 28px; margin: 0 0 4px; }
-  h2 { color: #f2c14e; font-size: 19px; margin: 32px 0 8px; }
-  h3 { color: #e6ebf5; font-size: 16px; margin: 20px 0 4px; }
-  .muted { color: #8a93a8; font-size: 14px; }
-  a { color: #7fc8ff; }
-  table { border-collapse: collapse; }
-  td { padding: 2px 16px 2px 0; }
-  code { color: #f2c14e; }
   form { display: grid; gap: 6px; max-width: 520px; }
   form * { box-sizing: border-box; max-width: 100%; }
-  label { font-size: 14px; color: #e6ebf5; margin-top: 8px; }
-  input, textarea { font: inherit; color: #e6ebf5; background: #1a1f2b; border: 1px solid #39425a; border-radius: 6px;
+  form label { font-size: 14px; color: #e6ebf5; margin-top: 8px; }
+  form input, form textarea { font: inherit; color: #e6ebf5; background: #1a1f2b; border: 1px solid #39425a; border-radius: 6px;
     padding: 8px 10px; }
-  input:focus, textarea:focus { outline: 2px solid #f2c14e; border-color: transparent; }
-  textarea { resize: vertical; }
-  button { justify-self: start; margin-top: 10px; font: inherit; font-weight: 600; color: #11141c; background: #f2c14e;
+  form input:focus, form textarea:focus { outline: 2px solid #f2c14e; border-color: transparent; }
+  form textarea { resize: vertical; }
+  form button { justify-self: start; margin-top: 10px; font: inherit; font-weight: 600; color: #11141c; background: #f2c14e;
     border: 0; border-radius: 6px; padding: 8px 22px; cursor: pointer; }
-  button:disabled { opacity: .6; cursor: default; }
+  form button:disabled { opacity: .6; cursor: default; }
   .trap { position: absolute; left: -9999px; }
   .status { min-height: 1.6em; margin: 4px 0 0; }
   .status.ok { color: #7fd88a; }
   .status.bad { color: #ff8a80; }
 </style>
 </head>
-<body>
-<main>
-  <nav><a href="/">Play Injoker</a><a href="/policy/">Privacy</a><a href="/terms/">Terms</a><a href="/support/">Support</a></nav>
-  <h1>Injoker - Support</h1>
+<body data-page="support">
+<!--#header-->
+<main id="main">
+  <section class="page-hero"><div class="wrap"><h1>Support</h1></div></section>
+  <div class="wrap prose">
   <p>Found a bug, have an idea, or need help? Email
   <a href="mailto:hawon.jungo@gmail.com?subject=Injoker%20support">hawon.jungo@gmail.com</a>.
   Please say which device (Android phone model, or browser) you play on.</p>
@@ -83,7 +74,7 @@
     <tr><td><code>WEE</code> Chaos Meteor</td><td><code>EEE</code> Sun Strike</td></tr>
   </table>
 
-  <h2>Credits</h2>
+  <h2 id="credits">Credits</h2>
   <p>Game design and programming: JunGo.<br>
   Player character, Immortals, spell effects and skill icons: JunGo, made with Scenario and AutoSprite.<br>
   Monsters: Monsters Creatures Fantasy, Evil Wizard 1 and 2, Fire Worm and Hero Knight 2 by
@@ -118,7 +109,9 @@
   <p>See <a href="/policy/#deleting">Deleting your data</a> in the privacy policy.</p>
 
   <p class="muted">Injoker is an independent fan-made practice game, not affiliated with Valve Corporation.</p>
+  </div>
 </main>
+<!--#footer-->
 <script>
 // The feedback form (1.9.16): sent straight from the browser through EmailJS (https://www.emailjs.com). The three
 // ids are filled in by web/build.sh from web/deploy.conf; the address the mail goes to is set in the EmailJS

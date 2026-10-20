@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Injoker - Invoke the Elements | Spell Combo Reflex Game</title>
+<meta name="description" content="Mix Quas, Wex and Exort into ten spells and cast the right one before the enemy reaches you. A free pixel-art spell combo game and reflex trainer. Play now in your browser; Android coming soon.">
+<link rel="canonical" href="https://injoker.relifes.net/">
+<link rel="icon" type="image/png" sizes="32x32" href="/media/icon-32.png">
+<link rel="apple-touch-icon" href="/media/icon-180.png">
+<meta name="theme-color" content="#0b0d14">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Injoker">
+<meta property="og:title" content="Injoker - Invoke the Elements">
+<meta property="og:description" content="Mix three elements into ten spells and cast the right one, fast. A free pixel-art spell combo game. Play now in your browser.">
+<meta property="og:url" content="https://injoker.relifes.net/">
+<meta property="og:image" content="https://injoker.relifes.net/media/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Injoker - Invoke the Elements">
+<meta name="twitter:description" content="Mix three elements into ten spells and cast the right one, fast. Play now in your browser.">
+<meta name="twitter:image" content="https://injoker.relifes.net/media/og.jpg">
+<link rel="preload" href="/fonts/silkscreen-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "Injoker",
+  "alternateName": "Injoker: Invoke the Elements",
+  "url": "https://injoker.relifes.net/",
+  "image": "https://injoker.relifes.net/media/og.jpg",
+  "description": "A pixel-art spell combo game and reflex trainer: mix three elements into ten spells and cast the right one before the enemy reaches you.",
+  "genre": ["Arcade", "Action", "Casual"],
+  "gamePlatform": ["Web browser", "Android"],
+  "applicationCategory": "Game",
+  "author": { "@type": "Person", "name": "JunGo" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "trailer": {
+    "@type": "VideoObject",
+    "name": "Injoker trailer",
+    "description": "Injoker gameplay trailer.",
+    "embedUrl": "https://www.youtube-nocookie.com/embed/kW-dQLGD_e0",
+    "thumbnailUrl": "https://injoker.relifes.net/media/shots/immortal_tornado.png",
+    "uploadDate": "2026-10-20"
+  }
+}
+</script>
+</head>
+<body data-page="home">
+<!--#header-->
+
+<main id="main">
+
+  <!-- ============================================================ hero -->
+  <section class="hero">
+    <img class="hero-art" src="/media/hero.jpg" alt="The Injoker wizard with fire, lightning and ice orbs" width="1024" height="512" fetchpriority="high">
+    <div class="wrap hero-content">
+      <div class="hero-text">
+        <p class="eyebrow">Free &middot; No ads &middot; Web &amp; Android</p>
+        <h1 class="logo">INJOKER</h1>
+        <p class="tagline">Invoke the <span class="q">ele</span><span class="w">men</span><span class="e">ts</span>.</p>
+        <p class="lead">Mix Quas, Wex and Exort into ten spells and cast the right one before the enemy reaches you.
+        A fast pixel-art spell combo game that trains your reflexes and your memory.</p>
+        <div class="cta-row">
+          <a class="btn btn-gold btn-lg" href="/play/">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Play now
+          </a>
+          <span class="btn btn-store is-soon" data-android>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 3v13h10V5H7zm5 14.2a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+            <span><small>Android</small>Coming soon to Google Play</span><span class="soon-tag">SOON</span>
+          </span>
+        </div>
+        <p class="platform-note" id="platform-note"></p>
+        <ul class="hero-badges">
+          <li>10 spells</li><li>5 Immortals</li><li>World ranking</li><li>No account</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ trailer -->
+  <section class="section" id="trailer">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Trailer</p>
+        <h2>See it in action</h2>
+        <p>Load elements, invoke, cast. Then do it faster.</p>
+      </div>
+      <button class="trailer" id="trailer-player" type="button" aria-label="Play the Injoker trailer">
+        <img src="/media/shots/immortal_tornado.png" alt="" width="928" height="544" loading="lazy">
+        <span class="play-icon"></span>
+        <span class="trailer-label">WATCH THE TRAILER</span>
+      </button>
+      <p class="trailer-foot">Plays from YouTube. <a href="https://youtu.be/kW-dQLGD_e0" target="_blank" rel="noopener">Open on YouTube</a></p>
+    </div>
+  </section>
+
+  <!-- ============================================================ how to play -->
+  <section class="section section-alt" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How to play</p>
+        <h2>Three keys. Ten spells.</h2>
+        <p>Every enemy needs one spell. Its name is on screen; the recipe is up to you.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="keys"><span class="key q">Q</span><span class="key w">W</span><span class="key e">E</span></div>
+          <h3>Load elements</h3>
+          <p>Quas (ice), Wex (lightning) and Exort (fire). Up to three orbs; a fourth pushes out the oldest.</p>
+        </div>
+        <div class="step">
+          <div class="keys"><span class="key r">R</span></div>
+          <h3>Invoke</h3>
+          <p>Your three orbs become a spell. It goes into slot D, and your previous spell moves to F.</p>
+        </div>
+        <div class="step">
+          <div class="keys"><span class="key">D</span><span class="key">F</span></div>
+          <h3>Cast</h3>
+          <p>Hit the enemy with the spell it needs. Right spell: it is gone and your combo grows.</p>
+        </div>
+      </div>
+      <p class="steps-note">Order does not matter, only the mix: <code>QQW</code> = <code>QWQ</code> = <code>WQQ</code>. On a phone, the same buttons are on screen.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ spellbook -->
+  <section class="section" id="spells">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Spellbook</p>
+        <h2>Learn them by heart</h2>
+        <p>Ten recipes from three elements. A recipe hint helps while you learn, and your runs still count.</p>
+      </div>
+      <div class="spells">
+        <div class="spell"><img src="/media/skills/ColdSnap.png" alt="" loading="lazy"><span class="name">Cold Snap</span><span class="orbs"><i class="orb q"></i><i class="orb q"></i><i class="orb q"></i></span></div>
+        <div class="spell"><img src="/media/skills/GhostWalk.png" alt="" loading="lazy"><span class="name">Ghost Walk</span><span class="orbs"><i class="orb q"></i><i class="orb q"></i><i class="orb w"></i></span></div>
+        <div class="spell"><img src="/media/skills/IceWall.png" alt="" loading="lazy"><span class="name">Ice Wall</span><span class="orbs"><i class="orb q"></i><i class="orb q"></i><i class="orb e"></i></span></div>
+        <div class="spell"><img src="/media/skills/Tornado.png" alt="" loading="lazy"><span class="name">Tornado</span><span class="orbs"><i class="orb q"></i><i class="orb w"></i><i class="orb w"></i></span></div>
+        <div class="spell"><img src="/media/skills/Blast.png" alt="" loading="lazy"><span class="name">Deafening Blast</span><span class="orbs"><i class="orb q"></i><i class="orb w"></i><i class="orb e"></i></span></div>
+        <div class="spell"><img src="/media/skills/ForgeSpirit.png" alt="" loading="lazy"><span class="name">Forge Spirit</span><span class="orbs"><i class="orb q"></i><i class="orb e"></i><i class="orb e"></i></span></div>
+        <div class="spell"><img src="/media/skills/EMP.png" alt="" loading="lazy"><span class="name">EMP</span><span class="orbs"><i class="orb w"></i><i class="orb w"></i><i class="orb w"></i></span></div>
+        <div class="spell"><img src="/media/skills/Alacrity.png" alt="" loading="lazy"><span class="name">Alacrity</span><span class="orbs"><i class="orb w"></i><i class="orb w"></i><i class="orb e"></i></span></div>
+        <div class="spell"><img src="/media/skills/Meteor.png" alt="" loading="lazy"><span class="name">Chaos Meteor</span><span class="orbs"><i class="orb w"></i><i class="orb e"></i><i class="orb e"></i></span></div>
+        <div class="spell"><img src="/media/skills/SunStrike.png" alt="" loading="lazy"><span class="name">Sun Strike</span><span class="orbs"><i class="orb e"></i><i class="orb e"></i><i class="orb e"></i></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ modes -->
+  <section class="section section-alt" id="modes">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Game modes</p>
+        <h2>Every run gets faster</h2>
+      </div>
+
+      <div class="feature-row">
+        <div class="shot"><img src="/media/shots/play_cast.png" alt="PLAY mode: a Tornado flies at an enemy" width="928" height="544" loading="lazy"></div>
+        <div>
+          <span class="tag tag-gold">MAIN MODE</span>
+          <h3>Play</h3>
+          <p>Normal enemies need one spell. Elites need a chain of two, overlords a chain of three, in order.
+          Break a chain and every spell counts: an enemy that reaches you costs one life for each spell left.</p>
+          <ul>
+            <li>Beat an overlord for a rune: extra life, frost, double score, bounty or shield</li>
+            <li>Earn gold, move on to the next stage</li>
+            <li>Climb the world ranking by score</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature-row flip">
+        <div class="shot"><img src="/media/shots/immortal_combo.png" alt="An Immortal lifted by Tornado while the combo bar waits for EMP" width="928" height="544" loading="lazy"></div>
+        <div>
+          <span class="tag tag-wex">BOSS FIGHTS</span>
+          <h3>Immortals</h3>
+          <p>Five great foes that only fall to a real combo of 4 to 8 spells. Lift them with Tornado, then land
+          EMP, Chaos Meteor, Sun Strike and Deafening Blast as they come down.</p>
+          <ul>
+            <li>PERFECT, GREAT, GOOD: timing decides the damage</li>
+            <li>They appear by chance in PLAY; practise each one from the menu</li>
+            <li>Only Immortals drop the materials for item upgrades</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature-row">
+        <div class="shot"><img src="/media/shots/shop.png" alt="The shop with Blink Dagger, Refresher Orb and other items" width="928" height="544" loading="lazy"></div>
+        <div>
+          <span class="tag tag-exort">SHOP</span>
+          <h3>Items &amp; runes</h3>
+          <p>Spend the gold you earn on items for your six slots: Blink Dagger, Eul's Scepter, Black King Bar,
+          Hand of Midas, Refresher Orb and more, each with an upgrade.</p>
+          <ul>
+            <li>Gold only comes from playing: no purchases, ever</li>
+            <li>Upgrades need materials from Immortals</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature-row flip">
+        <div class="shot"><img src="/media/shots/play.png" alt="SURVIVAL: three orbs loaded, an enemy running in" width="928" height="544" loading="lazy"></div>
+        <div>
+          <span class="tag tag-quas">ENDLESS</span>
+          <h3>Survival &amp; tutorial</h3>
+          <p>Survival is the pure test: one spell per enemy, three hearts, rising speed. How long can you last?
+          New to it? A short tutorial walks you through your first spell, key by key.</p>
+          <ul>
+            <li>Score, combo, accuracy and survival time</li>
+            <li>Ranked worldwide by time</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ immortals -->
+  <section class="section" id="immortals">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The Immortals</p>
+        <h2>Five combos to master</h2>
+        <p>Each one is a longer combo. Beat all five.</p>
+      </div>
+      <div class="immortals">
+        <div class="immortal">
+          <div class="art"><img src="/media/immortals/rimefang.png" alt="Rimefang, an ice wolf" loading="lazy"></div>
+          <h3>Rimefang</h3><p class="combo-len">4-spell combo</p>
+          <div class="combo"><img src="/media/skills/Tornado.png" alt="Tornado"><img src="/media/skills/EMP.png" alt="EMP"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"></div>
+        </div>
+        <div class="immortal">
+          <div class="art"><img src="/media/immortals/cindermaw.png" alt="Cindermaw, a fire beast" loading="lazy"></div>
+          <h3>Cindermaw</h3><p class="combo-len">5-spell combo</p>
+          <div class="combo"><img src="/media/skills/Tornado.png" alt="Tornado"><img src="/media/skills/EMP.png" alt="EMP"><img src="/media/skills/SunStrike.png" alt="Sun Strike"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"></div>
+        </div>
+        <div class="immortal">
+          <div class="art"><img src="/media/immortals/gravehorn.png" alt="Gravehorn, a horned giant" loading="lazy"></div>
+          <h3>Gravehorn</h3><p class="combo-len">6-spell combo</p>
+          <div class="combo"><img src="/media/skills/Tornado.png" alt="Tornado"><img src="/media/skills/SunStrike.png" alt="Sun Strike"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"><img src="/media/skills/ColdSnap.png" alt="Cold Snap"><img src="/media/skills/ForgeSpirit.png" alt="Forge Spirit"></div>
+        </div>
+        <div class="immortal">
+          <div class="art"><img src="/media/immortals/voltara.png" alt="Voltara, a flying storm spirit" loading="lazy"></div>
+          <h3>Voltara</h3><p class="combo-len">7-spell combo</p>
+          <div class="combo"><img src="/media/skills/Tornado.png" alt="Tornado"><img src="/media/skills/EMP.png" alt="EMP"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"><img src="/media/skills/IceWall.png" alt="Ice Wall"></div>
+        </div>
+        <div class="immortal">
+          <div class="art"><img src="/media/immortals/hollowking.png" alt="The Hollow King" loading="lazy"></div>
+          <h3>The Hollow King</h3><p class="combo-len">8-spell combo</p>
+          <div class="combo"><img src="/media/skills/ForgeSpirit.png" alt="Forge Spirit"><img src="/media/skills/Alacrity.png" alt="Alacrity"><img src="/media/skills/IceWall.png" alt="Ice Wall"><img src="/media/skills/ColdSnap.png" alt="Cold Snap"><img src="/media/skills/Tornado.png" alt="Tornado"><img src="/media/skills/SunStrike.png" alt="Sun Strike"><img src="/media/skills/Meteor.png" alt="Chaos Meteor"><img src="/media/skills/Blast.png" alt="Deafening Blast"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ features -->
+  <section class="section section-alt" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Why play</p>
+        <h2>Train your fingers</h2>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <div class="ico" style="background:rgba(242,193,78,.14);color:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+          <h3>Reflexes</h3><p>Every enemy needs one spell, right now. The longer you last, the faster they come.</p>
+        </div>
+        <div class="feature">
+          <div class="ico" style="background:rgba(95,200,255,.14);color:var(--quas)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div>
+          <h3>Memory</h3><p>Ten recipes to know by heart, with an optional hint, a recipe list and a guide while you learn.</p>
+        </div>
+        <div class="feature">
+          <div class="ico" style="background:rgba(183,124,255,.14);color:var(--wex)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg></div>
+          <h3>Competition</h3><p>Beat your records and climb the world ranking, this week and all time.</p>
+        </div>
+        <div class="feature">
+          <div class="ico" style="background:rgba(255,138,61,.14);color:var(--exort)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M11 18h2"/></svg></div>
+          <h3>Your buttons</h3><p>On a phone, move the on-screen buttons, split them for two thumbs and pick their size.</p>
+        </div>
+        <div class="feature">
+          <div class="ico" style="background:rgba(127,216,138,.14);color:#7fd88a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Fair &amp; free</h3><p>No ads, no purchases, no account. Gold only comes from playing.</p>
+        </div>
+        <div class="feature">
+          <div class="ico" style="background:rgba(143,208,255,.14);color:var(--link)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h3>Anywhere</h3><p>Play in any modern browser now, with a keyboard or on a touch screen. Android app coming soon.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ leaderboard -->
+  <section class="section" id="ranking">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">World ranking</p>
+        <h2>Top players</h2>
+        <p>Best PLAY scores on the web version.</p>
+      </div>
+      <div class="board-card">
+        <div class="board-card-head"><h3>PLAY</h3><span id="top-board-period">This week</span></div>
+        <table class="board" id="top-board" hidden><tbody></tbody></table>
+        <p class="board-empty" id="top-board-empty" hidden>No runs yet. Be the first on the board!</p>
+      </div>
+      <p class="board-foot"><a class="btn btn-ghost btn-sm" href="/leaderboard/">Full leaderboard</a></p>
+    </div>
+  </section>
+
+  <!-- ============================================================ screenshots -->
+  <section class="section section-alt" id="screenshots">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Screenshots</p>
+        <h2>A closer look</h2>
+      </div>
+      <div class="gallery">
+        <button type="button" data-shot="/media/shots/menu.png"><img src="/media/shots/menu.png" alt="Main menu" width="928" height="544" loading="lazy"></button>
+        <button type="button" data-shot="/media/shots/play_cast.png"><img src="/media/shots/play_cast.png" alt="Casting Tornado in PLAY" width="928" height="544" loading="lazy"></button>
+        <button type="button" data-shot="/media/shots/immortal_tornado.png"><img src="/media/shots/immortal_tornado.png" alt="Rimefang lifted by Tornado" width="928" height="544" loading="lazy"></button>
+        <button type="button" data-shot="/media/shots/immortals_list.png"><img src="/media/shots/immortals_list.png" alt="The five Immortals and their combos" width="928" height="544" loading="lazy"></button>
+        <button type="button" data-shot="/media/shots/recipes.png"><img src="/media/shots/recipes.png" alt="The recipe list" width="928" height="544" loading="lazy"></button>
+        <button type="button" data-shot="/media/shots/shop.png"><img src="/media/shots/shop.png" alt="The shop" width="928" height="544" loading="lazy"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ FAQ -->
+  <section class="section" id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">FAQ</p>
+        <h2>Questions</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Is Injoker free?</summary>
+          <p>Yes. No ads, no in-app purchases, no account. The gold for the shop only comes from playing.</p></details>
+        <details><summary>What do I need to play?</summary>
+          <p>A modern browser: Chrome, Edge, Firefox or Safari, on a computer with a keyboard or on a phone or tablet
+          with the on-screen buttons. Turn the phone sideways for the best view.</p></details>
+        <details><summary>When is the Android app coming?</summary>
+          <p>Soon on Google Play. Follow us on <a href="https://www.facebook.com/profile.php?id=61595470287137" target="_blank" rel="noopener">Facebook</a>
+          to hear the day it is out. Until then the web version has the same game.</p></details>
+        <details><summary>Can I play on iPhone or iPad?</summary>
+          <p>Yes, in Safari. For full screen, tap Share, then Add to Home Screen, and open Injoker from its icon.</p></details>
+        <details><summary>Where are my records kept?</summary>
+          <p>On your device, in the browser. The world ranking is optional: you choose a name the first time you open it.</p></details>
+        <details><summary>Is this an official Dota 2 game?</summary>
+          <p>No. Injoker is an independent fan-made practice game, inspired by a famous spell-mixing hero. It is not
+          affiliated with or endorsed by Valve Corporation.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ final call -->
+  <section class="cta-band" id="android">
+    <div class="wrap">
+      <h2>Ready to invoke?</h2>
+      <p>Your first spell is three keys away.</p>
+      <div class="cta-row">
+        <a class="btn btn-gold btn-lg" href="/play/">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Play now
+        </a>
+        <span class="btn btn-store is-soon" data-android>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 3v13h10V5H7zm5 14.2a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+          <span><small>Android</small>Coming soon to Google Play</span><span class="soon-tag">SOON</span>
+        </span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog class="lightbox" id="lightbox"><button class="close" type="button" aria-label="Close">&times;</button><img alt=""></dialog>
+
+<!--#footer-->
+</body>
+</html>
